@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Company Policies - Lurnexa{% endblock %}
+{% block nav_policies %}active{% endblock %}
+
+{% block extra_css %}
+
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-5">
+    <div>
+        <h2 class="page-title mb-2">Corporate Policies & Guidelines</h2>
+        <p class="text-muted fs-5 mb-0">Ensuring transparency, ethics, and a safe workplace for the Lurnexa family.</p>
+    </div>
+    {% if request.user.role == 'HR ADMIN' %}
+    <button class="btn btn-primary px-4 py-2 fw-bold rounded-3 shadow-sm" data-bs-toggle="modal"
+        data-bs-target="#addPolicyModal">
+        <i class="fa-solid fa-plus me-2"></i> Add New Policy
+    </button>
+    {% endif %}
+</div>
+
+<div class="row g-4">
+    {% for p in policies %}
+    <div class="col-xl-4 col-md-6">
+        <div class="card policy-card border-0 shadow-sm p-4 position-relative" data-policy-id="{{ p.PolicyID }}">
+            {% if request.user.role == 'HR ADMIN' %}
+            <div class="position-absolute top-0 end-0 p-3 d-flex gap-2" style="z-index: 10;">
+                <button class="btn btn-sm btn-light rounded-circle shadow-sm"
+                    style="width: 32px; height: 32px; padding: 0;" onclick="editPolicy('{{ p.PolicyID|escapejs }}')"
+                    title="Edit Policy">
+                    <i class="fa-solid fa-pen-to-square text-primary smaller"></i>
+                </button>
+                <form action="{% url 'delete_policy' %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Delete Policy', message: 'Are you sure you want to delete this policy?', onConfirm: () => form.submit()});">
+                    {% csrf_token %}
+                    <input type="hidden" name="policy_id" value="{{ p.PolicyID }}">
+                    <button type="submit" class="btn btn-sm btn-light rounded-circle shadow-sm"
+                        style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" title="Delete Policy">
+                        <i class="fa-solid fa-trash text-danger smaller"></i>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <div>
+                <div class="policy-icon-wrapper">
+                    <i class="fa-solid {{ p.Icon }}"></i>
+                </div>
+                <h5 class="fw-bold mb-3">{{ p.Title }}</h5>
+                <p class="text-muted small mb-4">{{ p.Description }}</p>
+            </div>
+            <button class="btn-view-policy" onclick="openPolicy('{{ p.PolicyID }}')">View Full Policy</button>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <div class="mb-3 text-muted">
+            <i class="fa-solid fa-folder-open fa-3x"></i>
+        </div>
+        <h5 class="text-muted">No policies found.</h5>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Add Policy Modal (HR ONLY) -->
+{% if request.user.role == 'HR ADMIN' %}
+<div class="modal fade" id="addPolicyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <form action="{% url 'add_policy' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-header border-0 pt-4 px-4">
+                    <h5 class="fw-bold mb-0">Create New Corporate Policy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Policy Title</label>
+                            <input type="text" name="title" class="form-control rounded-3"
+                                placeholder="e.g. Work From Home Policy" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Brand Color</label>
+                            <input type="color" name="color" class="form-control form-control-color w-100 rounded-3"
+                                value="#1a4f8b">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Short Description</label>
+                            <textarea name="description" class="form-control rounded-3" rows="2"
+                                placeholder="Brief summary for the dashboard card..." required></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Icon (FontAwesome Class)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="fa-solid fa-icons"></i></span>
+                                <input type="text" name="icon" class="form-control rounded-end-3"
+                                    placeholder="fa-file-lines" value="fa-file-lines">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Detailed Content (HTML Supported)</label>
+                            <textarea name="content" class="form-control rounded-3" rows="10"
+                                placeholder="<h6>1. Section Title</h6><p>Policy details here...</p>"
+                                required></textarea>
+                            <div class="form-text mt-2">You can use <code>&lt;h6&gt;</code> for section headers and
+                                <code>&lt;p&gt;</code> for paragraphs.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold rounded-pill shadow-sm">Save
+                        Policy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Policy View Modal -->
+<div class="modal fade" id="policyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="policy-modal-header d-flex justify-content-between align-items-center" id="policyHeader">
+                <div>
+                    <h3 class="fw-bold mb-1" id="policyTitle">Policy Title</h3>
+                    <p class="mb-0 opacity-75 small">Official Lurnexa Document</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-5">
+                <div id="policyBody" class="policy-content">
+                    <!-- Dynamic Content -->
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4">
+                <button type="button" class="btn btn-light px-4 fw-bold w-100 py-3 rounded-pill" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Policy Modal (HR ONLY) -->
+{% if request.user.role == 'HR ADMIN' %}
+<div class="modal fade" id="editPolicyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <form id="editPolicyForm" action="" method="POST">
+                {% csrf_token %}
+                <div class="modal-header border-0 pt-4 px-4">
+                    <h5 class="fw-bold mb-0">Edit Corporate Policy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Policy Title</label>
+                            <input type="text" name="title" id="edit_title" class="form-control rounded-3" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Brand Color</label>
+                            <input type="color" name="color" id="edit_color"
+                                class="form-control form-control-color w-100 rounded-3">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Short Description</label>
+                            <textarea name="description" id="edit_description" class="form-control rounded-3" rows="2"
+                                required></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Icon (FontAwesome Class)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="fa-solid fa-icons"></i></span>
+                                <input type="text" name="icon" id="edit_icon" class="form-control rounded-end-3">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Detailed Content (HTML Supported)</label>
+                            <textarea name="content" id="edit_content" class="form-control rounded-3" rows="10"
+                                required></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold rounded-pill shadow-sm">Update
+                        Policy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+
+
+<script id="policies-data" type="application/json">
+{{ policies_json|safe }}
+</script>
+
+<script>
+    const policiesData = JSON.parse(document.getElementById('policies-data').textContent);
+
+    function openPolicy(id) {
+        const policy = policiesData[id];
+        if (!policy) return;
+
+        document.getElementById('policyTitle').innerText = policy.title;
+        document.getElementById('policyBody').innerHTML = policy.content;
+        document.getElementById('policyHeader').style.background = policy.gradient;
+        document.getElementById('policyHeader').style.color = policy.color; // Match text color to the brand color for better visibility
+
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('policyModal'));
+        modal.show();
+    }
+
+    function editPolicy(id) {
+        const policy = policiesData[id];
+        if (!policy) return;
+
+        document.getElementById('edit_title').value = policy.title;
+        document.getElementById('edit_description').value = policy.description;
+        document.getElementById('edit_content').value = policy.content;
+        document.getElementById('edit_icon').value = policy.icon;
+        document.getElementById('edit_color').value = policy.color;
+
+        const form = document.getElementById('editPolicyForm');
+        form.action = `/core/policies/edit/${id}/`;
+
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editPolicyModal'));
+        modal.show();
+    }
+
+
+
+    // Initialize Card Styling
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.policy-card').forEach(card => {
+            const id = card.getAttribute('data-policy-id');
+            const data = policiesData[id];
+            if (data) {
+                const wrapper = card.querySelector('.policy-icon-wrapper');
+                if (wrapper) {
+                    wrapper.style.background = data.gradient;
+                    wrapper.style.color = data.color;
+                }
+            }
+        });
+        // Auto-open policy if specified in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const openId = urlParams.get('open');
+        if (openId && policiesData[openId]) {
+            setTimeout(() => openPolicy(openId), 500);
+        }
+    });
+</script>
+{% endblock %}

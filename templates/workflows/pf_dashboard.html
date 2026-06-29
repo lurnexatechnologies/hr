@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 bg-gradient-info text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-white bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 50px; height: 50px;">
+                        <i class="fas fa-tasks fs-4"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0">{{ total_pending }}</h3>
+                    <p class="mb-0 small opacity-75">Pending Actions</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 bg-gradient-warning text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-white bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 50px; height: 50px;">
+                        <i class="fas fa-id-card fs-4"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0">{{ pending_kyc|length }}</h3>
+                    <p class="mb-0 small opacity-75">KYC Pending</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 bg-gradient-primary text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-white bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 50px; height: 50px;">
+                        <i class="fas fa-user-check fs-4"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0">{{ pending_verification|length }}</h3>
+                    <p class="mb-0 small opacity-75">Verification Pending</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 bg-gradient-success text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-white bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 50px; height: 50px;">
+                        <i class="fas fa-star fs-4"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0">{{ active_pf|length }}</h3>
+                    <p class="mb-0 small opacity-75">PF Activated</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+                <div class="card-header bg-white py-3 px-4 border-0">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h5 class="mb-0 fw-bold text-dark">PF Onboarding Workflows</h5>
+                        <div class="btn-group btn-group-sm rounded-pill p-1 bg-light">
+                            <button class="btn btn-primary rounded-pill px-3 active" onclick="showTab('pending')">Pending</button>
+                            <button class="btn btn-light rounded-pill px-3" onclick="showTab('active')">Activated</button>
+                            <button class="btn btn-light rounded-pill px-3" onclick="showTab('rejected')">Rejected</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Pending Tab -->
+                    <div id="tab-pending" class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted small text-uppercase">
+                                <tr>
+                                    <th class="ps-4">Employee</th>
+                                    <th>Department</th>
+                                    <th>Current Stage</th>
+                                    <th>Initiated On</th>
+                                    <th class="text-end pe-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for wf in pending_kyc %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold">{{ wf.EmployeeName }}</div>
+                                        <div class="small text-muted">{{ wf.EmployeeID }}</div>
+                                    </td>
+                                    <td>{{ wf.Department }}</td>
+                                    <td><span class="badge bg-warning-subtle text-warning rounded-pill">KYC Pending</span></td>
+                                    <td>{{ wf.InitiatedOn|slice:"0:10" }}</td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-secondary rounded-pill" disabled>Awaiting Employee</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% for wf in pending_verification %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold">{{ wf.EmployeeName }}</div>
+                                        <div class="small text-muted">{{ wf.EmployeeID }}</div>
+                                    </td>
+                                    <td>{{ wf.Department }}</td>
+                                    <td><span class="badge bg-primary-subtle text-primary rounded-pill">Verification Pending</span></td>
+                                    <td>{{ wf.InitiatedOn|slice:"0:10" }}</td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#verifyModal{{ wf.EmployeeID }}">Verify KYC</button>
+                                        
+                                        <!-- Verify Modal -->
+                                        <div class="modal fade" id="verifyModal{{ wf.EmployeeID }}" tabindex="-1">
+                                            <div class="modal-dialog modal-lg">
+                                                <div class="modal-content border-0 rounded-4 shadow-lg">
+                                                    <div class="modal-header bg-light border-0 px-4 py-3">
+                                                        <h5 class="modal-title fw-bold">Verify PF KYC: {{ wf.EmployeeName }}</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <form action="{% url 'pf_verify' wf.EmployeeID %}" method="POST">
+                                                        {% csrf_token %}
+                                                        <div class="modal-body p-4 text-start">
+                                                            <div class="alert alert-secondary border-0 mb-4">
+                                                                <p class="mb-1 fw-bold">KYC Details Provided:</p>
+                                                                <!-- We would normally fetch the profile here, for now assuming context provides some details or we use JS -->
+                                                                <ul class="mb-0 small">
+                                                                    <li>Aadhaar: Verified Format</li>
+                                                                    <li>PAN: Verified Format</li>
+                                                                    <li>Bank: Details Provided</li>
+                                                                </ul>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label fw-bold">Internal Comments</label>
+                                                                <textarea name="comments" class="form-control rounded-3" rows="3" placeholder="Add verification notes..."></textarea>
+                                                            </div>
+                                                            <div class="d-flex gap-2">
+                                                                <button type="submit" name="action" value="approve" class="btn btn-success flex-grow-1 rounded-pill py-2">Approve KYC</button>
+                                                                <button type="submit" name="action" value="reject" class="btn btn-danger flex-grow-1 rounded-pill py-2">Reject & Send Back</button>
+                                                            </div>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+
+                                {% for wf in pending_approval %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold">{{ wf.EmployeeName }}</div>
+                                        <div class="small text-muted">{{ wf.EmployeeID }}</div>
+                                    </td>
+                                    <td>{{ wf.Department }}</td>
+                                    <td><span class="badge bg-info-subtle text-info rounded-pill">{{ wf.CurrentStage }}</span></td>
+                                    <td>{{ wf.InitiatedOn|slice:"0:10" }}</td>
+                                    <td class="text-end pe-4">
+                                        <form action="{% url 'pf_approve' wf.EmployeeID %}" method="POST" class="d-inline">
+                                            {% csrf_token %}
+                                            {% if wf.CurrentStage == 'HR Executive Approval Pending' %}
+                                                <input type="hidden" name="stage" value="HR Executive">
+                                            {% elif wf.CurrentStage == 'Payroll Approval Pending' %}
+                                                <input type="hidden" name="stage" value="Payroll">
+                                            {% elif wf.CurrentStage == 'Compliance Approval Pending' %}
+                                                <input type="hidden" name="stage" value="Compliance">
+                                            {% endif %}
+                                            <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-pill px-3">Approve</button>
+                                            <button type="submit" name="action" value="reject" class="btn btn-sm btn-outline-danger rounded-pill px-3">Reject</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Activated Tab -->
+                    <div id="tab-active" class="table-responsive d-none">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted small text-uppercase">
+                                <tr>
+                                    <th class="ps-4">Employee</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Activated On</th>
+                                    <th class="text-end pe-4">ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for wf in active_pf %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold">{{ wf.EmployeeName }}</div>
+                                        <div class="small text-muted">{{ wf.EmployeeID }}</div>
+                                    </td>
+                                    <td>{{ wf.Department }}</td>
+                                    <td><span class="badge bg-success-subtle text-success rounded-pill">PF Active</span></td>
+                                    <td>{{ wf.InitiatedOn|slice:"0:10" }}</td>
+                                    <td class="text-end pe-4"><span class="small text-muted">LT-PF-{{ wf.EmployeeID|slice:"-4:" }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Rejected Tab -->
+                    <div id="tab-rejected" class="table-responsive d-none">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted small text-uppercase">
+                                <tr>
+                                    <th class="ps-4">Employee</th>
+                                    <th>Department</th>
+                                    <th>Last Stage</th>
+                                    <th>Rejected On</th>
+                                    <th class="text-end pe-4">Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for wf in rejected %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold">{{ wf.EmployeeName }}</div>
+                                        <div class="small text-muted">{{ wf.EmployeeID }}</div>
+                                    </td>
+                                    <td>{{ wf.Department }}</td>
+                                    <td>{{ wf.CurrentStage }}</td>
+                                    <td>{{ wf.InitiatedOn|slice:"0:10" }}</td>
+                                    <td class="text-end pe-4"><span class="small text-danger">KYC Discrepancy</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tabName) {
+        // Update Buttons
+        document.querySelectorAll('.btn-group .btn').forEach(btn => {
+            btn.classList.remove('btn-primary', 'active');
+            btn.classList.add('btn-light');
+        });
+        const clickedBtn = event.currentTarget;
+        clickedBtn.classList.remove('btn-light');
+        clickedBtn.classList.add('btn-primary', 'active');
+
+        // Update Tables
+        document.getElementById('tab-pending').classList.add('d-none');
+        document.getElementById('tab-active').classList.add('d-none');
+        document.getElementById('tab-rejected').classList.add('d-none');
+        document.getElementById('tab-' + tabName).classList.remove('d-none');
+    }
+</script>
+
+
+{% endblock %}

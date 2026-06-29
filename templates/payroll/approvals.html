@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}Payroll Approvals - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="page-title mb-1">Payroll Approvals</h2>
+    <p class="text-muted">Review and authorize payroll disbursement batches submitted by HR Admin.</p>
+</div>
+
+<div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
+    <div class="card-header bg-white border-bottom p-0">
+        <ul class="nav nav-tabs border-bottom-0" id="approvalTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'pending' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">
+                    Pending Authorization <span class="badge bg-primary ms-2">{{ pending_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
+                    Approval History
+                </button>
+            </li>
+            {% if selected_details %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'details' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab" onclick="updateActiveTab('details')">
+                    Batch Details
+                </button>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <!-- Filter Bar -->
+        <div class="px-4 py-3 bg-light border-bottom">
+            <form method="GET" class="row g-2 align-items-center">
+                <input type="hidden" name="tab" id="activeTabInput" value="{{ active_tab }}">
+                <div class="col-md-8 d-flex gap-2 align-items-center" id="historyFilters" {% if active_tab == 'pending' %}style="display: none !important;"{% endif %}>
+                    <span class="text-muted small fw-bold me-1">FILTER:</span>
+                    <select name="month" class="form-select form-select-sm" style="max-width: 150px;" required>
+                        <option value="" disabled {% if not filter_month %}selected{% endif %}>Select Month</option>
+                        {% for m_val, m_name in months %}
+                        <option value="{{ m_val }}" {% if filter_month == m_val %}selected{% endif %}>{{ m_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="year" class="form-select form-select-sm" style="max-width: 120px;" required>
+                        <option value="" disabled {% if not filter_year %}selected{% endif %}>Select Year</option>
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if filter_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Filter</button>
+                    {% if filter_month or filter_year %}
+                    <a href="?tab=history" class="btn btn-sm btn-outline-secondary rounded-pill px-3">Clear</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+        <div class="tab-content" id="approvalTabsContent">
+            <!-- Pending Tab -->
+            <div class="tab-pane fade {% if active_tab == 'pending' %}show active{% endif %}" id="pending" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Payroll Batch</th>
+                                <th class="border-0 py-3">Employee Count</th>
+                                <th class="border-0 py-3">Total Net Disbursement</th>
+                                <th class="border-0 py-3">Submitted By</th>
+                                <th class="pe-4 border-0 py-3 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in pending_requests %}
+                            <tr>
+                                <td class="ps-4 py-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm me-3 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fa-solid fa-calendar-check"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-main">{{ req.MonthYear|upper|replace:"_, " }}</div>
+                                            <div class="text-muted small">Batch ID: {{ req.RequestID|slice:":8" }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-dark">{{ req.EmployeeCount }}</span> <span class="text-muted small">Employees</span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay }}</div>
+                                    <div class="text-muted small">Liability for the month</div>
+                                </td>
+                                <td>
+                                    <div class="small fw-medium text-dark">{{ req.SubmittedBy }}</div>
+                                    <div class="text-muted small">{{ req.SubmittedAt|slice:":16" }}</div>
+                                </td>
+                                <td class="pe-4 text-end">
+                                    <div class="d-flex gap-2 justify-content-end">
+                                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#viewDetails{{ req.RequestID }}">
+                                            <i class="fa-solid fa-list-check me-1"></i> Details
+                                        </button>
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="approve">
+                                            <button type="submit" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm" onclick="return confirm('Authorize this payroll run? This will initiate the disbursement workflow.')">
+                                                <i class="fa-solid fa-check me-1"></i> Authorize
+                                            </button>
+                                        </form>
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="reject">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger px-3 rounded-pill" onclick="return confirm('Reject this payroll run?')">
+                                                <i class="fa-solid fa-xmark me-1"></i> Reject
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- Modal View Details -->
+                                    <div class="modal fade text-start" id="viewDetails{{ req.RequestID }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-lg modal-dialog-centered">
+                                            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                                                <div class="modal-header border-0 p-4 pb-0">
+                                                    <h5 class="modal-title fw-bold">Payroll Summary: {{ req.MonthYear|upper|replace:"_, " }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body p-4">
+                                                    <div class="table-responsive rounded-3 border">
+                                                        <table class="table table-hover align-middle mb-0">
+                                                            <thead class="bg-light">
+                                                                <tr>
+                                                                    <th class="small fw-bold">Employee</th>
+                                                                    <th class="small fw-bold">Gross Salary</th>
+                                                                    <th class="small fw-bold">Deductions</th>
+                                                                    <th class="small fw-bold text-end">Net Payable</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for b in req.BatchData %}
+                                                                <tr>
+                                                                    <td>
+                                                                        <div class="fw-bold small">{{ b.EmployeeName }}</div>
+                                                                        <div class="text-muted small">{{ b.EmployeeID }}</div>
+                                                                    </td>
+                                                                    <td class="small">₹ {{ b.PayslipData.GrossSalary }}</td>
+                                                                    <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions }}</td>
+                                                                    <td class="fw-bold text-end text-primary">₹ {{ b.PayslipData.NetPay }}</td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                            <tfoot class="bg-light fw-bold">
+                                                                <tr>
+                                                                    <td colspan="3" class="text-end py-3">Total Batch Net Pay:</td>
+                                                                    <td class="text-end py-3 text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay }}</td>
+                                                                </tr>
+                                                            </tfoot>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer border-0 p-4 pt-0">
+                                                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <div class="icon-btn mx-auto mb-3" style="background: rgba(40, 167, 69, 0.1); color: #28a745; width: 60px; height: 60px;">
+                                        <i class="fa-solid fa-clipboard-check" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    <h6 class="fw-bold">No Pending Authorizations</h6>
+                                    <p class="small mb-0">All payroll batches have been processed.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane fade {% if active_tab == 'history' %}show active{% endif %}" id="history" role="tabpanel">
+                {% if not filter_month or not filter_year %}
+                <div class="text-center py-5">
+                    <div class="icon-btn mx-auto mb-3" style="background: rgba(108, 117, 125, 0.1); color: #6c757d; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-calendar-days" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <h6 class="fw-bold text-muted">Select Date to View History</h6>
+                    <p class="small text-muted mb-0">Please select a specific month and year from the filter bar above to display the payroll approval history.</p>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Payroll Batch</th>
+                                <th class="border-0 py-3">Status</th>
+                                <th class="border-0 py-3">Approved By</th>
+                                <th class="border-0 py-3">Employees</th>
+                                <th class="border-0 py-3">Total Disbursement</th>
+                                <th class="pe-4 border-0 py-3 text-end">Processed At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in history_page_obj %}
+                            <tr class="opacity-75">
+                                <td class="ps-4 py-4">
+                                    <div class="fw-bold text-main">{{ req.MonthYear|upper|replace:"_, " }}</div>
+                                    <div class="text-muted small">Batch ID: {{ req.RequestID|slice:":8" }}</div>
+                                </td>
+                                <td>
+                                    {% if req.Status == 'Approved' %}
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Approved</span>
+                                    {% else %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-xmark me-1"></i> {{ req.Status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ req.ProcessorName|default:"System" }}</td>
+                                <td>{{ req.EmployeeCount }} Employees</td>
+                                <td class="fw-bold">₹ {{ req.TotalNetPay }}</td>
+                                <td class="pe-4 text-end">
+                                    <div class="d-flex gap-2 justify-content-end align-items-center">
+                                        <a href="?tab=details&details={{ req.RequestID }}&month={{ filter_month }}&year={{ filter_year }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3 smaller">
+                                            <i class="fa-solid fa-list-ul me-1"></i> Details
+                                        </a>
+                                        <div class="text-muted smaller">
+                                            {{ req.ProcessedAt|slice:":16" }}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted small">
+                                    No historical payroll records found for this period.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if history_page_obj %}
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ history_page_obj.start_index }} - {{ history_page_obj.end_index }} out of {{ history_page_obj.paginator.count }} records</span>
+                    <nav aria-label="History pagination">
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if history_page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?tab=history&month={{ filter_month }}&year={{ filter_year }}&page={{ history_page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">Previous</span>
+                                </li>
+                            {% endif %}
+                            
+                            <li class="page-item active"><span class="page-link">{{ history_page_obj.number }}</span></li>
+                            
+                            {% if history_page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?tab=history&month={{ filter_month }}&year={{ filter_year }}&page={{ history_page_obj.next_page_number }}">Next</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">Next</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+                
+                {% endif %}
+            </div>
+
+            <!-- Details Tab -->
+            {% if selected_details %}
+            <div class="tab-pane fade {% if active_tab == 'details' %}show active{% endif %}" id="details" role="tabpanel">
+                <div class="p-4 border-bottom bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold mb-1">Approved Payroll: {{ selected_details.MonthYear|upper|replace:"_, " }}</h5>
+                        <div class="smaller text-muted">
+                            Processed By: <span class="fw-bold text-dark">{{ selected_details.ProcessorName|default:"System" }}</span> | 
+                            Status: <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 rounded-pill ms-1">{{ selected_details.Status }}</span>
+                        </div>
+                    </div>
+                    <a href="?tab=history&month={{ filter_month }}&year={{ filter_year }}" class="btn btn-light rounded-pill px-4 btn-sm border">
+                        <i class="fa-solid fa-arrow-left me-1"></i> Back to History
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Gross Salary</th>
+                                <th class="border-0 py-3">Deductions</th>
+                                <th class="pe-4 border-0 py-3 text-end">Net Payable</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in batch_page_obj %}
+                            <tr>
+                                <td class="ps-4">
+                                    <div class="fw-bold small">{{ b.EmployeeName }}</div>
+                                    <div class="text-muted small">{{ b.EmployeeID }}</div>
+                                </td>
+                                <td class="small">₹ {{ b.PayslipData.GrossSalary }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions }}</td>
+                                <td class="fw-bold text-end text-primary pe-4">₹ {{ b.PayslipData.NetPay }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-5 text-muted small">No batch data available.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="bg-light fw-bold">
+                            <tr>
+                                <td colspan="3" class="text-end py-3">Total Batch Net Pay:</td>
+                                <td class="text-end pe-4 py-3 text-success" style="font-size: 1.1rem;">₹ {{ selected_details.TotalNetPay }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                {% if batch_page_obj %}
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ batch_page_obj.start_index }} - {{ batch_page_obj.end_index }} out of {{ batch_page_obj.paginator.count }} records</span>
+                    <nav aria-label="Details pagination">
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if batch_page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?tab=details&details={{ selected_details.RequestID }}&month={{ filter_month }}&year={{ filter_year }}&batch_page={{ batch_page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">Previous</span>
+                                </li>
+                            {% endif %}
+                            
+                            <li class="page-item active"><span class="page-link">{{ batch_page_obj.number }}</span></li>
+                            
+                            {% if batch_page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?tab=details&details={{ selected_details.RequestID }}&month={{ filter_month }}&year={{ filter_year }}&batch_page={{ batch_page_obj.next_page_number }}">Next</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">Next</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function updateActiveTab(tabName) {
+        const input = document.getElementById('activeTabInput');
+        if (input) input.value = tabName;
+        
+        const historyFilters = document.getElementById('historyFilters');
+        if (historyFilters) {
+            if (tabName === 'history') {
+                historyFilters.style.setProperty('display', 'flex', 'important');
+            } else {
+                historyFilters.style.setProperty('display', 'none', 'important');
+            }
+        }
+    }
+
+    // Handle tab persistence if needed
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        if (tabParam) {
+            const tabEl = document.getElementById(tabParam + '-tab');
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
+        }
+    });
+</script>
+{% endblock %}

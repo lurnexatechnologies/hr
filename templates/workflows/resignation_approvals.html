@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Resignation Approvals - Lurnexa{% endblock %}
+{% block nav_resignation_hr %}active{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="page-title mb-1">Resignation Approvals</h2>
+    <p class="text-muted">Review and process employee departure requests.</p>
+</div>
+
+<div class="card border-0 shadow-sm" style="border-radius: 16px;">
+    <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+        <ul class="nav nav-tabs border-bottom-0" id="resignationTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'pending' or not active_tab %}active{% endif %} fw-bold px-4 py-3" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">Pending Review <span class="badge bg-primary ms-2">{{ pending_resignations|length }}</span></button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} fw-bold px-4 py-3 text-muted" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">Approval History</button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <!-- Filter Bar -->
+        <div class="px-4 py-3 bg-light border-bottom">
+            <form method="GET" class="row g-2 align-items-center">
+                <input type="hidden" name="tab" id="activeTabInput" value="{{ active_tab|default:'pending' }}">
+                <div class="col-md-4">
+                    <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text bg-white border-0 text-muted ps-3"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" name="q" class="form-control border-0 ps-1" placeholder="Search employee or ID..." value="{{ request.GET.q }}">
+                    </div>
+                </div>
+                {% if request.user.role == 'HR ADMIN' %}
+                <div class="col-md-3">
+                    <select name="dept" class="form-select form-select-sm shadow-sm rounded-pill border-0 px-3" onchange="this.form.submit()">
+                        <option value="">All Departments</option>
+                        {% for d in departments %}
+                        <option value="{{ d }}" {% if request.GET.dept == d %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-2">
+                    <select name="range" class="form-select form-select-sm shadow-sm rounded-pill border-0 px-3" onchange="this.form.submit()">
+                        <option value="all" {% if request.GET.range == 'all' or not request.GET.range %}selected{% endif %}>All Time</option>
+                        <option value="month" {% if request.GET.range == 'month' %}selected{% endif %}>This Month</option>
+                        <option value="3months" {% if request.GET.range == '3months' %}selected{% endif %}>Last 3 Months</option>
+                        <option value="year" {% if request.GET.range == 'year' %}selected{% endif %}>This Year</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="sort" class="form-select form-select-sm shadow-sm rounded-pill border-0 px-3" onchange="this.form.submit()">
+                        <option value="desc" {% if request.GET.sort == 'desc' or not request.GET.sort %}selected{% endif %}>Newest First</option>
+                        <option value="asc" {% if request.GET.sort == 'asc' %}selected{% endif %}>Oldest First</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div class="tab-content" id="resignationTabsContent">
+            <!-- Pending Tab -->
+            <div class="tab-pane fade {% if active_tab == 'pending' or not active_tab %}show active{% endif %}" id="pending" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small fw-bold text-uppercase">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Phone</th>
+                                <th class="border-0 py-3">Reason</th>
+                                <th class="border-0 py-3">Comments</th>
+                                <th class="border-0 py-3">Last Working Day</th>
+                                <th class="border-0 py-3">Submitted On</th>
+                                <th class="pe-4 border-0 py-3 text-end">Actions</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in pending_resignations %}
+                            <tr>
+                                <td class="ps-4 py-4">
+                                    <div class="fw-bold text-main">{{ r.EmployeeName }}</div>
+                                    <div class="text-muted small">{{ r.EmployeeID }}</div>
+                                </td>
+                                <td class="text-nowrap">{{ r.PhoneNumber }}</td>
+                                <td><div style="min-width: 150px; max-width: 250px; white-space: normal; line-height: 1.4;">{{ r.Reason }}</div></td>
+                                <td><div style="min-width: 150px; max-width: 250px; white-space: normal; line-height: 1.4;">{{ r.Comments|default:"N/A" }}</div></td>
+                                <td class="fw-medium text-nowrap">{{ r.LastWorkingDay }}</td>
+                                <td class="text-muted small text-nowrap">{{ r.SubmittedOn }}</td>
+                                <td class="pe-4 text-end">
+                                    <a href="{% url 'process_resignation' r.EmployeeID 'approve' %}" class="btn btn-sm btn-success rounded-pill px-3 me-1">
+                                        <i class="fa-solid fa-check me-1"></i> Accept
+                                    </a>
+                                    <a href="{% url 'process_resignation' r.EmployeeID 'reject' %}" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                                        <i class="fa-solid fa-xmark me-1"></i> Reject
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5">
+                                    <i class="fa-solid fa-inbox fa-3x text-light mb-3 d-block"></i>
+                                    <p class="text-muted">No pending resignation requests.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ pending_resignations.start_index }} - {{ pending_resignations.end_index }} out of {{ pending_count }} records</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if pending_resignations.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_p={{ pending_resignations.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ pending_resignations.number }}</a></li>
+                            {% if pending_resignations.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_p={{ pending_resignations.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane fade {% if active_tab == 'history' %}show active{% endif %}" id="history" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small fw-bold text-uppercase">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">LWD</th>
+                                <th class="border-0 py-3">Status</th>
+                                <th class="border-0 py-3">Approved By</th>
+                                <th class="pe-4 border-0 py-3 text-end">Submitted On</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in processed_resignations %}
+                            <tr class="opacity-75">
+                                <td class="ps-4 py-4">
+                                    <div class="fw-bold text-main">{{ r.EmployeeName }}</div>
+                                    <div class="text-muted small">{{ r.EmployeeID }}</div>
+                                </td>
+                                <td class="fw-medium">{{ r.LastWorkingDay }}</td>
+                                <td>
+                                    {% if r.Status == 'Accepted Resignation' %}
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 px-3 py-2 rounded-pill">Accepted</span>
+                                        {% if r.IsInactive %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 px-3 py-2 rounded-pill ms-1">Inactive</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 px-3 py-2 rounded-pill">Rejected</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ r.ProcessorName|default:"System" }}</td>
+                                <td class="pe-4 text-end">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <div class="text-muted small me-2">{{ r.SubmittedOn }}</div>
+                                        {% if r.Status == 'Accepted Resignation' %}
+                                            <!-- Letter generation links removed as requested -->
+                                        {% endif %}
+
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-5 text-muted">No processed resignations found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ processed_resignations.start_index }} - {{ processed_resignations.end_index }} out of {{ processed_count }} records</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if processed_resignations.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_h={{ processed_resignations.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ processed_resignations.number }}</a></li>
+                            {% if processed_resignations.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_h={{ processed_resignations.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    function updateActiveTab(tabName) {
+        const input = document.getElementById('activeTabInput');
+        if (input) input.value = tabName;
+        // Update all pagination links to include the current tab
+        const paginationLinks = document.querySelectorAll('.pagination a');
+        paginationLinks.forEach(link => {
+            const url = new URL(link.href, window.location.origin);
+            url.searchParams.set('tab', tabName);
+            link.href = url.pathname + url.search;
+        });
+    }
+
+    // On page load, ensure pagination links have the correct tab
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        
+        if (tabParam) {
+            const tabEl = document.getElementById(tabParam + '-tab');
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+                updateActiveTab(tabParam);
+            }
+        } else {
+             const input = document.getElementById('activeTabInput');
+             if (input && input.value) updateActiveTab(input.value);
+        }
+    });
+</script>
+{% endblock %}

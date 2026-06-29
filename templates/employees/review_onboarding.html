@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% load employee_filters %}
+
+{% block title %}Review Documents - {{ employee.FirstName }}{% endblock %}
+{% block nav_onboarding %}active{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'onboarding_requests' %}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="fa-solid fa-arrow-left me-2"></i> Back to Requests</a>
+    <h2 class="page-title">Review Onboarding: {{ employee.FirstName }} {{ employee.LastName }}</h2>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-12">
+        <form action="{% url 'approve_onboarding_action' employee.EmployeeID %}" method="POST" id="verificationForm">
+            {% csrf_token %}
+            <input type="hidden" name="doc_statuses" id="docStatusesInput">
+            <input type="hidden" name="action" id="finalActionInput">
+
+            <div class="row g-4 mb-4">
+                <!-- Personal & Family Details Card -->
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+                        <div class="card-header bg-white pt-4 px-4 border-0">
+                            <h5 class="fw-bold mb-0 text-primary"><i class="fa-solid fa-user-check me-2"></i> Personal & Family Information</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Full Name</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.FirstName }} {{ employee.LastName }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Email</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.Email }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Phone</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.Phone|default:"Not Provided" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Date of Birth</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.DOB|default:"Not Provided" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Gender</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.Gender|default:"Not Provided" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Employment Type</label>
+                                    <p class="mb-0 fw-semibold text-primary">
+                                        {{ employee.EmploymentType|default:"Permanent" }} 
+                                        {% if employee.EmploymentType == 'Intern' %}
+                                            ({{ employee.InternshipPeriod|default:"0" }} Months)
+                                        {% else %}
+                                            - {{ employee.EmploymentStatus|default:"Full Time" }}
+                                            {% if employee.EmploymentStatus == 'Probation' %} ({{ employee.ProbationPeriod|default:"0" }} Months){% endif %}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Designation</label>
+                                    <p class="mb-0 fw-bold text-indigo">{{ employee.Designation|default:"Not Provided" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Education</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.Education|default:"Not Provided" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">City / Location</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.City|default:"Not Provided" }}</p>
+                                </div>
+                                <div class="col-12">
+                                    <label class="small text-muted fw-bold text-uppercase">Residential Address</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.Address|default:"Not Provided" }}</p>
+                                </div>
+                                
+                                <div class="col-12"><hr class="opacity-10"></div>
+                                
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Father's Name</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.FatherName|default:"-" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Mother's Name</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.MotherName|default:"-" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Spouse Name</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.SpouseName|default:"-" }}</p>
+                                </div>
+                                
+                                <div class="col-12"><hr class="opacity-10"></div>
+                                
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Emergency Contact</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.EmergencyContactName|default:"-" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Relation</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.EmergencyContactRelation|default:"-" }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted fw-bold text-uppercase">Emergency Phone</label>
+                                    <p class="mb-0 fw-semibold">{{ employee.EmergencyContactPhone|default:"-" }}</p>
+                                </div>
+
+                                {% if employee.IsExperienced %}
+                                <div class="col-12 mt-4">
+                                    <div class="p-3 rounded-4 bg-light border border-primary border-opacity-10">
+                                        <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-user-tie me-2"></i> Professional Experience</h6>
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">Last Company</label>
+                                                <span class="fw-semibold">{{ employee.PreviousCompany|default:"-" }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">Last Designation</label>
+                                                <span class="fw-semibold">{{ employee.LastDesignation|default:"-" }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">Total Experience</label>
+                                                <span class="fw-semibold">{{ employee.ExperienceYears|default:"-" }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">Last Working Date</label>
+                                                <span class="fw-semibold">{{ employee.PrevLastWorkingDate|default:"-" }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">PF Number</label>
+                                                <span class="fw-semibold">{{ employee.PFNumber|default:"-" }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">UAN Number</label>
+                                                <span class="fw-semibold">{{ employee.UANNumber|default:"-" }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bank & Salary Details Card -->
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm h-100" style="border-radius: 20px; background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);">
+                        <div class="card-header bg-transparent pt-4 px-4 border-0">
+                            <h5 class="fw-bold mb-0 text-success"><i class="fa-solid fa-building-columns me-2"></i> Banking Information</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-4 p-3 bg-white rounded-4 shadow-sm border border-light">
+                                <label class="small text-muted fw-bold text-uppercase d-block mb-1">Bank Name</label>
+                                <span class="fw-bold text-dark">{{ employee.BankName|default:"Not Provided" }}</span>
+                            </div>
+                            <div class="mb-4 p-3 bg-white rounded-4 shadow-sm border border-light">
+                                <label class="small text-muted fw-bold text-uppercase d-block mb-1">Account Number</label>
+                                <span class="fw-bold text-dark font-monospace">{{ employee.AccountNumber|default:"Not Provided" }}</span>
+                            </div>
+                            <div class="mb-4 p-3 bg-white rounded-4 shadow-sm border border-light">
+                                <label class="small text-muted fw-bold text-uppercase d-block mb-1">IFSC Code</label>
+                                <span class="fw-bold text-dark font-monospace">{{ employee.IFSCCode|default:"Not Provided" }}</span>
+                            </div>
+                            
+                            <div class="mt-4 p-3 bg-primary bg-opacity-10 rounded-4 border-0">
+                                <label class="small text-primary fw-bold text-uppercase d-block mb-1">Proposed Salary (P.A.)</label>
+                                <h4 class="fw-black text-primary mb-0">₹ {{ employee.SalaryPA|default:"0" }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <!-- Document Cards -->
+                {% for field, label in document_fields %}
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <label class="form-label fw-bold small text-uppercase text-muted mb-0">{{ label }}</label>
+                                {% if employee.DocumentStatuses|get_item:field == 'Approved' %}
+                                <span class="badge bg-success-subtle text-success rounded-pill">Approved</span>
+                                {% elif employee.DocumentStatuses|get_item:field == 'Rejected' %}
+                                <span class="badge bg-danger-subtle text-danger rounded-pill">Rejected</span>
+                                {% else %}
+                                <span class="badge bg-light text-muted rounded-pill">Pending</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-center bg-light p-3 rounded-4 mb-3" style="height: 150px; display: flex; align-items: center; justify-content: center;">
+                                {% if employee|get_item:field %}
+                                    {% if field == 'PassportPhoto' %}
+                                    <img src="/media/{{ employee|get_item:field }}" class="img-fluid rounded" style="max-height: 130px; object-fit: contain;">
+                                    {% else %}
+                                    <i class="fa-solid fa-file-circle-check fa-3x text-primary"></i>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">Not Uploaded</span>
+                                {% endif %}
+                            </div>
+                            {% if employee|get_item:field %}
+                            <div class="document-review-actions">
+                                <div class="btn-group w-100 shadow-sm rounded-pill overflow-hidden border">
+                                    <input type="radio" class="btn-check" name="status_{{ field }}" id="approve_{{ field }}" value="Approved" autocomplete="off" 
+                                           {% if employee.DocumentStatuses|get_item:field == 'Approved' %}checked{% endif %}>
+                                    <label class="btn btn-outline-success border-0 btn-sm py-2 px-3 fw-bold" for="approve_{{ field }}">
+                                        <i class="fa-solid fa-check me-1"></i> Approve
+                                    </label>
+
+                                    <input type="radio" class="btn-check" name="status_{{ field }}" id="reject_{{ field }}" value="Rejected" autocomplete="off"
+                                           {% if employee.DocumentStatuses|get_item:field == 'Rejected' %}checked{% endif %}>
+                                    <label class="btn btn-outline-danger border-0 btn-sm py-2 px-3 fw-bold" for="reject_{{ field }}">
+                                        <i class="fa-solid fa-xmark me-1"></i> Reject
+                                    </label>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <a href="/media/{{ employee|get_item:field }}" target="_blank" class="smaller text-decoration-none text-primary fw-semibold">
+                                        <i class="fa-solid fa-eye me-1"></i> View Full File
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Action Footer -->
+            <div class="card border-0 shadow-sm mt-5" style="border-radius: 16px;">
+                <div class="card-body p-4 text-center">
+                    <h5 class="fw-bold mb-3">Overall Decision</h5>
+                    <div class="mb-4 text-start mx-auto" style="max-width: 400px;" id="assignIdContainer">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Assign Employee ID <span class="text-danger">*</span></label>
+                        <input type="text" name="new_employee_id" id="new_employee_id" class="form-control form-control-lg border" placeholder="e.g. LT-26001">
+                        <small class="text-muted mt-1 d-block"><i class="fa-solid fa-circle-info me-1"></i> Required before approving the employee.</small>
+                    </div>
+
+                    <textarea name="reason" class="form-control border-0 bg-light mb-4 text-center" rows="2" placeholder="Feedback for employee (if rejecting)">{{ employee.RejectionReason }}</textarea>
+                    
+                    <div class="d-flex gap-3 justify-content-center">
+                        <button type="button" onclick="submitDecision('reject')" class="btn btn-outline-danger rounded-pill px-5 py-3 fw-bold">
+                            <i class="fa-solid fa-times-circle me-2"></i> Send Rejections
+                        </button>
+                        <button type="button" onclick="submitDecision('approve')" class="btn btn-success rounded-pill px-5 py-3 fw-bold shadow-sm">
+                            <i class="fa-solid fa-check-circle me-2"></i> Approve & Activate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function submitDecision(action) {
+    const statuses = {};
+    // Collect all checked radios
+    document.querySelectorAll('.btn-check:checked').forEach(check => {
+        const field = check.name.replace('status_', '');
+        statuses[field] = check.value;
+    });
+    
+    // Safety check: count how many documents are uploaded vs reviewed
+    const uploadedCount = document.querySelectorAll('.document-review-actions').length;
+    const reviewedCount = Object.keys(statuses).length;
+    
+    if (action === 'approve') {
+        const newId = document.getElementById('new_employee_id').value.trim();
+        if (!newId) {
+            Lurnexa.alert("Please assign an Employee ID before approving.", "ID Required");
+            return;
+        }
+        if (reviewedCount < uploadedCount) {
+            Lurnexa.alert("Please review (Approve or Reject) all uploaded documents before final approval.", "Review Pending");
+            return;
+        }
+    }
+
+    document.getElementById('docStatusesInput').value = JSON.stringify(statuses);
+    document.getElementById('finalActionInput').value = action;
+    document.getElementById('verificationForm').submit();
+}
+</script>
+
+
+{% endblock %}

@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Dashboard - Lurnexa{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+
+{% if is_birthday_today %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 24px; background: linear-gradient(135deg, #fff5f8 0%, #ffffff 100%); border: 1px solid rgba(255, 77, 148, 0.1) !important;">
+            <div class="card-body p-4 p-md-5 text-center">
+                <div class="cake-wrapper mb-3" id="cakeContainer">
+                    <div class="cake-box" onclick="cutCake()">
+                        <div class="cake-icon">🎂</div>
+                        <div class="knife" id="knife">🔪</div>
+                    </div>
+                    <div class="cake-msg mt-2 fw-bold text-danger" id="cakeMsg" style="font-size: 0.9rem;">Click to cut your cake! 🎂</div>
+                </div>
+                <h2 class="fw-bold text-danger mb-1">Happy Birthday, {{ request.user.first_name }}! 🎉</h2>
+                <p class="text-muted mb-0">Lurnexa wishes you a brilliant year ahead! ✨</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    function cutCake() {
+        const container = document.getElementById('cakeContainer');
+        if (container.classList.contains('cut')) return;
+        container.classList.add('cut');
+        document.getElementById('cakeMsg').innerText = "Yum! Cake is cut! 🍰✨";
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => {
+            confetti({ particleCount: 100, angle: 60, spread: 55, origin: { x: 0 } });
+            confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1 } });
+        }, 200);
+    }
+</script>
+{% endif %}
+
+
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="page-title mb-1">Good Morning, {{ request.user.first_name }}! 👋</h2>
+        <p class="text-muted">Here is what's happening today.</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <div class="d-inline-flex bg-white rounded-pill px-4 py-2 shadow-sm align-items-center">
+            {% if today_record %}
+                {% if not today_record.ClockOut %}
+                    <div style="width: 10px; height: 10px; border-radius: 50%; background: #28a745; margin-right: 10px;" class="pulse-green"></div>
+                    <span class="fw-medium text-main">
+                        Clocked in at <span class="fw-bold">{{ today_record.ClockIn }}</span>
+                        <span class="mx-2 text-muted">|</span>
+                        <span id="work-timer" class="text-primary fw-bold" data-start="{{ today_record.ClockIn }}">00:00:00</span>
+                    </span>
+                {% else %}
+                    <div style="width: 10px; height: 10px; border-radius: 50%; background: #6c757d; margin-right: 10px;"></div>
+                    <span class="fw-medium text-muted">Shift Ended: {{ today_record.ClockOut }}</span>
+                {% endif %}
+            {% else %}
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #dc3545; margin-right: 10px;"></div>
+                <span class="fw-medium text-danger">Not Clocked In</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateWorkTimer() {
+        const timerElement = document.getElementById('work-timer');
+        if (!timerElement) return;
+
+        const startTimeStr = timerElement.getAttribute('data-start'); // HH:MM
+        if (!startTimeStr) return;
+
+        const now = new Date();
+        const [hours, minutes] = startTimeStr.split(':');
+        const startTime = new Date();
+        startTime.setHours(parseInt(hours), parseInt(minutes), 0);
+
+        const diff = now - startTime;
+        if (diff < 0) return; // Future?
+
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+
+        timerElement.innerText = 
+            String(h).padStart(2, '0') + ':' + 
+            String(m).padStart(2, '0') + ':' + 
+            String(s).padStart(2, '0');
+    }
+
+    if (document.getElementById('work-timer')) {
+        setInterval(updateWorkTimer, 1000);
+        updateWorkTimer();
+    }
+</script>
+
+
+
+<div class="row mb-4">
+    <!-- Leave Balance Card -->
+    <div class="col-lg-4 mb-4 mb-lg-0">
+        <div class="card border-0 shadow-sm h-100 overflow-hidden" style="border-radius: 16px;">
+            <div class="card-header border-0 bg-white pt-4 pb-0">
+                <div class="d-flex align-items-center">
+                    <div class="icon-shape bg-soft-primary text-primary rounded-3 me-3">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                    <h5 class="fw-bold mb-0">Leave Balances</h5>
+                </div>
+            </div>
+            <div class="card-body pt-4">
+                {% if is_intern %}
+                <div class="alert alert-info border-0 rounded-4 p-4 mb-0">
+                    <div class="d-flex gap-3">
+                        <div class="icon-shape bg-info bg-opacity-10 text-info rounded-3">
+                            <i class="fa-solid fa-circle-info"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-1">Internship Policy</h6>
+                            <p class="small mb-0 text-muted">As an intern, you are eligible for <strong>Unpaid Leaves</strong> only. Paid leave accrual will begin once you transition to a permanent role.</p>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-muted small text-uppercase">Leave Type</label>
+                    <select id="dashboard_leave_selector" class="form-select shadow-sm border-light-subtle rounded-3 py-2 mb-4">
+                        <option value="el" selected>Earned Leave (EL)</option>
+                        <option value="sl">Sick Leave (SL)</option>
+                        <option value="cl">Casual Leave (CL)</option>
+                        <option value="parental">{{ parental_leave_type }}</option>
+                        <option value="marriage">Marriage Leave</option>
+                        <option value="unpaid">Unpaid Leave</option>
+                    </select>
+
+                    <!-- Dual Progress Bar -->
+                    <div class="progress rounded-pill mb-3" style="height: 8px; background-color: #f0f2f5;">
+                        <div id="dash_spent_bar" class="progress-bar bg-danger" role="progressbar" style="width: 0%; transition: width 0.6s;"></div>
+                        <div id="dash_rem_bar_fill" class="progress-bar bg-success" role="progressbar" style="width: 0%; transition: width 0.6s;"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-secondary small">Spent Leaves</span>
+                        <span class="fw-bold text-dark"><span id="dash_spent_val">0</span> days</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary small">Remaining Leaves</span>
+                        <span class="fw-bold text-dark"><span id="dash_rem_val">0</span> days</span>
+                    </div>
+                </div>
+
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const selector = document.getElementById('dashboard_leave_selector');
+                    const spent = document.getElementById('dash_spent_val');
+                    const rem = document.getElementById('dash_rem_val');
+                    const sBar = document.getElementById('dash_spent_bar');
+                    const rBar = document.getElementById('dash_rem_bar_fill');
+                    
+                    const data = {
+                        'el': { s: parseFloat('{{ spent_pl }}'), r: parseFloat('{{ balance_pl }}') },
+                        'sl': { s: parseFloat('{{ spent_sl }}'), r: parseFloat('{{ balance_sl }}') },
+                        'cl': { s: parseFloat('{{ spent_cl }}'), r: parseFloat('{{ balance_cl }}') },
+                        'marriage': { s: parseFloat('{{ spent_marriage }}'), r: 10 - parseFloat('{{ spent_marriage }}') },
+                        'parental': { 
+                            s: parseFloat('{{ spent_parental }}'), 
+                            r: ('{{ parental_leave_type }}' == 'Maternity Leave' ? 90 : 10) - parseFloat('{{ spent_parental }}') 
+                        },
+                        'unpaid': { s: parseFloat('{{ spent_unpaid }}'), r: 0 }
+                    };
+
+                    function update() {
+                        const val = selector.value;
+                        const d = data[val];
+                        if (d) {
+                            spent.textContent = d.s.toFixed(1);
+                            rem.textContent = val === 'unpaid' ? '∞' : d.r.toFixed(1);
+
+                            let sP = 0;
+                            let rP = 0;
+                            if (val === 'unpaid') {
+                                sP = 100;
+                                rP = 0;
+                            } else {
+                                const total = d.s + d.r;
+                                if (total > 0) {
+                                    sP = (d.s / total) * 100;
+                                    rP = (d.r / total) * 100;
+                                }
+                            }
+                            sBar.style.width = sP + '%';
+                            rBar.style.width = rP + '%';
+                        }
+                    }
+
+                    if (selector) {
+                        selector.addEventListener('change', update);
+                        update();
+                    }
+                });
+                </script>
+                {% endif %}
+
+                <hr class="my-4" style="border-top: 1px dashed #e3e6f0;">
+
+                <div class="upcoming-holidays mb-4">
+                    <h6 class="fw-bold mb-3 d-flex align-items-center">
+                        <i class="fa-solid fa-gift text-danger me-2 small"></i> This Month Holidays
+                    </h6>
+                    {% for h in upcoming_holidays %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded-3 bg-light-soft">
+                        <span class="text-dark small fw-medium">{{ h.Name }}</span>
+                        <span class="text-muted smaller">{{ h.HolidayDate }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted smaller mb-0">No holidays this month.</p>
+                    {% endfor %}
+                </div>
+
+                <div class="recent-request mb-4">
+                    <h6 class="fw-bold mb-3 d-flex align-items-center">
+                        <i class="fa-solid fa-history text-muted me-2 small"></i> Latest Request
+                    </h6>
+                    {% for l in recent_leaves %}
+                    <div class="p-2 rounded-3 border-start border-4 {% if l.Status == 'Approved' %}border-success bg-light-green-soft{% elif l.Status == 'Pending' %}border-warning bg-light-yellow-soft{% else %}border-danger bg-light-red-soft{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-dark small fw-bold">{{ l.Type }}</span>
+                            <span class="badge {% if l.Status == 'Approved' %}bg-success{% elif l.Status == 'Pending' %}bg-warning{% else %}bg-danger{% endif %} smaller">{{ l.Status }}</span>
+                        </div>
+                        <div class="text-muted smaller mt-1">{{ l.LeaveDate }} - {{ l.EndDate }}</div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted smaller mb-0">No recent requests.</p>
+                    {% endfor %}
+                </div>
+                
+                {% if request.user.role != 'Super admin' %}
+                <a href="{% url 'apply_leave' %}" class="btn btn-primary w-100 py-3 fw-bold shadow-sm mt-2" style="border-radius: 12px;">
+                    <i class="fa-solid fa-plus me-2"></i>Apply for Leave
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Shortcuts Card -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header border-0 bg-white pt-4 pb-2">
+                <div class="d-flex align-items-center">
+                    <div class="icon-shape bg-soft-success text-success rounded-3 me-3">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <h5 class="fw-bold mb-0">Quick Shortcuts</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{% url 'attendance_history' %}" class="shortcut-link">
+                            <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-blue">
+                                <div class="shortcut-icon-wrapper mb-3 mx-auto">
+                                    <i class="fa-solid fa-clock-rotate-left fa-xl text-primary"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">My Attendance</h6>
+                                <p class="text-muted small mb-0">View clock logs</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{% url 'payslips_view' %}" class="shortcut-link">
+                            <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-green">
+                                <div class="shortcut-icon-wrapper mb-3 mx-auto">
+                                    <i class="fa-solid fa-file-invoice-dollar fa-xl text-success"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">Payslips</h6>
+                                <p class="text-muted small mb-0">Download earnings</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{% url 'employee_profile' emp_id=request.user.employee_id %}" class="shortcut-link">
+                            <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-info">
+                                <div class="shortcut-icon-wrapper mb-3 mx-auto">
+                                    <i class="fa-solid fa-user-gear fa-xl text-info"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">My Profile</h6>
+                                <p class="text-muted small mb-0">Update your info</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{% url 'expenses_view' %}" class="shortcut-link">
+                            <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-orange">
+                                <div class="shortcut-icon-wrapper mb-3 mx-auto">
+                                    <i class="fa-solid fa-receipt fa-xl text-warning"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">Expenses</h6>
+                                <p class="text-muted small mb-0">Claim refunds</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{% url 'policies' %}" class="shortcut-link">
+                            <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-red">
+                                <div class="shortcut-icon-wrapper mb-3 mx-auto">
+                                    <i class="fa-solid fa-shield-halved fa-xl text-danger"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">Company Policies</h6>
+                                <p class="text-muted small mb-0">Rules & guidelines</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{% url 'company_calendar' %}" class="shortcut-link">
+                            <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-purple">
+                                <div class="shortcut-icon-wrapper mb-3 mx-auto">
+                                    <i class="fa-solid fa-calendar-day fa-xl text-purple"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">Holiday Calendar</h6>
+                                <p class="text-muted small mb-0">Upcoming breaks</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Birthday Celebration Section -->
+{% if today_birthdays and not is_birthday_today or tomorrow_birthdays %}
+<div class="row mt-5 mb-5">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 24px; background: linear-gradient(135deg, #fff5f8 0%, #ffffff 100%); border: 1px solid rgba(255, 77, 148, 0.1) !important;">
+            <div class="card-body p-4 p-md-5">
+                <div class="row g-4 justify-content-start">
+                    {% if today_birthdays and not is_birthday_today %}
+                    <div class="col-12">
+                        <div class="d-flex align-items-center mb-4">
+                            <span class="badge bg-danger rounded-pill px-3 py-2 me-3" style="font-size: 0.75rem; letter-spacing: 0.5px;"><i class="fa-solid fa-cake-candles me-2"></i> TODAY'S CELEBRATIONS</span>
+                            <div class="flex-grow-1 border-bottom" style="opacity: 0.1;"></div>
+                        </div>
+                        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 justify-content-start">
+                            {% for bday in today_birthdays %}
+                            <div class="col">
+                                <div class="card h-100 border-0 shadow-sm hover-lift" style="border-radius: 20px; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar shadow-sm me-3" style="width: 65px; height: 65px; background: rgba(255, 77, 148, 0.1); color: #ff4d94; overflow: hidden; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                                                {% if bday.PassportPhoto %}
+                                                    <img src="{% if bday.PassportPhoto|slice:':4' == 'http' %}{{ bday.PassportPhoto }}{% else %}/media/{{ bday.PassportPhoto }}{% endif %}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                                                {% else %}
+                                                    <span class="fw-bold" style="font-size: 1.2rem;">{{ bday.FirstName|make_list|first }}{{ bday.LastName|make_list|first }}</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="overflow-hidden">
+                                                <h6 class="mb-1 fw-bold text-dark text-truncate">{{ bday.FirstName }} {{ bday.LastName }} 🎈</h6>
+                                                <div class="text-muted small text-truncate mb-2">{{ bday.Email }}</div>
+                                                <div class="d-flex align-items-center flex-wrap gap-2">
+                                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 py-1 px-2" style="font-size: 0.65rem;">{{ bday.Designation|default:"Member" }}</span>
+                                                    <span class="text-muted" style="font-size: 0.65rem;">• {{ bday.Department|default:"Lurnexa" }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if tomorrow_birthdays %}
+                    <div class="col-12 mt-5">
+                        <div class="d-flex align-items-center mb-4">
+                            <span class="badge bg-primary rounded-pill px-3 py-2 me-3" style="font-size: 0.75rem; letter-spacing: 0.5px;"><i class="fa-solid fa-gift me-2"></i> TOMORROW'S BIRTHDAYS</span>
+                            <div class="flex-grow-1 border-bottom" style="opacity: 0.1;"></div>
+                        </div>
+                        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 justify-content-start">
+                            {% for bday in tomorrow_birthdays %}
+                            <div class="col">
+                                <div class="card h-100 border-0 shadow-sm opacity-90 hover-lift" style="border-radius: 20px; background: rgba(255, 255, 255, 0.8);">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar shadow-sm me-3" style="width: 65px; height: 65px; background: rgba(26, 79, 139, 0.1); color: var(--brand-color); overflow: hidden; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                                                {% if bday.PassportPhoto %}
+                                                    <img src="{% if bday.PassportPhoto|slice:':4' == 'http' %}{{ bday.PassportPhoto }}{% else %}/media/{{ bday.PassportPhoto }}{% endif %}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                                                {% else %}
+                                                    <span class="fw-bold" style="font-size: 1.2rem;">{{ bday.FirstName|make_list|first }}{{ bday.LastName|make_list|first }}</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="overflow-hidden">
+                                                <h6 class="mb-1 fw-bold text-dark text-truncate">{{ bday.FirstName }} {{ bday.LastName }} 🎁</h6>
+                                                <div class="text-muted small text-truncate mb-2">{{ bday.Email }}</div>
+                                                <div class="d-flex align-items-center flex-wrap gap-2">
+                                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-10 py-1 px-2" style="font-size: 0.65rem;">{{ bday.Designation|default:"Member" }}</span>
+                                                    <span class="text-muted" style="font-size: 0.65rem;">• {{ bday.Department|default:"Lurnexa" }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

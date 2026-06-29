@@ -1,0 +1,1008 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Welcome to Lurnexa - Self Onboarding{% endblock %}
+{% block body_class %}onboarding-page-body{% endblock %}
+
+{% block content %}
+<div class="onboarding-page">
+    <!-- Animated Blobs for extra color -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <div class="container pt-4 pb-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <!-- Header Section -->
+                <div class="text-center mb-4 animate-fade-in">
+                    <img src="{% static 'img/namelesslogolurnexa.png' %}" alt="Lurnexa" height="80"
+                        class="mb-2 onboarding-logo">
+                    <h1 class="display-5 fw-bold text-gradient">Join the Lurnexa Family!</h1>
+                    <p class="text-muted fw-medium mb-0">Let's get your onboarding completed in a few easy steps.</p>
+                </div>
+
+                <!-- Stepper Progress -->
+                <div class="onboarding-stepper mb-5 animate-fade-in">
+                    <div class="step active" data-step="1">
+                        <div class="step-icon"><i class="fa-solid fa-user"></i></div>
+                        <div class="step-label">Personal</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="2">
+                        <div class="step-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+                        <div class="step-label">Education</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="3">
+                        <div class="step-icon"><i class="fa-solid fa-briefcase"></i></div>
+                        <div class="step-label">Professional</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="4">
+                        <div class="step-icon"><i class="fa-solid fa-file-shield"></i></div>
+                        <div class="step-label">Documents</div>
+                    </div>
+                </div>
+
+                <form method="POST" enctype="multipart/form-data" id="onboardingForm" class="onboarding-form">
+                    {% csrf_token %}
+                    <div class="row g-4">
+                        <!-- Main Column -->
+                        <div class="col-12">
+                            <!-- STEP 1: Personal & Account -->
+                            <div class="step-content active" id="step1">
+                            <!-- Account & Personal -->
+                            <div class="glass-card mb-4 animate-slide-up" style="animation-delay: 0.1s;">
+                                <div class="card-header-custom bg-gradient-blue">
+                                    <h5 class="fw-bold mb-0 text-white"><i class="fa-solid fa-user-astronaut me-2"></i>
+                                        Personal Details</h5>
+                                </div>
+                                <div class="card-body-custom">
+                                    <div class="row g-4">
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="first_name" class="form-control" id="firstName"
+                                                    placeholder="First Name" required pattern="[A-Za-z\s]+" 
+                                                    oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="First Name should only contain letters and spaces.">
+                                                <label for="firstName">First Name <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="last_name" class="form-control" id="lastName"
+                                                    placeholder="Last Name" required pattern="[A-Za-z\s]+"
+                                                    oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="Last Name should only contain letters and spaces.">
+                                                <label for="lastName">Last Name <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="designation" class="form-control bg-light" id="designation"
+                                                    placeholder="Designation" readonly
+                                                    value="{{ token_data.Designation|default:'Employee' }}">
+                                                <label for="designation"><i class="fa-solid fa-lock me-1"></i> Assigned Designation</label>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="email" name="email"
+                                                    class="form-control bg-light fw-bold text-indigo" id="email"
+                                                    value="{{ target_email }}" readonly required>
+                                                <label for="email">Communication Email <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" class="form-control bg-light fw-bold text-success"
+                                                    id="shift" value="{{ token_data.Shift|default:'Day Shift' }}" readonly>
+                                                <label for="shift">Assigned Work Shift <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating position-relative">
+                                                <input type="password" name="password" class="form-control"
+                                                    id="password" placeholder="Password" required 
+                                                    pattern="^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$"
+                                                    oninput="validatePasswordStrength()">
+                                                <label for="password">Set Account Password <span
+                                                        class="text-danger">*</span></label>
+                                                <button type="button"
+                                                    class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2"
+                                                    onclick="toggleAccVisibility('password', this)" style="z-index: 10;">
+                                                    <i class="fa-solid fa-eye"></i>
+                                                </button>
+                                                <div id="passwordStrength" class="small mt-1 fw-bold"></div>
+                                            </div>
+                                            <div class="form-text text-muted small mt-1">
+                                                <i class="fa-solid fa-info-circle me-1"></i> Min 8 chars, must include letters, numbers & special chars (@$!%*#?&).
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating position-relative">
+                                                <input type="password" name="confirm_password" class="form-control"
+                                                    id="confirmPassword" placeholder="Confirm Password" required
+                                                    oninput="validatePasswordMatch()">
+                                                <label for="confirmPassword">Confirm Password <span
+                                                        class="text-danger">*</span></label>
+                                                <button type="button"
+                                                    class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2"
+                                                    onclick="toggleAccVisibility('confirmPassword', this)" style="z-index: 10;">
+                                                    <i class="fa-solid fa-eye"></i>
+                                                </button>
+                                                <div id="passwordMatch" class="small mt-1 fw-bold"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="phone" class="form-control" id="phone"
+                                                    placeholder="Phone Number" required maxlength="10"
+                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                                    title="Phone Number should contain 10 digits.">
+                                                <label for="phone">Phone Number <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="city" class="form-control" id="city"
+                                                    placeholder="Current City" required pattern="[A-Za-z\s]+"
+                                                    oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="City should only contain letters and spaces.">
+                                                <label for="city">Current City <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="date" name="dob" class="form-control" id="dob"
+                                                    placeholder="Date of Birth" required max="{% now 'Y'|add:'-21' %}-{% now 'm-d' %}">
+                                                <label for="dob">Date of Birth <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <select name="gender" class="form-select" id="gender" required>
+                                                    <option value="" selected disabled>Select Gender</option>
+                                                    <option value="Male">Male</option>
+                                                    <option value="Female">Female</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                                <label for="gender">Gender <span class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-12">
+                                            <div class="form-floating">
+                                                <textarea name="address" class="form-control" id="address"
+                                                    placeholder="Permanent Address" style="height: 100px"
+                                                    required></textarea>
+                                                <label for="address">Permanent Address <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Family Info -->
+                            <div class="glass-card mb-4 animate-slide-up" style="animation-delay: 0.2s;">
+                                <div class="card-header-custom bg-gradient-purple">
+                                    <h5 class="fw-bold mb-0 text-white"><i class="fa-solid fa-people-roof me-2"></i>
+                                        Family Information</h5>
+                                </div>
+                                <div class="card-body-custom">
+                                    <div class="row g-4">
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="father_name" class="form-control"
+                                                    id="fatherName" placeholder="Father's Name" required 
+                                                    pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="Father's Name should only contain letters and spaces.">
+                                                <label for="fatherName">Father's Name <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="mother_name" class="form-control"
+                                                    id="motherName" placeholder="Mother's Name" required
+                                                    pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="Mother's Name should only contain letters and spaces.">
+                                                <label for="motherName">Mother's Name <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="spouse_name" class="form-control"
+                                                    id="spouseName" placeholder="Spouse Name"
+                                                    pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="Spouse Name should only contain letters and spaces.">
+                                                <label for="spouseName">Spouse Name (if applicable)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="emergency_contact_name" class="form-control"
+                                                    id="emergencyName" placeholder="Emergency Contact Name" required
+                                                    pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                                    title="Emergency Contact Name should only contain letters and spaces.">
+                                                <label for="emergencyName">Emergency Contact Name <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <select name="emergency_relation" class="form-select"
+                                                    id="emergencyRelation" required>
+                                                    <option value="" selected disabled>Select Relation</option>
+                                                    <option value="Father">Father</option>
+                                                    <option value="Mother">Mother</option>
+                                                    <option value="Spouse">Spouse</option>
+                                                    <option value="Sibling">Sibling</option>
+                                                    <option value="Friend">Friend</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                                <label for="emergencyRelation">Emergency Contact Relation <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="emergency_phone" class="form-control"
+                                                    id="emergencyPhone" placeholder="Emergency Contact Number" required
+                                                    maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                                    title="Emergency phone number should be 10 digits.">
+                                                <label for="emergencyPhone">Emergency Contact Number <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-end mt-4">
+                                <button type="button" class="btn btn-primary btn-lg rounded-pill px-5 next-step">Next: Education <i class="fa-solid fa-arrow-right ms-2"></i></button>
+                            </div>
+                            </div> <!-- End Step 1 -->
+
+                            <!-- STEP 2: Education -->
+                            <div class="step-content" id="step2">
+                                <!-- Education Accordion -->
+                            <div class="glass-card mb-4 animate-slide-up" style="animation-delay: 0.3s;">
+                                <div class="card-header-custom bg-gradient-orange">
+                                    <h5 class="fw-bold mb-0 text-white"><i class="fa-solid fa-graduation-cap me-2"></i>
+                                        Educational Qualifications</h5>
+                                </div>
+                                <div class="card-body-custom p-0">
+                                    <div class="accordion accordion-flush" id="educationAccordion">
+                                        <!-- Highest Qualification -->
+                                        <div class="accordion-item bg-transparent">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button fw-bold py-4" type="button"
+                                                    data-bs-toggle="collapse" data-bs-target="#collapseDegree">
+                                                    <i class="fa-solid fa-award me-2 text-warning"></i> Highest
+                                                    Qualification (Degree/PG)
+                                                </button>
+                                            </h2>
+                                            <div id="collapseDegree" class="accordion-collapse collapse show"
+                                                data-bs-parent="#educationAccordion">
+                                                <div class="accordion-body px-4 pb-4">
+                                                    <div class="row g-3">
+                                                        <div class="col-md-5">
+                                                            <div class="form-floating">
+                                                                <input type="text" name="degree_name"
+                                                                    class="form-control border-indigo"
+                                                                    placeholder="Degree Name" required>
+                                                                <label>Degree Name <span
+                                                                        class="text-danger">*</span></label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-5">
+                                                            <div class="form-floating">
+                                                                <input type="text" name="college_name"
+                                                                    class="form-control border-indigo"
+                                                                    placeholder="College Name" required>
+                                                                <label>College/University <span
+                                                                        class="text-danger">*</span></label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <div class="input-group">
+                                                                <div class="form-floating flex-grow-1">
+                                                                    <input type="number" name="degree_score"
+                                                                        class="form-control border-indigo"
+                                                                        placeholder="Percentage" required min="0"
+                                                                        max="100"
+                                                                        oninput="if(this.value > 100) this.setCustomValidity('Percentage should be less than or equal to 100'); else this.setCustomValidity('');">
+                                                                    <label>Percentage<span
+                                                                            class="text-danger">*</span></label>
+                                                                </div>
+                                                                <span
+                                                                    class="input-group-text border-indigo bg-light text-indigo fw-bold">%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Intermediate -->
+                                        <div class="accordion-item bg-transparent">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed fw-bold py-4" type="button"
+                                                    data-bs-toggle="collapse" data-bs-target="#collapseInter">
+                                                    <i class="fa-solid fa-school me-2 text-primary"></i> Intermediate /
+                                                    Higher Secondary
+                                                </button>
+                                            </h2>
+                                            <div id="collapseInter" class="accordion-collapse collapse"
+                                                data-bs-parent="#educationAccordion">
+                                                <div class="accordion-body px-4 pb-4">
+                                                    <div class="row g-3">
+                                                        <div class="col-md-5">
+                                                            <div class="form-floating">
+                                                                <input type="text" name="inter_stream"
+                                                                    class="form-control border-primary"
+                                                                    placeholder="Stream" required>
+                                                                <label>Stream <span class="text-danger">*</span></label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-5">
+                                                            <div class="form-floating">
+                                                                <input type="text" name="inter_college"
+                                                                    class="form-control border-primary"
+                                                                    placeholder="College Name" required>
+                                                                <label>College Name <span
+                                                                        class="text-danger">*</span></label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <div class="input-group">
+                                                                <div class="form-floating flex-grow-1">
+                                                                    <input type="number" name="inter_score"
+                                                                        class="form-control border-primary"
+                                                                        placeholder="Percentage" required min="0"
+                                                                        max="100"
+                                                                        oninput="if(this.value > 100) this.setCustomValidity('Percentage should be less than or equal to 100'); else this.setCustomValidity('');">
+                                                                    <label>Percentage<span
+                                                                            class="text-danger">*</span></label>
+                                                                </div>
+                                                                <span
+                                                                    class="input-group-text border-primary bg-light text-primary fw-bold">%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- 10th -->
+                                        <div class="accordion-item bg-transparent">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed fw-bold py-4" type="button"
+                                                    data-bs-toggle="collapse" data-bs-target="#collapse10th">
+                                                    <i class="fa-solid fa-book-open me-2 text-success"></i> 10th
+                                                    Standard / Matriculation
+                                                </button>
+                                            </h2>
+                                            <div id="collapse10th" class="accordion-collapse collapse"
+                                                data-bs-parent="#educationAccordion">
+                                                <div class="accordion-body px-4 pb-4">
+                                                    <div class="row g-3">
+                                                        <div class="col-md-5">
+                                                            <div class="form-floating">
+                                                                <input type="text" name="school_board"
+                                                                    class="form-control border-success"
+                                                                    placeholder="Board" required>
+                                                                <label>Board <span class="text-danger">*</span></label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-5">
+                                                            <div class="form-floating">
+                                                                <input type="text" name="school_name"
+                                                                    class="form-control border-success"
+                                                                    placeholder="School Name" required>
+                                                                <label>School Name <span
+                                                                        class="text-danger">*</span></label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <div class="input-group">
+                                                                <div class="form-floating flex-grow-1">
+                                                                    <input type="number" name="school_score"
+                                                                        class="form-control border-success"
+                                                                        placeholder="Percentage" required min="0"
+                                                                        max="100"
+                                                                        oninput="if(this.value > 100) this.setCustomValidity('Percentage should be less than or equal to 100'); else this.setCustomValidity('');">
+                                                                    <label>Percentage<span
+                                                                            class="text-danger">*</span></label>
+                                                                </div>
+                                                                <span
+                                                                    class="input-group-text border-success bg-light text-success fw-bold">%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Hidden field to satisfy existing backend logic if needed, will be updated via JS -->
+                                    <input type="hidden" name="education" id="finalEducation">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-4">
+                                <button type="button" class="btn btn-outline-secondary btn-lg rounded-pill px-5 prev-step"><i class="fa-solid fa-arrow-left me-2"></i> Back</button>
+                                <button type="button" class="btn btn-primary btn-lg rounded-pill px-5 next-step">Next: Professional <i class="fa-solid fa-arrow-right ms-2"></i></button>
+                            </div>
+                            </div> <!-- End Step 2 -->
+
+                            <!-- STEP 3: Professional Experience -->
+                            <div class="step-content" id="step3">
+                                <div class="glass-card mb-4">
+                                    <div class="card-header-custom bg-gradient-dark">
+                                        <h5 class="fw-bold mb-0 text-white"><i class="fa-solid fa-user-tie me-2"></i> Professional Background</h5>
+                                    </div>
+                                    <div class="card-body-custom">
+                                        <div class="form-check form-switch mb-4 p-3 bg-light rounded-4 border">
+                                            <input class="form-check-input ms-0 me-3" type="checkbox" name="is_experienced" id="isExperiencedSwitch" style="width: 3rem; height: 1.5rem;">
+                                            <label class="form-check-label fw-bold" for="isExperiencedSwitch">I have prior professional experience</label>
+                                        </div>
+
+                                        <div id="experienceFields" style="display: none;">
+                                            <div class="row g-4">
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <input type="text" name="previous_company" class="form-control" placeholder="Previous Company"
+                                                            pattern="[A-Za-z0-9\s]+" oninput="this.value = this.value.replace(/[^A-Za-z0-9\s]/g, '')">
+                                                        <label>Last Company Name <span class="text-danger">*</span></label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <input type="text" name="last_designation" class="form-control" placeholder="Designation"
+                                                            pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                                                        <label>Last Designation <span class="text-danger">*</span></label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <input type="text" name="experience_years" class="form-control" placeholder="Years"
+                                                            oninput="this.value = this.value.replace(/[^0-9.]/g, '')">
+                                                        <label>Total Experience (e.g. 2.5) <span class="text-danger">*</span></label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <input type="date" name="last_working_date" class="form-control" placeholder="LWD">
+                                                        <label>Last Working Date <span class="text-danger">*</span></label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <hr class="my-2">
+                                                    <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-landmark me-2"></i> PF & Statutory Details</h6>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <input type="text" name="pf_number" class="form-control" placeholder="PF Number"
+                                                            oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
+                                                        <label>PF Account Number</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <input type="text" name="uan_number" class="form-control" placeholder="UAN"
+                                                            maxlength="12" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                                        <label>UAN Number</label>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-12 mt-3">
+                                                    <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-file-invoice me-2"></i> Professional Documents (Optional)</h6>
+                                                    <div class="row g-3">
+                                                        <div class="col-md-4">
+                                                            <label class="doc-label small fw-bold text-muted text-uppercase mb-1">Experience Letter</label>
+                                                            <input type="file" name="exp_letter" class="form-control custom-file-input" accept=".pdf,image/*">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="doc-label small fw-bold text-muted text-uppercase mb-1">Relieving Letter</label>
+                                                            <input type="file" name="relieving_letter" class="form-control custom-file-input" accept=".pdf,image/*">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="doc-label small fw-bold text-muted text-uppercase mb-1">PF Letter / Form 16</label>
+                                                            <input type="file" name="pf_letter" class="form-control custom-file-input" accept=".pdf,image/*">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div id="fresherMessage" class="text-center py-4">
+                                            <div class="mb-3"><i class="fa-solid fa-seedling text-success" style="font-size: 3rem;"></i></div>
+                                            <h5 class="fw-bold">Starting your career as a Fresher?</h5>
+                                            <p class="text-muted">No problem! Simply click next to proceed to banking and documents.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between mt-4">
+                                    <button type="button" class="btn btn-outline-secondary btn-lg rounded-pill px-5 prev-step"><i class="fa-solid fa-arrow-left me-2"></i> Back</button>
+                                    <button type="button" class="btn btn-primary btn-lg rounded-pill px-5 next-step">Next: Banking & Docs <i class="fa-solid fa-arrow-right ms-2"></i></button>
+                                </div>
+                            </div> <!-- End Step 3 -->
+
+                            <!-- STEP 4: Banking & Documents -->
+                            <div class="step-content" id="step4">
+                                <!-- Banking -->
+                                <div class="glass-card mb-4 animate-slide-up" style="animation-delay: 0.4s;">
+                                <div class="card-header-custom bg-gradient-teal">
+                                    <h5 class="fw-bold mb-0 text-white"><i class="fa-solid fa-piggy-bank me-2"></i>
+                                        Banking Details</h5>
+                                </div>
+                                <div class="card-body-custom">
+                                    <div class="row g-4">
+                                        <div class="col-md-12">
+                                            <div class="form-floating">
+                                                <input type="text" name="bank_name" class="form-control" id="bankName"
+                                                    placeholder="Bank Name" required pattern="[A-Za-z\s]+"
+                                                    oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                                                <label for="bankName">Bank Name <span
+                                                        class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating position-relative">
+                                                <input type="text" name="account_number" class="form-control"
+                                                    id="accNo" placeholder="Account Number" required
+                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                                    style="padding-right: 45px;">
+                                                <label for="accNo">Account Number <span
+                                                        class="text-danger">*</span></label>
+                                                <button type="button"
+                                                    class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2"
+                                                    onclick="toggleAccVisibility('accNo', this)">
+                                                    <i class="fa-solid fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="ifsc_code" class="form-control" id="ifsc"
+                                                    placeholder="IFSC Code" required
+                                                    oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
+                                                <label for="ifsc">IFSC Code <span class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Documents -->
+                            <div class="glass-card mb-4 animate-slide-up" style="animation-delay: 0.5s;">
+                                <div class="card-header-custom bg-gradient-dark">
+                                    <h5 class="fw-bold mb-0 text-white"><i class="fa-solid fa-file-invoice me-2"></i>
+                                        Document Uploads</h5>
+                                </div>
+                                <div class="card-body-custom">
+                                    <div class="row g-4 mb-4">
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="aadhar_number" class="form-control" id="aadharNo"
+                                                    placeholder="12 Digit Aadhar" required maxlength="12" minlength="12"
+                                                    pattern="\d{12}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                                <label for="aadharNo">Aadhar Number <span class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" name="pan_number" class="form-control" id="panNo"
+                                                    placeholder="10 Digit Alphanumeric PAN" required maxlength="10" minlength="10"
+                                                    pattern="[A-Za-z0-9]{10}" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
+                                                <label for="panNo">PAN Number <span class="text-danger">*</span></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-4">
+                                        <div class="col-md-4">
+                                            <label class="doc-label">Passport Size Photo <span
+                                                    class="text-danger">*</span></label>
+                                            <input type="file" name="passport_photo"
+                                                class="form-control custom-file-input" required accept="image/*">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="doc-label">Aadhar Card <span
+                                                    class="text-danger">*</span></label>
+                                            <input type="file" name="aadhar_card" class="form-control custom-file-input"
+                                                required accept="image/*,application/pdf">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="doc-label">PAN Card <span class="text-danger">*</span></label>
+                                            <input type="file" name="pan_card" class="form-control custom-file-input"
+                                                required accept="image/*,application/pdf">
+                                        </div>
+
+
+                                        <div class="col-12 mt-4">
+                                            <div class="separator-text mb-3">Academic Certificates (PDF/Images)</div>
+                                            <div class="row g-4">
+                                                <div class="col-md-4">
+                                                    <label class="doc-label">10th Marksheet <span
+                                                            class="text-danger">*</span></label>
+                                                    <input type="file" name="cert_10th"
+                                                        class="form-control custom-file-input" required
+                                                        accept=".pdf,image/*">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="doc-label">Inter Marksheet <span
+                                                            class="text-danger">*</span></label>
+                                                    <input type="file" name="cert_inter"
+                                                        class="form-control custom-file-input" required
+                                                        accept=".pdf,image/*">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="doc-label">Degree Certificate <span
+                                                            class="text-danger">*</span></label>
+                                                    <input type="file" name="cert_degree"
+                                                        class="form-control custom-file-input" required
+                                                        accept=".pdf,image/*">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Consent & Submit -->
+                            <div class="glass-card mb-5 animate-slide-up" style="animation-delay: 0.6s;">
+                                <div class="card-body-custom">
+                                    <div
+                                        class="consent-box p-4 bg-light rounded-4 mb-4 border-start border-4 border-primary">
+                                        <h6 class="fw-bold mb-3"><i
+                                                class="fa-solid fa-shield-check me-2 text-primary"></i> Confirmation &
+                                            Data Consent</h6>
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input custom-checkbox" type="checkbox"
+                                                id="checkSecurity" required>
+                                            <label class="form-check-label fw-medium" for="checkSecurity">
+                                                I have read and agree to the <a href="#"
+                                                    class="text-decoration-none fw-bold" data-bs-toggle="modal"
+                                                    data-bs-target="#securityModal">Data Security Policies</a> and <a
+                                                    href="#" class="text-decoration-none fw-bold" data-bs-toggle="modal"
+                                                    data-bs-target="#termsModal">Terms of Service</a>.
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input custom-checkbox" type="checkbox"
+                                                id="checkDeclaration" required>
+                                            <label class="form-check-label fw-medium" for="checkDeclaration">
+                                                I declare that all information and documents provided above are
+                                                genuine and correct.
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" id="submitBtn"
+                                        class="btn btn-primary btn-lg w-100 rounded-pill shadow-xl py-3 fw-bold btn-submit-colorful"
+                                        disabled>
+                                        <i class="fa-solid fa-paper-plane-launch me-2"></i> Submit My Onboarding Details
+                                    </button>
+                                    <div class="text-center mt-3">
+                                        <button type="button" class="btn btn-link text-muted prev-step">Go back to previous step</button>
+                                    </div>
+                                </div>
+                            </div>
+                            </div> <!-- End Step 4 -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const checkSecurity = document.getElementById('checkSecurity');
+        const checkDeclaration = document.getElementById('checkDeclaration');
+        const submitBtn = document.getElementById('submitBtn');
+        const form = document.getElementById('onboardingForm');
+        const finalEducation = document.getElementById('finalEducation');
+
+        // Toggle Submit Button
+        function toggleSubmit() {
+            submitBtn.disabled = !(checkSecurity.checked && checkDeclaration.checked);
+        }
+
+        checkSecurity.addEventListener('change', toggleSubmit);
+        checkDeclaration.addEventListener('change', toggleSubmit);
+
+        // Update Hidden Education Field before submit
+        form.addEventListener('submit', function (e) {
+            const degree = form.degree_name.value;
+            const college = form.college_name.value;
+            const degreeScore = form.degree_score.value;
+
+            const interStream = form.inter_stream.value;
+            const interColl = form.inter_college.value;
+            const interScore = form.inter_score.value;
+
+            const schoolBoard = form.school_board.value;
+            const school = form.school_name.value;
+            const schoolScore = form.school_score.value;
+
+            let eduSummary = `Degree: ${degree} from ${college} (${degreeScore}%)`;
+            if (interColl) eduSummary += ` | Inter: ${interStream} from ${interColl} (${interScore}%)`;
+            if (school) eduSummary += ` | 10th: ${schoolBoard} from ${school} (${schoolScore}%)`;
+
+            finalEducation.value = eduSummary;
+        });
+        
+        // Form Data Retention Logic
+        const hasError = document.querySelector('.alert-danger, .alert-error, .alert-warning');
+        const hasSuccess = document.querySelector('.alert-success');
+        
+        if (hasError) {
+            const savedData = sessionStorage.getItem('selfOnboardingFormData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                for (const key in data) {
+                    const element = document.querySelector(`[name="${key}"]`);
+                    // Skip email and empid as they are readonly/prefilled
+                    if (element && element.type !== 'file' && key !== 'email' && key !== 'employee_id') {
+                        if (element.type === 'checkbox') {
+                            element.checked = true;
+                        } else {
+                            element.value = data[key];
+                        }
+                    }
+                }
+            }
+        } else if (hasSuccess || !hasError) {
+            sessionStorage.removeItem('selfOnboardingFormData');
+        }
+
+        if (form) {
+            form.addEventListener('submit', function() {
+                const formData = new FormData(this);
+                const data = {};
+                for (const [key, value] of formData.entries()) {
+                    const element = this.querySelector(`[name="${key}"]`);
+                    if (element && element.type !== 'file') {
+                        data[key] = value;
+                    }
+                }
+                sessionStorage.setItem('selfOnboardingFormData', JSON.stringify(data));
+            });
+        }
+
+        // Add some interactive color on input focus
+        const inputs = document.querySelectorAll('.form-control');
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.parentElement.classList.add('focused-field');
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.parentElement.classList.remove('focused-field');
+            });
+        });
+
+        // Step Navigation Logic
+        let currentStep = 1;
+        const totalSteps = 4;
+        const nextBtns = document.querySelectorAll('.next-step');
+        const prevBtns = document.querySelectorAll('.prev-step');
+        const steps = document.querySelectorAll('.step');
+        const stepContents = document.querySelectorAll('.step-content');
+
+        function updateStepUI() {
+            stepContents.forEach(content => content.classList.remove('active'));
+            steps.forEach(step => {
+                step.classList.remove('active', 'completed');
+                const stepNum = parseInt(step.dataset.step);
+                if (stepNum === currentStep) step.classList.add('active');
+                if (stepNum < currentStep) step.classList.add('completed');
+            });
+            document.getElementById(`step${currentStep}`).classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        nextBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Simple validation before moving to next step
+                const currentStepDiv = document.getElementById(`step${currentStep}`);
+                const requiredInputs = currentStepDiv.querySelectorAll('[required]');
+                let isValid = true;
+                requiredInputs.forEach(input => {
+                    if (!input.checkValidity()) {
+                        input.reportValidity();
+                        isValid = false;
+                    }
+                });
+
+                if (isValid && currentStep < totalSteps) {
+                    currentStep++;
+                    updateStepUI();
+                }
+            });
+        });
+
+        prevBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (currentStep > 1) {
+                    currentStep--;
+                    updateStepUI();
+                }
+            });
+        });
+
+        // Experienced Toggle Logic
+        const expSwitch = document.getElementById('isExperiencedSwitch');
+        const expFields = document.getElementById('experienceFields');
+        const fresherMsg = document.getElementById('fresherMessage');
+
+        if (expSwitch && expFields && fresherMsg) {
+            const handleExpToggle = () => {
+                if (expSwitch.checked) {
+                    expFields.style.display = 'block';
+                    fresherMsg.style.display = 'none';
+                    expFields.querySelectorAll('input').forEach(i => {
+                        if (['previous_company', 'last_designation', 'experience_years', 'last_working_date'].includes(i.name)) {
+                            i.required = true; 
+                        }
+                    });
+                } else {
+                    expFields.style.display = 'none';
+                    fresherMsg.style.display = 'block';
+                    expFields.querySelectorAll('input').forEach(i => i.required = false);
+                }
+            };
+            
+            expSwitch.addEventListener('change', handleExpToggle);
+            handleExpToggle(); // Initial check on load
+        }
+
+        // Name field validation (Allow only characters and spaces)
+        document.querySelectorAll('input[name="emergency_contact_name"]').forEach(field => {
+            field.addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^A-Za-z\s]/g, '');
+            });
+        });
+    });
+    function toggleAccVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    function validatePasswordStrength() {
+        const password = document.getElementById('password').value;
+        const strengthDiv = document.getElementById('passwordStrength');
+        const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+        
+        if (!password) {
+            strengthDiv.innerHTML = '';
+            return;
+        }
+
+        if (regex.test(password)) {
+            strengthDiv.innerHTML = '<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Strong Password</span>';
+        } else {
+            strengthDiv.innerHTML = '<span class="text-danger" style="font-size: 0.75rem;"><i class="fa-solid fa-triangle-exclamation me-1"></i> Need: Uppercase, Lowercase, Number & Symbol</span>';
+        }
+        validatePasswordMatch(); // Re-validate match as well
+    }
+
+    function validatePasswordMatch() {
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const matchDiv = document.getElementById('passwordMatch');
+        const confirmInput = document.getElementById('confirmPassword');
+
+        if (!confirmPassword) {
+            matchDiv.innerHTML = '';
+            confirmInput.setCustomValidity('');
+            return;
+        }
+
+        if (password === confirmPassword) {
+            matchDiv.innerHTML = '<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Passwords Match</span>';
+            confirmInput.setCustomValidity('');
+        } else {
+            matchDiv.innerHTML = '<span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i> Passwords do not match</span>';
+            confirmInput.setCustomValidity('Passwords do not match');
+        }
+    }
+</script>
+<!-- Data Security Modal -->
+<div class="modal fade" id="securityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-gradient-blue p-4 rounded-top-4">
+                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-shield-halved me-2"></i> Data Security
+                    Policy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="security-policy-content">
+                    <h6 class="fw-bold text-primary">1. Data Encryption</h6>
+                    <p class="text-muted small">All personal information and documents uploaded are encrypted using
+                        industry-standard AES-256 encryption before being stored in our secure database.</p>
+
+                    <h6 class="fw-bold text-primary">2. Access Control</h6>
+                    <p class="text-muted small">Only authorized HR personnel and designated management have access to
+                        your sensitive documents for the sole purpose of onboarding verification and compliance.</p>
+
+                    <h6 class="fw-bold text-primary">3. Retention Policy</h6>
+                    <p class="text-muted small">Your data is retained for the duration of your employment. Upon
+                        termination, data is archived or deleted in accordance with statutory requirements.</p>
+
+                    <div class="alert alert-info py-2 px-3 mb-0" style="border-radius: 10px;">
+                        <i class="fa-solid fa-info-circle me-2"></i> We comply with global data protection regulations
+                        to ensure your privacy.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4">
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">I
+                    Understand</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Terms of Service Modal -->
+<div class="modal fade" id="termsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-gradient-purple p-4 rounded-top-4">
+                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-file-contract me-2"></i> Terms of
+                    Service</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="terms-content">
+                    <h6 class="fw-bold text-purple">1. Accuracy of Information</h6>
+                    <p class="text-muted small">You agree to provide accurate, complete, and truthful information during
+                        the onboarding process. Any discrepancy may lead to disciplinary action or withdrawal of the
+                        offer.</p>
+
+                    <h6 class="fw-bold text-purple">2. System Usage</h6>
+                    <p class="text-muted small">The Lurnexa portal is for authorized corporate use only. Users are
+                        responsible for maintaining the confidentiality of their account credentials.</p>
+
+                    <h6 class="fw-bold text-purple">3. Code of Conduct</h6>
+                    <p class="text-muted small">By joining Lurnexa, you agree to abide by the company's code of conduct
+                        and professional ethics guidelines as outlined in the employee handbook.</p>
+
+                    <div class="alert alert-secondary py-2 px-3 mb-0" style="border-radius: 10px;">
+                        <i class="fa-solid fa-check-double me-2"></i> Your digital signature on this form constitutes a
+                        binding agreement.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4">
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-dismiss="modal"
+                    style="background: linear-gradient(135deg, #a855f7 0%, #d946ef 100%); border: none;">Accept
+                    Terms</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,993 @@
+{% extends "base.html" %}
+
+{% block title %}Add Employee - Lurnexa{% endblock %}
+{% block nav_employees %}active{% endblock %}
+
+{% block content %}
+
+<div class="mb-4">
+    <a href="{% url 'employee_directory' %}" class="text-decoration-none text-muted mb-2 d-inline-block"><i
+            class="fa-solid fa-arrow-left me-2"></i> Back to Directory</a>
+    <h2 class="page-title mb-0">Professional Employee Onboarding</h2>
+    <p class="text-muted small">Please complete all mandatory fields to register a new employee or generate a
+        self-onboarding link.</p>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="POST" action="{% url 'add_employee' %}" enctype="multipart/form-data" id="addEmployeeForm">
+            {% csrf_token %}
+            <!-- Personal Information -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary-soft text-primary rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">1</span>
+                        <h5 class="fw-bold mb-0">Personal Details</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">First Name <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="first_name"
+                                required placeholder="John" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Last Name <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="last_name"
+                                required placeholder="Doe" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Corporate Email <span
+                                    class="text-danger">*</span></label>
+                            <input type="email" class="form-control form-control-lg bg-light border-0" name="email"
+                                required placeholder="john.doe@lurnexa.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Phone Number <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="phone"
+                                required placeholder="9876543210" maxlength="10"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Residing City <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="city"
+                                required placeholder="Mumbai" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Designation / Job Title <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="designation"
+                                required placeholder="e.g. Software Engineer" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Employee ID <span
+                                     class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="employee_id"
+                                required placeholder="e.g. LT-26001">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Joining Date <span
+                                    class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-lg bg-light border-0" name="joining_date"
+                                required value="{% now 'Y-m-d' %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Date of Birth <span
+                                    class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-lg bg-light border-0" name="dob"
+                                required max="{% now 'Y'|add:'-21' %}-{% now 'm-d' %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Gender <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="gender" required>
+                                <option value="" selected disabled>Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Permanent Address
+                                <span class="text-danger">*</span></label>
+                            <textarea class="form-control bg-light border-0" name="address" rows="2" required
+                                placeholder="House No, Street, Landmark..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Family Information -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary-soft text-primary rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">2</span>
+                        <h5 class="fw-bold mb-0">Family & Emergency Contacts</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Father's Name <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="father_name"
+                                required placeholder="Mr. Richard Doe" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Mother's Name <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="mother_name"
+                                required placeholder="Mrs. Jane Doe" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Spouse Name</label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="spouse_name"
+                                placeholder="Name of Spouse" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Emergency Contact Name
+                                <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0"
+                                name="emergency_contact_name" required placeholder="Full Name"
+                                pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')"
+                                title="Emergency Contact Name should only contain letters and spaces.">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Emergency Contact
+                                Relation <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="emergency_relation"
+                                required>
+                                <option value="" selected disabled>Select Relation</option>
+                                <option value="Father">Father</option>
+                                <option value="Mother">Mother</option>
+                                <option value="Spouse">Spouse</option>
+                                <option value="Sibling">Sibling</option>
+                                <option value="Friend">Friend</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Emergency Contact
+                                Phone <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0"
+                                name="emergency_phone" required placeholder="9876543210" maxlength="10"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Professional Experience (Experienced Hire) -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary-soft text-primary rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">3</span>
+                        <h5 class="fw-bold mb-0">Professional Experience</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3 p-2 ps-5">
+                        <input class="form-check-input" type="checkbox" name="is_experienced" id="isExperiencedAdmin">
+                        <label class="form-check-label fw-bold text-muted" for="isExperiencedAdmin">Is Experienced Professional?</label>
+                    </div>
+                    <div id="experienceFieldsAdmin" style="display: none;">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">Previous Company <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" name="previous_company" placeholder="Last Organization Name"
+                                    pattern="[A-Za-z0-9\s]+" oninput="this.value = this.value.replace(/[^A-Za-z0-9\s]/g, '')">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">Last Designation <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" name="last_designation" placeholder="e.g. Senior Analyst"
+                                    pattern="[A-Za-z\s]+" oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">Total Experience (Years) <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" name="experience_years" placeholder="e.g. 5"
+                                    oninput="this.value = this.value.replace(/[^0-9.]/g, '')">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">Last Working Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control form-control-lg bg-light border-0" name="last_working_date">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">PF Account Number</label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" name="pf_number" placeholder="PF Number"
+                                    oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">UAN Number</label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" name="uan_number" placeholder="UAN"
+                                    maxlength="12" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                            </div>
+
+                            <div class="col-12 mt-2">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold small text-uppercase text-muted">Experience Letter</label>
+                                        <input type="file" class="form-control bg-light border-0" name="exp_letter" accept=".pdf,image/*">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold small text-uppercase text-muted">Relieving Letter</label>
+                                        <input type="file" class="form-control bg-light border-0" name="relieving_letter" accept=".pdf,image/*">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold small text-uppercase text-muted">PF Letter / Form 16</label>
+                                        <input type="file" class="form-control bg-light border-0" name="pf_letter" accept=".pdf,image/*">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Education & Employment Details -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary-soft text-primary rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">4</span>
+                        <h5 class="fw-bold mb-0">Education & Employment Details</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Highest Qualification
+                                (Degree/PG) <span class="text-danger">*</span></label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control bg-light border-0" id="degree_name" name="degree_name" required
+                                        placeholder="Degree Name (e.g. B.Tech)">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control bg-light border-0" id="college_name" name="college_name" required
+                                        placeholder="College/University">
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="input-group">
+                                        <input type="number" class="form-control bg-light border-0" id="degree_score" name="degree_score"
+                                            required placeholder="Percentage" min="0" max="100"
+                                            oninput="if(this.value > 100) this.setCustomValidity('Percentage should be less than or equal to 100'); else this.setCustomValidity('');">
+                                        <span
+                                            class="input-group-text bg-light border-0 text-muted small fw-bold">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Intermediate / Higher
+                                Secondary <span class="text-danger">*</span></label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control bg-light border-0" id="inter_stream" name="inter_stream" required
+                                        placeholder="Stream (e.g. MPC)">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control bg-light border-0" id="inter_college" name="inter_college"
+                                        required placeholder="College Name">
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="input-group">
+                                        <input type="number" class="form-control bg-light border-0" id="inter_score" name="inter_score"
+                                            required placeholder="Percentage" min="0" max="100"
+                                            oninput="if(this.value > 100) this.setCustomValidity('Percentage should be less than or equal to 100'); else this.setCustomValidity('');">
+                                        <span
+                                            class="input-group-text bg-light border-0 text-muted small fw-bold">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">10th Standard /
+                                Matriculation <span class="text-danger">*</span></label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control bg-light border-0" id="school_board" name="school_board" required
+                                        placeholder="Board (e.g. CBSE)">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control bg-light border-0" id="school_name" name="school_name" required
+                                        placeholder="School Name">
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="input-group">
+                                        <input type="number" class="form-control bg-light border-0" id="school_score" name="school_score"
+                                            required placeholder="Percentage" min="0" max="100"
+                                            oninput="if(this.value > 100) this.setCustomValidity('Percentage should be less than or equal to 100'); else this.setCustomValidity('');">
+                                        <span
+                                            class="input-group-text bg-light border-0 text-muted small fw-bold">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="education" id="finalEducation">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Annual Salary (₹ PA)
+                                <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-0">₹</span>
+                                <input type="number" class="form-control form-control-lg bg-light border-0"
+                                    name="salary_pa" required placeholder="12,00,000">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Department <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="department" required>
+                                <option value="" selected disabled>Select Department</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="Product">Product</option>
+                                <option value="Sales">Sales</option>
+                                <option value="HR ADMIN">HR ADMIN</option>
+                                <option value="Marketing">Marketing</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Work Shift <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="shift" required>
+                                <option value="Day Shift" selected>Day Shift</option>
+                                <option value="Night Shift">Night Shift</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Employment Type <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="employment_type" id="employment_type" onchange="toggleInternshipField()" required>
+                                <option value="Permanent" selected>Permanent</option>
+                                <option value="Intern">Intern</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-none" id="internship_period_container">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Internship Duration (Months)</label>
+                            <input type="number" class="form-control form-control-lg bg-light border-0" name="internship_period" value="0" min="0">
+                        </div>
+                        <div class="col-md-6" id="probation_status_container">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Employment Status <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="employment_status" id="employment_status" onchange="toggleProbationField()">
+                                <option value="Full Time" selected>Full Time</option>
+                                <option value="Probation">Probation</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-none" id="probation_period_container">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Probation Duration (Months)</label>
+                            <input type="number" class="form-control form-control-lg bg-light border-0" name="probation_period" value="0" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">System Role <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="role" id="role"
+                                onchange="toggleManagerSelect()" required>
+                                <option value="Employee">Employee</option>
+                                <option value="Manager">Manager</option>
+                                <option value="HR ADMIN">HR ADMIN</option>
+                                <option value="Super admin">Super admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="manager_select_div">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Reporting Manager
+                                <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg bg-light border-0" name="manager_id" required>
+                                <option value="">Select Manager...</option>
+                                {% for manager in managers %}
+                                <option value="{{ manager.EmployeeID }}">{{ manager.Name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banking Details -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary-soft text-primary rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">5</span>
+                        <h5 class="fw-bold mb-0">Banking Information</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Bank Name <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="bank_name"
+                                required placeholder="HDFC Bank" pattern="[A-Za-z\s]+" 
+                                oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, '')">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Account Number <span
+                                    class="text-danger">*</span></label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control form-control-lg bg-light border-0" id="accNo"
+                                    name="account_number" required placeholder="50100012345678"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                    style="padding-right: 45px;">
+                                <button type="button"
+                                    class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2"
+                                    onclick="toggleAccVisibility('accNo', this)">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">IFSC Code <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="ifsc_code"
+                                required placeholder="HDFC0001234" 
+                                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents & Photos -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary-soft text-primary rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">6</span>
+                        <h5 class="fw-bold mb-0">Identity & Documents</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Aadhar Number <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="aadhar_number"
+                                required placeholder="12 Digit Aadhar Number" maxlength="12" minlength="12"
+                                pattern="\d{12}" title="Aadhar number must be exactly 12 digits"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">PAN Number <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="pan_number"
+                                required placeholder="10 Digit Alphanumeric PAN" maxlength="10" minlength="10"
+                                pattern="[A-Za-z0-9]{10}" title="PAN number must be exactly 10 alphanumeric characters"
+                                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Passport Size Photo
+                                <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control bg-light border-0" name="passport_photo" required
+                                accept="image/*">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Aadhar Card Copy <span
+                                    class="text-danger">*</span></label>
+                            <input type="file" class="form-control bg-light border-0" name="aadhar_card" required
+                                accept="image/*,application/pdf">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">PAN Card Copy <span
+                                    class="text-danger">*</span></label>
+                            <input type="file" class="form-control bg-light border-0" name="pan_card" required
+                                accept="image/*,application/pdf">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">10th Certificate <span
+                                    class="text-danger">*</span></label>
+                            <input type="file" class="form-control bg-light border-0" name="cert_10th" required
+                                accept=".pdf,image/*">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Intermediate
+                                Certificate <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control bg-light border-0" name="cert_inter" required
+                                accept=".pdf,image/*">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">B.Tech / Degree
+                                Certificate <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control bg-light border-0" name="cert_degree" required
+                                accept=".pdf,image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-end mb-5">
+                <button type="submit" class="btn btn-primary btn-lg px-5 shadow-sm rounded-pill">
+                    <i class="fa-solid fa-user-plus me-2"></i> Onboard Employee
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Help Sidebar & Onboarding Link -->
+    <div class="col-lg-4">
+        <!-- Generate Link Card -->
+        <div class="card card-lift border-0 shadow-sm mb-4" style="border-radius: 16px; background: #f8fafc;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3"><i class="fa-solid fa-link me-2 text-primary"></i> Self-Onboarding</h5>
+                <p class="text-muted small mb-4">Generate a unique link to send to the new employee so they can fill
+                    their own details.</p>
+
+                <form action="{% url 'generate_onboarding_link' %}" method="POST">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Target Email <span
+                                class="text-danger">*</span></label>
+                        <input type="email" name="target_email" class="form-control form-control-lg bg-white border"
+                            required placeholder="new.employee@email.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Designation / Job Title <span
+                                class="text-danger">*</span></label>
+                        <input type="text" name="designation" class="form-control form-control-lg bg-white border"
+                            required placeholder="e.g. Software Engineer">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Annual Salary (₹ PA) <span
+                                class="text-danger">*</span></label>
+                        <input type="number" name="salary_pa" id="salary_pa_input"
+                            class="form-control form-control-lg bg-white border" required placeholder="1200000"
+                            oninput="calculateMonthlyPay()">
+                        <div id="monthly_estimate" class="mt-2 text-primary fw-bold smaller" style="display:none;">
+                            Monthly Salary: ₹ <span id="monthly_net_val">0</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Department <span
+                                class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg bg-white border" name="department" required>
+                            <option value="" selected disabled>Select Department</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Product">Product</option>
+                            <option value="Sales">Sales</option>
+                            <option value="HR ADMIN">HR ADMIN</option>
+                            <option value="Marketing">Marketing</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Work Shift <span
+                                class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg bg-white border" name="shift" required>
+                            <option value="Day Shift" selected>Day Shift</option>
+                            <option value="Night Shift">Night Shift</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Employment Type <span
+                                class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg bg-white border" name="employment_type" id="self_employment_type" onchange="toggleSelfInternshipField()" required>
+                            <option value="Permanent" selected>Permanent</option>
+                            <option value="Intern">Intern</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 d-none" id="self_internship_period_container">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Internship Duration (Months)</label>
+                        <input type="number" class="form-control form-control-lg bg-white border" name="internship_period" value="0" min="0">
+                    </div>
+                    <div class="mb-3" id="self_probation_status_container">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Employment Status <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg bg-white border" name="employment_status" id="self_employment_status" onchange="toggleSelfProbationField()">
+                            <option value="Full Time" selected>Full Time</option>
+                            <option value="Probation">Probation</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 d-none" id="self_probation_period_container">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Probation Duration (Months)</label>
+                        <input type="number" class="form-control form-control-lg bg-white border" name="probation_period" value="0" min="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">System Role <span
+                                class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg bg-white border" name="role" id="self_role"
+                            onchange="toggleSelfManagerSelect()" required>
+                            <option value="Employee">Employee</option>
+                            <option value="Manager">Manager</option>
+                            <option value="HR ADMIN">HR ADMIN</option>
+                            <option value="Super admin">Super admin</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Joining Date <span
+                                class="text-danger">*</span></label>
+                        <input type="date" name="joining_date" class="form-control form-control-lg bg-white border"
+                            required value="{% now 'Y-m-d' %}">
+                    </div>
+                    <div class="mb-3" id="self_manager_div">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Reporting Manager <span
+                                class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg bg-white border" name="manager_id" required>
+                            <option value="">Select Manager...</option>
+                            {% for manager in managers %}
+                            <option value="{{ manager.EmployeeID }}">{{ manager.Name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold py-2">
+                        <i class="fa-solid fa-paper-plane me-2"></i> Generate & Send Link
+                    </button>
+                </form>
+
+                {% if onboarding_link %}
+                <div class="mt-4">
+                    <label class="form-label small fw-bold text-uppercase text-muted">Generated URL</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control form-control-sm bg-white" value="{{ onboarding_link }}"
+                            id="onboardingLink" readonly>
+                        <button class="btn btn-primary btn-sm" onclick="copyLink()">Copy</button>
+                    </div>
+                    <div id="copyMsg" class="text-success smaller mt-1" style="display:none;">Link copied!</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Bulk Onboarding Import Card -->
+        <div class="card card-lift border-0 shadow-sm mb-4" style="border-radius: 16px; background: #fff8f1;">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0"><i class="fa-solid fa-file-csv me-2 text-warning"></i> Bulk Import</h5>
+                    <a href="{% url 'download_sample_csv' %}" class="btn btn-sm btn-outline-warning rounded-pill">
+                        <i class="fa-solid fa-download me-1"></i> Sample CSV
+                    </a>
+                </div>
+                <p class="text-muted small mb-4">Upload a CSV file to send self-onboarding links to multiple candidates at once. <br><br><b>Required Columns:</b> Target Email, Designation / Job Title, Annual Salary, Department, Work Shift, Employment Type, Employment Status, System Role, Joining Date.</p>
+
+                <form action="{% url 'bulk_onboarding_link' %}" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Upload CSV <span class="text-danger">*</span></label>
+                        <input type="file" name="onboarding_file" class="form-control form-control-lg bg-white border" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100 rounded-pill fw-bold py-2 text-white">
+                        <i class="fa-solid fa-upload me-2"></i> Import & Send Links
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card card-lift border-0 shadow-sm bg-primary text-white sticky-top"
+            style="border-radius: 16px; top: 20px; background: linear-gradient(135deg, #1a4f8b 0%, #3182ce 100%);">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Onboarding Guide</h5>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-3 d-flex align-items-start">
+                        <i class="fa-solid fa-circle-check mt-1 me-3"></i>
+                        <span>Ensure all mandatory fields marked with (*) are filled.</span>
+                    </li>
+                    <li class="mb-3 d-flex align-items-start">
+                        <i class="fa-solid fa-circle-check mt-1 me-3"></i>
+                        <span>Upload high-quality scans of ID documents for verification.</span>
+                    </li>
+                    <li class="mb-3 d-flex align-items-start">
+                        <i class="fa-solid fa-circle-check mt-1 me-3"></i>
+                        <span>Salary once fixed can only be modified by HR ADMIN in the profile section.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleManagerSelect() {
+        const roleSelect = document.getElementById('role');
+        const managerDiv = document.getElementById('manager_select_div');
+        if (!roleSelect || !managerDiv) return;
+
+        const label = managerDiv.querySelector('label');
+        const select = managerDiv.querySelector('select');
+        const options = select.querySelectorAll('option');
+
+        if (roleSelect.value === 'Employee') {
+            managerDiv.style.display = 'block';
+            label.innerText = 'Reporting Manager/HR ADMIN';
+            options.forEach(opt => {
+                if (opt.value === "" || opt.text.includes('(Manager)') || opt.text.includes('(HR ADMIN)')) {
+                    opt.style.display = 'block';
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.style.display = 'none';
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });
+            select.required = true;
+        } else if (roleSelect.value === 'Manager') {
+            managerDiv.style.display = 'block';
+            label.innerText = 'Reporting HR ADMIN';
+            options.forEach(opt => {
+                if (opt.value === "" || opt.text.includes('(HR ADMIN)')) {
+                    opt.style.display = 'block';
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.style.display = 'none';
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });
+            select.required = true;
+        } else if (roleSelect.value === 'HR ADMIN') {
+            managerDiv.style.display = 'block';
+            label.innerText = 'Reporting Super admin';
+            options.forEach(opt => {
+                if (opt.value === "" || opt.text.includes('(Super admin)')) {
+                    opt.style.display = 'block';
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.style.display = 'none';
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });
+            select.required = true;
+        } else if (roleSelect.value === 'Super admin') {
+            managerDiv.style.display = 'none';
+            select.required = false;
+        }
+    }
+    function toggleSelfManagerSelect() {
+        const roleSelect = document.getElementById('self_role');
+        const managerDiv = document.getElementById('self_manager_div');
+        if (!roleSelect || !managerDiv) return;
+
+        const label = managerDiv.querySelector('label');
+        const select = managerDiv.querySelector('select');
+        const options = select.querySelectorAll('option');
+
+        if (roleSelect.value === 'Employee') {
+            managerDiv.style.display = 'block';
+            label.innerText = 'Reporting Manager/HR ADMIN';
+            options.forEach(opt => {
+                if (opt.value === "" || opt.text.includes('(Manager)') || opt.text.includes('(HR ADMIN)')) {
+                    opt.style.display = 'block';
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.style.display = 'none';
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });
+            select.required = true;
+        } else if (roleSelect.value === 'Manager') {
+            managerDiv.style.display = 'block';
+            label.innerText = 'Reporting HR ADMIN';
+            options.forEach(opt => {
+                if (opt.value === "" || opt.text.includes('(HR ADMIN)')) {
+                    opt.style.display = 'block';
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.style.display = 'none';
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });
+            select.required = true;
+        } else if (roleSelect.value === 'HR ADMIN' || roleSelect.value === 'Super admin') {
+            managerDiv.style.display = 'none';
+            select.required = false;
+        }
+    }
+    function calculateMonthlyPay() {
+        const input = document.getElementById('salary_pa_input');
+        const display = document.getElementById('monthly_estimate');
+        const netVal = document.getElementById('monthly_net_val');
+
+        const annual = parseFloat(input.value);
+        if (annual > 0) {
+            const monthly = annual / 12;
+            netVal.innerText = monthly.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+            display.style.display = 'block';
+        } else {
+            display.style.display = 'none';
+        }
+    }
+
+    function copyLink() {
+        var copyText = document.getElementById("onboardingLink");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value);
+        document.getElementById("copyMsg").style.display = "block";
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleManagerSelect();
+        toggleSelfManagerSelect();
+
+        // Education Summary Logic
+        const addEmpForm = document.getElementById('addEmployeeForm');
+        if (addEmpForm) {
+            addEmpForm.addEventListener('submit', function (e) {
+                const degree = document.getElementById('degree_name').value;
+                const college = document.getElementById('college_name').value;
+                const degreeScore = document.getElementById('degree_score').value;
+
+                const interStream = document.getElementById('inter_stream').value;
+                const interColl = document.getElementById('inter_college').value;
+                const interScore = document.getElementById('inter_score').value;
+
+                const schoolBoard = document.getElementById('school_board').value;
+                const school = document.getElementById('school_name').value;
+                const schoolScore = document.getElementById('school_score').value;
+
+                let eduSummary = `Degree: ${degree} from ${college} (${degreeScore}%)`;
+                if (interColl) eduSummary += ` | Inter: ${interStream} from ${interColl} (${interScore}%)`;
+                if (school) eduSummary += ` | 10th: ${schoolBoard} from ${school} (${schoolScore}%)`;
+
+                document.getElementById('finalEducation').value = eduSummary;
+            });
+        }
+        
+        // Form Data Retention Logic
+        const hasError = document.querySelector('.alert-danger, .alert-error, .alert-warning');
+        const hasSuccess = document.querySelector('.alert-success');
+        
+        if (hasError) {
+            const savedData = sessionStorage.getItem('addEmployeeFormData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                for (const key in data) {
+                    const element = document.querySelector(`[name="${key}"]`);
+                    if (element && element.type !== 'file') {
+                        if (element.type === 'checkbox') {
+                            element.checked = true;
+                        } else {
+                            element.value = data[key];
+                        }
+                    }
+                }
+                
+                // Trigger change events for dynamic dropdowns
+                const roleSelect = document.getElementById('role');
+                if (roleSelect) roleSelect.dispatchEvent(new Event('change'));
+                
+                const empType = document.getElementById('employment_type');
+                if (empType) empType.dispatchEvent(new Event('change'));
+                
+                const empStatus = document.getElementById('employment_status');
+                if (empStatus) empStatus.dispatchEvent(new Event('change'));
+            }
+        } else if (hasSuccess || !hasError) {
+            sessionStorage.removeItem('addEmployeeFormData');
+        }
+
+        if (addEmpForm) {
+            addEmpForm.addEventListener('submit', function() {
+                const formData = new FormData(this);
+                const data = {};
+                for (const [key, value] of formData.entries()) {
+                    const element = this.querySelector(`[name="${key}"]`);
+                    if (element && element.type !== 'file') {
+                        data[key] = value;
+                    }
+                }
+                sessionStorage.setItem('addEmployeeFormData', JSON.stringify(data));
+            });
+        }
+
+        // Admin Experienced Toggle
+        const expAdminSwitch = document.getElementById('isExperiencedAdmin');
+        const expAdminFields = document.getElementById('experienceFieldsAdmin');
+
+        if (expAdminSwitch && expAdminFields) {
+            const handleExpToggle = () => {
+                if (expAdminSwitch.checked) {
+                    expAdminFields.style.display = 'block';
+                    expAdminFields.querySelectorAll('input').forEach(i => {
+                        if (['previous_company', 'last_designation', 'experience_years', 'last_working_date'].includes(i.name)) {
+                            i.required = true;
+                        }
+                    });
+                } else {
+                    expAdminFields.style.display = 'none';
+                    expAdminFields.querySelectorAll('input').forEach(i => i.required = false);
+                }
+            };
+            
+            expAdminSwitch.addEventListener('change', handleExpToggle);
+            handleExpToggle(); // Initial check on load
+        }
+
+        // Name field validation (Allow only characters and spaces)
+        const nameFields = document.querySelectorAll('input[name="emergency_contact_name"]');
+        nameFields.forEach(field => {
+            field.addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^A-Za-z\s]/g, '');
+            });
+        });
+    });
+    function toggleAccVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    function toggleInternshipField() {
+        const type = document.getElementById('employment_type').value;
+        const internContainer = document.getElementById('internship_period_container');
+        const probStatusContainer = document.getElementById('probation_status_container');
+        const probPeriodContainer = document.getElementById('probation_period_container');
+
+        if (type === 'Intern') {
+            if (internContainer) internContainer.classList.remove('d-none');
+            if (probStatusContainer) probStatusContainer.classList.add('d-none');
+            if (probPeriodContainer) probPeriodContainer.classList.add('d-none');
+        } else {
+            if (internContainer) internContainer.classList.add('d-none');
+            if (probStatusContainer) probStatusContainer.classList.remove('d-none');
+            toggleProbationField();
+        }
+    }
+
+    function toggleProbationField() {
+        const status = document.getElementById('employment_status').value;
+        const container = document.getElementById('probation_period_container');
+        if (container) {
+            if (status === 'Probation') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+            }
+        }
+    }
+
+    function toggleSelfInternshipField() {
+        const type = document.getElementById('self_employment_type').value;
+        const internContainer = document.getElementById('self_internship_period_container');
+        const probStatusContainer = document.getElementById('self_probation_status_container');
+        const probPeriodContainer = document.getElementById('self_probation_period_container');
+
+        if (type === 'Intern') {
+            if (internContainer) internContainer.classList.remove('d-none');
+            if (probStatusContainer) probStatusContainer.classList.add('d-none');
+            if (probPeriodContainer) probPeriodContainer.classList.add('d-none');
+        } else {
+            if (internContainer) internContainer.classList.add('d-none');
+            if (probStatusContainer) probStatusContainer.classList.remove('d-none');
+            toggleSelfProbationField();
+        }
+    }
+
+    function toggleSelfProbationField() {
+        const status = document.getElementById('self_employment_status').value;
+        const container = document.getElementById('self_probation_period_container');
+        if (container) {
+            if (status === 'Probation') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+            }
+        }
+    }
+</script>
+{% endblock %}

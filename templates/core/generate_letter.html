@@ -1,0 +1,518 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Generate Letters - Lurnexa{% endblock %}
+{% block nav_documents %}active{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="fw-bold mb-1" style="color: var(--brand-color);">Employee Document Center</h2>
+            <p class="text-muted">Generate new official documents or view previously dispatched letters.</p>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs border-bottom-0 mb-4" id="documentTabs" role="tablist" style="gap: 10px;">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold px-4 py-2-5 border-0 shadow-sm" id="generate-tab" data-bs-toggle="tab" data-bs-target="#generate" type="button" role="tab" aria-controls="generate" aria-selected="true" style="border-radius: 10px; transition: all 0.3s ease;">
+                <i class="fa-solid fa-file-circle-plus me-2 text-primary"></i>Generate New Letter
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold px-4 py-2-5 border-0 shadow-sm" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false" style="border-radius: 10px; transition: all 0.3s ease;">
+                <i class="fa-solid fa-clock-rotate-left me-2 text-success"></i>All Generated Letters
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="documentTabsContent">
+        <!-- TAB 1: GENERATE NEW LETTER -->
+        <div class="tab-pane fade show active" id="generate" role="tabpanel" aria-labelledby="generate-tab">
+            <div class="row">
+                <div class="col-lg-8 col-xl-6">
+                    <div class="card shadow-sm border-0" style="border-radius: 15px;">
+                        <div class="card-body p-4">
+                            <form method="POST" action="{% url 'hr_generate_letter' %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                
+                                <!-- Letter Type -->
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">Letter Type</label>
+                                    <select class="form-select" name="letter_type" id="letterTypeSelect" required onchange="toggleFields()">
+                                        <option value="" selected disabled>Choose letter type...</option>
+                                        <option value="Offer Letter">Offer Letter</option>
+                                        <option value="Experience Letter">Experience Letter</option>
+                                        <option value="Bonus Letter">Bonus Letter</option>
+                                        <option value="Hike Letter">Hike Letter</option>
+                                        <option value="Promotion Letter">Promotion Letter</option>
+                                    </select>
+                                </div>
+
+                                <!-- Employee Selection -->
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">Select Employee</label>
+                                    <div class="dropdown custom-search-select">
+                                        <input type="hidden" name="employee_id" id="selectedEmployeeId" required>
+                                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-white text-dark border" type="button" id="employeeDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 10px; padding: 10px 15px;">
+                                            <span id="selectedEmployeeLabel">Choose an employee...</span>
+                                        </button>
+                                        <div class="dropdown-menu w-100 shadow p-3" aria-labelledby="employeeDropdownBtn" style="border-radius: 12px; max-height: 350px; overflow-y: auto; z-index: 1050;">
+                                            <div class="input-group mb-2">
+                                                <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                                                <input type="text" class="form-control bg-light border-start-0" id="employeeSearchInput" placeholder="Search employee by name or ID..." onkeyup="filterEmployeeDropdown()" style="box-shadow: none;">
+                                            </div>
+                                            <ul class="list-unstyled mb-0" id="employeeDropdownList" style="max-height: 220px; overflow-y: auto;">
+                                                {% for emp in employees %}
+                                                <li>
+                                                    <button class="dropdown-item py-2 px-3 rounded-2 text-start w-100 employee-opt animate-btn" type="button" data-value="{{ emp.EmployeeID }}" onclick="selectEmployee('{{ emp.EmployeeID }}', '{{ emp.FirstName|escapejs }} {{ emp.LastName|escapejs }} ({{ emp.EmployeeID|escapejs }})')">
+                                                        <strong>{{ emp.FirstName }} {{ emp.LastName }}</strong>
+                                                        <span class="text-muted d-block small">ID: {{ emp.EmployeeID }} | {{ emp.Department }}</span>
+                                                    </button>
+                                                </li>
+                                                {% empty %}
+                                                <li class="text-muted text-center py-2 small">No employees found</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Fields -->
+                                <div id="dynamicFields">
+                                    <!-- Effective Date / Joining Date -->
+                                    <div class="mb-3 date-field" style="display: none;">
+                                        <label class="form-label fw-bold" id="dateLabel">Effective Date</label>
+                                        <input type="date" class="form-control" name="effective_date" id="effectiveDateInput">
+                                    </div>
+
+                                    <!-- Offer Letter Fields -->
+                                    <div class="offer-fields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Upload Offer Document (PDF/Doc)</label>
+                                            <input type="file" class="form-control" name="offer_document" accept=".pdf,.doc,.docx">
+                                            <div class="form-text text-muted">This document will be saved directly for the employee to download.</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Experience Letter Fields -->
+                                    <div class="experience-fields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Last Working Date</label>
+                                            <input type="date" class="form-control" name="lwd">
+                                        </div>
+                                    </div>
+
+                                    <!-- Bonus Fields -->
+                                    <div class="bonus-fields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Bonus Amount (₹)</label>
+                                            <input type="text" class="form-control" name="bonus_amount" placeholder="e.g., 50,000">
+                                        </div>
+                                    </div>
+
+                                    <!-- Hike Fields -->
+                                    <div class="hike-fields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Hike Percentage (%)</label>
+                                            <input type="number" step="0.1" class="form-control" name="hike_percentage" placeholder="e.g., 15">
+                                        </div>
+                                    </div>
+
+                                    <!-- Promotion Fields -->
+                                    <div class="promotion-fields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">New Designation</label>
+                                            <input type="text" class="form-control" name="new_designation" placeholder="e.g., Senior Software Engineer">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">New Salary (₹/PA - Optional)</label>
+                                            <input type="text" class="form-control" name="new_salary" placeholder="e.g., 12,00,000">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid mt-4">
+                                    <button type="submit" class="btn btn-primary py-2 animate-btn" style="border-radius: 10px;">
+                                        <i class="fa-solid fa-file-signature me-2"></i> Generate Document
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: HISTORY OF GENERATED LETTERS -->
+        <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+            <div class="card shadow-sm border-0" style="border-radius: 15px;">
+                <div class="card-body p-4 pb-0">
+                    <!-- Filters and Search -->
+                    <div class="row g-3 mb-4 justify-content-between align-items-center">
+                        <div class="col-md-6 col-lg-4">
+                            <div class="input-group shadow-sm border" style="border-radius: 10px; overflow: hidden;">
+                                <span class="input-group-text bg-white border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                                <input type="text" id="letterSearchInput" class="form-control border-0" placeholder="Search by name, ID, or type..." onkeyup="filterLettersTable()">
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3">
+                            <select id="letterFilterSelect" class="form-select border shadow-sm" style="border-radius: 10px;" onchange="filterLettersTable()">
+                                <option value="">All Document Types</option>
+                                <option value="Offer Letter">Offer Letter</option>
+                                <option value="Experience Letter">Experience Letter</option>
+                                <option value="Bonus Letter">Bonus Letter</option>
+                                <option value="Hike Letter">Hike Letter</option>
+                                <option value="Promotion Letter">Promotion Letter</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Letters Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle border-0 mb-0" id="lettersHistoryTable">
+                            <thead>
+                                <tr class="bg-light text-uppercase fs-7 text-muted">
+                                    <th class="ps-4 border-0">Employee</th>
+                                    <th class="border-0">Department</th>
+                                    <th class="border-0">Document Type</th>
+                                    <th class="border-0">Date Generated</th>
+                                    <th class="text-end pe-4 border-0">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for letter in letters %}
+                                <tr class="letter-row animate-btn" data-type="{{ letter.LetterType }}" style="display: none;">
+                                    <td class="ps-4 py-3 border-0">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-circle me-3 bg-light text-primary fw-bold" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 1px solid #e2e8f0;">
+                                                {{ letter.employee_name|slice:":2"|upper }}
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-0 fw-bold search-target text-main">{{ letter.employee_name }}</h6>
+                                                <span class="text-muted fs-8 search-target">{{ letter.EmployeeID }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="border-0 text-main">{{ letter.department }}</td>
+                                    <td class="border-0">
+                                        {% if letter.LetterType == 'Offer Letter' %}
+                                        <span class="badge bg-light text-primary px-3 py-2 rounded-pill" style="border: 1px solid rgba(13, 110, 253, 0.15);"><i class="fa-solid fa-file-circle-check me-1"></i> Offer</span>
+                                        {% elif letter.LetterType == 'Experience Letter' %}
+                                        <span class="badge bg-light text-purple px-3 py-2 rounded-pill" style="border: 1px solid rgba(111, 66, 193, 0.15);"><i class="fa-solid fa-graduation-cap me-1"></i> Experience</span>
+                                        {% elif letter.LetterType == 'Bonus Letter' %}
+                                        <span class="badge bg-light text-success px-3 py-2 rounded-pill" style="border: 1px solid rgba(25, 135, 84, 0.15);"><i class="fa-solid fa-circle-dollar-to-slot me-1"></i> Bonus</span>
+                                        {% elif letter.LetterType == 'Hike Letter' %}
+                                        <span class="badge bg-light text-warning px-3 py-2 rounded-pill" style="border: 1px solid rgba(255, 193, 7, 0.15);"><i class="fa-solid fa-chart-line me-1"></i> Hike</span>
+                                        {% elif letter.LetterType == 'Promotion Letter' %}
+                                        <span class="badge bg-light text-danger px-3 py-2 rounded-pill" style="border: 1px solid rgba(220, 53, 69, 0.15);"><i class="fa-solid fa-angles-up me-1"></i> Promotion</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-info px-3 py-2 rounded-pill" style="border: 1px solid rgba(13, 202, 240, 0.15);"><i class="fa-solid fa-building-columns me-1"></i> PF Letter</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="border-0 text-muted fs-7">{{ letter.formatted_date }}</td>
+                                    <td class="text-end pe-4 border-0">
+                                        <div class="d-inline-flex gap-2">
+                                            {% if letter.EmailSent %}
+                                            <button class="btn btn-secondary btn-sm px-3" style="border-radius: 8px;" disabled>
+                                                <i class="fa-solid fa-envelope-circle-check me-1"></i> Sent
+                                            </button>
+                                            {% else %}
+                                            <a href="{% url 'hr_send_letter_email' employee_id=letter.EmployeeID letter_id=letter.LetterID %}" class="btn btn-outline-success btn-sm px-3 animate-btn" style="border-radius: 8px;">
+                                                <i class="fa-solid fa-envelope me-1"></i> Send Mail
+                                            </a>
+                                            {% endif %}
+                                            <a href="{% url 'print_letter' letter_id=letter.LetterID %}?emp_id={{ letter.EmployeeID }}" class="btn btn-outline-primary btn-sm px-3 animate-btn" style="border-radius: 8px;">
+                                                <i class="fa-solid fa-download me-1"></i> Download
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr id="noLettersRow">
+                                    <td colspan="5" class="text-center py-5 border-0">
+                                        <div class="text-muted">
+                                            <i class="fa-solid fa-folder-open display-4 mb-3 text-muted" style="opacity: 0.5;"></i>
+                                            <p class="mb-0 fw-semibold">No letters generated yet.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Pagination Footer -->
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small" id="lettersPaginationFooter">
+                    <span id="lettersPaginationInfo">Showing 1 - 10 out of 30 letters</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item" id="btnPrev">
+                                <button class="page-link" onclick="changePage(-1)">Previous</button>
+                            </li>
+                            <li class="page-item active" id="btnCurrentPage">
+                                <button class="page-link" style="pointer-events: none;">1</button>
+                            </li>
+                            <li class="page-item" id="btnNext">
+                                <button class="page-link" onclick="changePage(1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Page CSS Overrides for Premium Aesthetic -->
+<style>
+    .nav-tabs .nav-link {
+        color: var(--text-muted);
+        background-color: transparent;
+        border: none;
+    }
+    .nav-tabs .nav-link:hover {
+        color: var(--brand-color);
+        transform: translateY(-2px);
+    }
+    .nav-tabs .nav-link.active {
+        color: #ffffff !important;
+        background-color: var(--brand-color) !important;
+        box-shadow: 0 4px 15px rgba(26, 79, 139, 0.25) !important;
+    }
+    .avatar-circle {
+        transition: all 0.3s ease;
+    }
+    .letter-row {
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    .letter-row:hover {
+        background-color: #f8faff !important;
+        transform: scale(1.002);
+    }
+    .animate-btn {
+        transition: all 0.2s ease;
+    }
+    .animate-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+    .text-purple { color: #6f42c1 !important; }
+    .fs-7 { font-size: 0.85rem !important; }
+    .fs-8 { font-size: 0.75rem !important; }
+    
+    /* Ensure cursor pointers on paginator actions */
+    .page-link {
+        cursor: pointer;
+    }
+    
+    /* Searchable dropdown styling */
+    .employee-opt {
+        border: none;
+        background: transparent;
+        transition: all 0.2s ease;
+        text-align: left;
+    }
+    .employee-opt:hover, .employee-opt:focus {
+        background-color: rgba(155, 93, 229, 0.1) !important;
+        color: #9b5de5 !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterEmployeeDropdown() {
+        const query = document.getElementById('employeeSearchInput').value.toLowerCase();
+        const items = document.querySelectorAll('#employeeDropdownList .employee-opt');
+        
+        items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (text.includes(query)) {
+                item.closest('li').style.display = 'block';
+            } else {
+                item.closest('li').style.display = 'none';
+            }
+        });
+    }
+
+    function selectEmployee(id, label) {
+        document.getElementById('selectedEmployeeId').value = id;
+        document.getElementById('selectedEmployeeLabel').innerText = label;
+        
+        // Reset query
+        document.getElementById('employeeSearchInput').value = '';
+        filterEmployeeDropdown();
+        
+        // Hide dropdown
+        const dropdownEl = document.getElementById('employeeDropdownBtn');
+        const dropdown = bootstrap.Dropdown.getInstance(dropdownEl) || new bootstrap.Dropdown(dropdownEl);
+        dropdown.hide();
+    }
+
+    let currentPage = 1;
+    const pageSize = 10;
+    let filteredRows = [];
+
+    document.addEventListener("DOMContentLoaded", function() {
+        updateFilteredRows();
+        renderTablePage();
+    });
+
+    function toggleFields() {
+        const type = document.getElementById('letterTypeSelect').value;
+        const dateField = document.querySelector('.date-field');
+        const dateLabel = document.getElementById('dateLabel');
+        const dateInput = document.getElementById('effectiveDateInput');
+        
+        // Hide all specific fields
+        document.querySelector('.offer-fields').style.display = 'none';
+        document.querySelector('.experience-fields').style.display = 'none';
+        document.querySelector('.bonus-fields').style.display = 'none';
+        document.querySelector('.hike-fields').style.display = 'none';
+        document.querySelector('.promotion-fields').style.display = 'none';
+        
+        // Reset required
+        document.querySelectorAll('#dynamicFields input').forEach(input => input.required = false);
+
+        if (type === 'Offer Letter') {
+            dateField.style.display = 'none';
+            document.querySelector('.offer-fields').style.display = 'block';
+            document.querySelector('input[name="offer_document"]').required = true;
+        } else if (type === 'Experience Letter') {
+            dateField.style.display = 'none';
+            document.querySelector('.experience-fields').style.display = 'block';
+            document.querySelector('input[name="lwd"]').required = true;
+        } else if (type === 'Bonus Letter') {
+            dateField.style.display = 'block';
+            dateLabel.innerText = 'Effective Date';
+            dateInput.required = true;
+            document.querySelector('.bonus-fields').style.display = 'block';
+            document.querySelector('input[name="bonus_amount"]').required = true;
+        } else if (type === 'Hike Letter') {
+            dateField.style.display = 'block';
+            dateLabel.innerText = 'Effective Date';
+            dateInput.required = true;
+            document.querySelector('.hike-fields').style.display = 'block';
+            document.querySelector('input[name="hike_percentage"]').required = true;
+        } else if (type === 'Promotion Letter') {
+            dateField.style.display = 'block';
+            dateLabel.innerText = 'Effective Date';
+            dateInput.required = true;
+            document.querySelector('.promotion-fields').style.display = 'block';
+            document.querySelector('input[name="new_designation"]').required = true;
+        }
+    }
+
+    function updateFilteredRows() {
+        const searchVal = document.getElementById('letterSearchInput').value.toLowerCase();
+        const filterVal = document.getElementById('letterFilterSelect').value;
+        const rows = document.querySelectorAll('.letter-row');
+        
+        filteredRows = [];
+        rows.forEach(row => {
+            const rowType = row.getAttribute('data-type');
+            
+            // Search text targets employee name and ID
+            let matchSearch = false;
+            const searchTargets = row.querySelectorAll('.search-target');
+            searchTargets.forEach(target => {
+                if (target.textContent.toLowerCase().includes(searchVal)) {
+                    matchSearch = true;
+                }
+            });
+            
+            // Type filter match
+            const matchFilter = (filterVal === '') || (rowType === filterVal);
+            
+            if (matchSearch && matchFilter) {
+                filteredRows.push(row);
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    function renderTablePage() {
+        const totalItems = filteredRows.length;
+        const totalPages = Math.ceil(totalItems / pageSize) || 1;
+        
+        if (currentPage > totalPages) {
+            currentPage = totalPages;
+        }
+        if (currentPage < 1) {
+            currentPage = 1;
+        }
+        
+        const startIdx = (currentPage - 1) * pageSize;
+        const endIdx = Math.min(startIdx + pageSize, totalItems);
+        
+        // Hide all rows
+        const allRows = document.querySelectorAll('.letter-row');
+        allRows.forEach(row => row.style.display = 'none');
+        
+        // Show only active page rows
+        for (let i = startIdx; i < endIdx; i++) {
+            if (filteredRows[i]) {
+                filteredRows[i].style.display = '';
+            }
+        }
+        
+        // Show/Hide pagination container depending on whether there are items
+        const footer = document.getElementById('lettersPaginationFooter');
+        const infoSpan = document.getElementById('lettersPaginationInfo');
+        
+        if (totalItems === 0) {
+            infoSpan.textContent = "Showing 0 - 0 out of 0 letters";
+            footer.style.display = 'flex';
+        } else {
+            infoSpan.textContent = `Showing ${startIdx + 1} - ${endIdx} out of ${totalItems} letters`;
+            footer.style.display = 'flex';
+        }
+        
+        // Update state of buttons
+        const btnPrev = document.getElementById('btnPrev');
+        const btnNext = document.getElementById('btnNext');
+        const btnCurrent = document.getElementById('btnCurrentPage').querySelector('button');
+        
+        btnCurrent.textContent = currentPage;
+        
+        if (currentPage === 1) {
+            btnPrev.classList.add('disabled');
+        } else {
+            btnPrev.classList.remove('disabled');
+        }
+        
+        if (currentPage === totalPages) {
+            btnNext.classList.add('disabled');
+        } else {
+            btnNext.classList.remove('disabled');
+        }
+    }
+
+    function changePage(direction) {
+        currentPage += direction;
+        renderTablePage();
+    }
+
+    function filterLettersTable() {
+        currentPage = 1; // Reset to first page
+        updateFilteredRows();
+        renderTablePage();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        if (activeTab === 'history') {
+            const historyTabTrigger = document.querySelector('#history-tab');
+            if (historyTabTrigger) {
+                const tab = new bootstrap.Tab(historyTabTrigger);
+                tab.show();
+            }
+        }
+    });
+</script>
+{% endblock %}

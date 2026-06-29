@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll Management - Lurnexa{% endblock %}
+{% block nav_manage_payroll %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-0">Payroll Management</h4>
+        <p class="text-muted smaller mb-0">Manage monthly generation and track organizational payroll history.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <div class="alert alert-info py-2 px-3 mb-0 rounded-pill smaller border-0 shadow-sm" style="background: rgba(13, 202, 240, 0.1); color: #055160;">
+            <i class="fa-solid fa-circle-info me-2"></i>
+            <strong>Policy:</strong> LOP Cycle: 27th (Prev) to 26th (Curr) | <strong>Generation Date:</strong> 30th only
+        </div>
+        <a href="{% url 'payroll_logout' %}" class="btn btn-outline-danger shadow-sm rounded-pill px-4 py-2 fw-bold">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-pills mb-4 gap-2" id="payrollTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active px-4 py-2 rounded-pill fw-bold shadow-sm" id="generate-tab" data-bs-toggle="pill" data-bs-target="#generate" type="button" role="tab">
+            <i class="fa-solid fa-file-invoice-dollar me-2"></i> Payslip Generation
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link px-4 py-2 rounded-pill fw-bold shadow-sm" id="history-tab" data-bs-toggle="pill" data-bs-target="#history" type="button" role="tab">
+            <i class="fa-solid fa-clock-rotate-left me-2"></i> Payroll History
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="payrollTabsContent">
+    <!-- Tab 1: Generation -->
+    <div class="tab-pane fade show active" id="generate" role="tabpanel">
+        <form id="payrollForm" action="{% url 'manage_payroll' %}" method="POST" data-global-esi="{% if global_esi %}{{ global_esi }}{% endif %}">
+            {% csrf_token %}
+            <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 pb-2 border-0 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0">Run Monthly Payroll</h6>
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm shadow-sm rounded-pill px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#esiSettingsModal">
+                            <i class="fa-solid fa-gear me-1"></i> ESI Settings
+                        </button>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                            <label class="form-check-label small fw-bold text-muted" for="selectAll">Select All</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm shadow-sm rounded-pill px-4 fw-bold" id="runPayrollBtn">
+                            Run Selected Payroll
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted" style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase;">
+                                <tr>
+                                    <th class="ps-4 border-0 py-3" style="width: 50px;">Select</th>
+                                    <th class="border-0 py-3">Employee</th>
+                                    <th class="border-0 py-3 text-nowrap">Annual CTC</th>
+                                    <th class="border-0 py-3 text-nowrap">Increment (%)</th>
+                                    <th class="border-0 py-3 text-nowrap">Proposed</th>
+                                     <th class="border-0 py-3 text-nowrap text-success">Bonus (₹)</th>
+                                    <th class="border-0 py-3 text-nowrap">LOP Mode</th>
+                                    <th class="border-0 py-3">Basic</th>
+                                    <th class="border-0 py-3">HRA</th>
+                                    <th class="border-0 py-3 text-danger">LOP</th>
+                                    <th class="border-0 py-3 text-danger">TDS</th>
+                                    <th class="border-0 py-3 text-danger">Total Ded.</th>
+                                    <th class="border-0 py-3 text-success">Net Pay</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in payroll_data %}
+                                <tr class="employee-row" 
+                                    data-emp-id="{{ item.employee.EmployeeID }}"
+                                    data-salary-pa="{{ item.employee.SalaryPA|default:0 }}"
+                                    data-is-pf="{{ item.employee.is_pf_applicable|default:'True' }}"
+                                    data-auto-lop="{{ item.attendance.lop_days }}"
+                                    data-total-days="{{ item.attendance.total_days }}">
+                                    <td class="ps-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input employee-check" type="checkbox" name="selected_employees" value="{{ item.employee.EmployeeID }}">
+                                        </div>
+                                    </td>
+                                    <td class="py-4">
+                                        <div class="d-flex align-items-center">
+                                            <div>
+                                                <div class="fw-bold text-dark smaller">{{ item.employee.FirstName }} {{ item.employee.LastName }}</div>
+                                                <div class="text-muted smaller" style="font-size: 0.7rem;">{{ item.employee.EmployeeID }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="fw-bold text-primary smaller text-nowrap">₹ {{ item.employee.SalaryPA|default:"-" }}</td>
+                                    <td class="smaller">
+                                        <input type="number" name="increment_{{ item.employee.EmployeeID }}" 
+                                               class="form-control form-control-sm increment-input" 
+                                               data-emp-id="{{ item.employee.EmployeeID }}"
+                                               data-current-salary="{{ item.employee.SalaryPA|default:0 }}"
+                                               placeholder="% 0" min="0" step="0.1" style="width: 80px;">
+                                    </td>
+                                    <td class="fw-bold text-indigo smaller text-nowrap">₹ <span id="proposed_salary_{{ item.employee.EmployeeID }}">{{ item.employee.SalaryPA|default:"0" }}</span></td>
+                                     <td class="smaller">
+                                         <input type="number" name="bonus_{{ item.employee.EmployeeID }}" 
+                                                class="form-control form-control-sm bonus-input" 
+                                                data-emp-id="{{ item.employee.EmployeeID }}"
+                                                value="{% if item.auto_bonus %}{{ item.auto_bonus|floatformat:0 }}{% endif %}"
+                                                placeholder="₹ 0" min="0" step="1" style="width: 70px;">
+                                     </td>
+                                    <td class="smaller">
+                                        <select name="lop_mode_{{ item.employee.EmployeeID }}" class="form-select form-select-sm lop-mode-select" data-emp-id="{{ item.employee.EmployeeID }}" style="width: 80px; font-size: 0.75rem;">
+                                            <option value="automatic" selected>Auto</option>
+                                            <option value="manual">Manual</option>
+                                        </select>
+                                        <div class="mt-1 manual-lop-container" id="manual_lop_container_{{ item.employee.EmployeeID }}" style="display: none;">
+                                            <input type="number" name="manual_lop_days_{{ item.employee.EmployeeID }}" class="form-control form-control-sm" placeholder="Days" min="0" max="31" step="0.5" style="font-size: 0.7rem;">
+                                        </div>
+                                    </td>
+                                    <td class="text-dark smaller">₹ <span id="basic_{{ item.employee.EmployeeID }}">{{ item.preview.Basic }}</span></td>
+                                    <td class="text-dark smaller">₹ <span id="hra_{{ item.employee.EmployeeID }}">{{ item.preview.HRA }}</span></td>
+                                    <td class="text-danger smaller">₹ <span id="lop_deduction_{{ item.employee.EmployeeID }}">{{ item.preview.LOPDeduction }}</span> <br><small class="text-muted opacity-75">(<span id="lop_days_text_{{ item.employee.EmployeeID }}">{{ item.attendance.lop_days }}</span>d)</small></td>
+                                    <td class="text-danger smaller">₹ <span id="tds_{{ item.employee.EmployeeID }}">{{ item.preview.TDS }}</span></td>
+                                    <td class="text-danger smaller">₹ <span id="total_deductions_{{ item.employee.EmployeeID }}">{{ item.preview.TotalDeductions }}</span></td>
+                                    <td class="fw-bold text-success smaller">₹ <span id="net_pay_{{ item.employee.EmployeeID }}">{{ item.preview.NetPay }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ payroll_data.start_index }} - {{ payroll_data.end_index }} out of {{ total_run }} employees</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if payroll_data.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_run={{ payroll_data.previous_page_number }}&active_tab=generate{% for key,value in request.GET.items %}{% if key != 'page_run' and key != 'active_tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            
+                            <li class="page-item active"><a class="page-link" href="#">{{ payroll_data.number }}</a></li>
+                            
+                            {% if payroll_data.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_run={{ payroll_data.next_page_number }}&active_tab=generate{% for key,value in request.GET.items %}{% if key != 'page_run' and key != 'active_tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tab 2: History -->
+    <div class="tab-pane fade" id="history" role="tabpanel">
+        <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+            <div class="card-header bg-white pt-4 pb-3 border-0">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0">Organizational Payslip Records</h6>
+                    <div class="small text-muted fw-medium" id="historyCount">{{ global_history|length }} Total Records</div>
+                </div>
+                
+                <!-- Filter Section -->
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="smaller fw-bold text-muted mb-1 ms-1">Filter by Month</label>
+                        <select id="filterMonth" class="form-select form-select-sm rounded-pill border-light shadow-sm">
+                            <option value="">All Months</option>
+                            <option value="jan">January</option>
+                            <option value="feb">February</option>
+                            <option value="mar">March</option>
+                            <option value="apr">April</option>
+                            <option value="may">May</option>
+                            <option value="jun">June</option>
+                            <option value="jul">July</option>
+                            <option value="aug">August</option>
+                            <option value="sep">September</option>
+                            <option value="oct">October</option>
+                            <option value="nov">November</option>
+                            <option value="dec">December</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="smaller fw-bold text-muted mb-1 ms-1">Filter by Year</label>
+                        <select id="filterYear" class="form-select form-select-sm rounded-pill border-light shadow-sm">
+                            <option value="">All Years</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-light btn-sm rounded-pill px-3 fw-bold border-light shadow-sm w-100" onclick="resetFilters()">
+                            <i class="fa-solid fa-rotate-left me-1"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="historyTable">
+                        <thead class="bg-light text-muted" style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Pay Period</th>
+                                <th class="border-0 py-3">Net Payable</th>
+                                <th class="border-0 py-3">Approved By</th>
+                                <th class="border-0 py-3">Generated Date</th>
+                                <th class="pe-4 border-0 py-3 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in global_history %}
+                            <tr class="history-row" data-period="{{ record.MonthYear|lower }}">
+                                <td class="ps-4 py-3">
+                                    <div class="fw-bold text-dark small">{{ record.EmployeeName }}</div>
+                                    <div class="text-muted smaller" style="font-size: 0.75rem;">{{ record.EmployeeID }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-soft-primary text-primary rounded-pill px-3 py-1 fw-bold smaller">{{ record.MonthYear|upper }}</span>
+                                </td>
+                                <td class="fw-bold text-dark small">₹ {{ record.NetPay }}</td>
+                                <td class="text-muted smaller">{{ record.ApprovedBy|default:"System" }}</td>
+                                <td class="text-muted smaller">{{ record.GeneratedAt|slice:":10" }} {{ record.GeneratedAt|slice:"11:16" }}</td>
+                                <td class="pe-4 text-end">
+                                    <a href="{% url 'download_payslip_hr' record.MonthYear record.EmployeeID %}" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-bold smaller shadow-sm">
+                                        <i class="fa-solid fa-file-pdf me-1"></i> PDF
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">No payslip history found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ global_history.start_index }} - {{ global_history.end_index }} out of {{ total_hist }} records</span>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0">
+                                {% if global_history.has_previous %}
+                                    <li class="page-item"><a class="page-link" href="?page_hist={{ global_history.previous_page_number }}&active_tab=history{% for key,value in request.GET.items %}{% if key != 'page_hist' and key != 'active_tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
+                                {% else %}
+                                    <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                                {% endif %}
+                                
+                                <li class="page-item active"><a class="page-link" href="#">{{ global_history.number }}</a></li>
+                                
+                                {% if global_history.has_next %}
+                                    <li class="page-item"><a class="page-link" href="?page_hist={{ global_history.next_page_number }}&active_tab=history{% for key,value in request.GET.items %}{% if key != 'page_hist' and key != 'active_tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
+                                {% else %}
+                                    <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+        </div>
+    </div>
+</div>
+
+<!-- ESI Settings Modal -->
+<div class="modal fade" id="esiSettingsModal" tabindex="-1" aria-labelledby="esiSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="border-radius: 15px;">
+            <div class="modal-header bg-light border-0">
+                <h5 class="modal-title fw-bold" id="esiSettingsModalLabel"><i class="fa-solid fa-gear text-muted me-2"></i>Global ESI Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'update_esi_config' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-4">Set a fixed ESI deduction amount for all eligible employees. Leave blank if you do not want to deduct ESI.</p>
+                    <div class="mb-3">
+                        <label for="esi_amount" class="form-label fw-bold smaller text-muted">Fixed ESI Amount (₹)</label>
+                        <input type="number" class="form-control" id="esi_amount" name="esi_amount" value="{{ global_esi|default:'' }}" placeholder="e.g. 150" min="0" step="1">
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const payrollForm = document.getElementById('payrollForm');
+    const GLOBAL_ESI_AMOUNT = (payrollForm && payrollForm.dataset.globalEsi) ? parseFloat(payrollForm.dataset.globalEsi) : null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectAll = document.getElementById('selectAll');
+        const employeeChecks = document.querySelectorAll('.employee-check');
+        const runBtn = document.getElementById('runPayrollBtn');
+        const form = document.getElementById('payrollForm');
+
+        selectAll.addEventListener('change', function() {
+            employeeChecks.forEach(check => {
+                check.checked = selectAll.checked;
+            });
+        });
+
+        let isSubmitting = false;
+        form.addEventListener('submit', function(e) {
+            if (isSubmitting) {
+                e.preventDefault();
+                return;
+            }
+            
+            const selected = document.querySelectorAll('.employee-check:checked');
+            if (selected.length === 0) {
+                e.preventDefault();
+                Lurnexa.alert('Please select at least one employee to generate payroll.', 'Selection Required');
+                return;
+            }
+
+            e.preventDefault();
+            Lurnexa.confirm({
+                title: 'Confirm Payroll Run',
+                message: `Are you sure you want to generate payroll for ${selected.length} selected employees?`,
+                onConfirm: () => {
+                    isSubmitting = true;
+                    runBtn.disabled = true;
+                    runBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Processing...';
+                    form.submit();
+                }
+            });
+        });
+
+        // Live Calculation Logic
+        const incrementInputs = document.querySelectorAll('.increment-input');
+        incrementInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                const empId = this.dataset.empId;
+                const currentSalary = parseFloat(this.dataset.currentSalary) || 0;
+                const incrementPercent = parseFloat(this.value) || 0;
+                const incrementAmount = currentSalary * (incrementPercent / 100);
+                const proposedSpan = document.getElementById(`proposed_salary_${empId}`);
+                if (proposedSpan) {
+                    proposedSpan.innerText = (currentSalary + incrementAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+                updateEmployeePayroll(empId);
+            });
+        });
+
+        const bonusInputs = document.querySelectorAll('.bonus-input');
+        bonusInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                const empId = this.dataset.empId;
+                updateEmployeePayroll(empId);
+            });
+        });
+
+        const lopModeSelects = document.querySelectorAll('.lop-mode-select');
+        lopModeSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                const empId = this.dataset.empId;
+                const container = document.getElementById(`manual_lop_container_${empId}`);
+                if (this.value === 'manual') {
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                    container.querySelector('input').value = '';
+                }
+                updateEmployeePayroll(empId);
+            });
+        });
+
+        const manualLopInputs = document.querySelectorAll('input[name^="manual_lop_days_"]');
+        manualLopInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                const empId = this.closest('tr').dataset.empId;
+                updateEmployeePayroll(empId);
+            });
+        });
+
+        function updateEmployeePayroll(empId) {
+            const row = document.querySelector(`tr[data-emp-id="${empId}"]`);
+            if (!row) return;
+
+            const salaryPA = parseFloat(row.dataset.salaryPa) || 0;
+            const isPF = row.dataset.isPf === 'True';
+            const totalDays = parseFloat(row.dataset.totalDays) || 30;
+            const autoLop = parseFloat(row.dataset.autoLop) || 0;
+
+            const incrementInput = document.querySelector(`input[name="increment_${empId}"]`);
+            const incrementPercent = parseFloat(incrementInput.value) || 0;
+            const incrementAmount = salaryPA * (incrementPercent / 100);
+
+            const bonusInput = document.querySelector(`input[name="bonus_${empId}"]`);
+            const bonusAmount = parseFloat(bonusInput.value) || 0;
+            
+            const lopModeSelect = document.querySelector(`select[name="lop_mode_${empId}"]`);
+            const lopMode = lopModeSelect.value;
+            
+            let lopDays = autoLop;
+            if (lopMode === 'manual') {
+                const manualInput = document.querySelector(`input[name="manual_lop_days_${empId}"]`);
+                lopDays = parseFloat(manualInput.value) || 0;
+            }
+
+            const currentAnnual = salaryPA + incrementAmount;
+            const monthlyCTC = currentAnnual / 12;
+
+            const basic = 0.40 * monthlyCTC;
+            const hra = 0.40 * basic;
+            const special = monthlyCTC - (basic + hra);
+            const gross = basic + hra + special;
+
+            const perDay = totalDays > 0 ? gross / totalDays : 0;
+            const lopDeduction = perDay * lopDays;
+            const adjustedGross = gross - lopDeduction;
+
+            let pf = 0;
+            if (isPF) pf = 0.12 * basic;
+
+            let esi = 0;
+            if (GLOBAL_ESI_AMOUNT !== null) {
+                esi = GLOBAL_ESI_AMOUNT;
+            }
+
+            let pt = 0;
+            if (adjustedGross > 20000) {
+                pt = 200;
+            } else if (adjustedGross > 15000) {
+                pt = 150;
+            }
+
+            // TDS Logic (New Regime FY 2024-25)
+            let tds = 0;
+            const stdDeduction = 75000;
+            const taxableIncome = Math.max(0, currentAnnual - stdDeduction);
+
+            if (taxableIncome > 700000) {
+                let tax = 0;
+                if (taxableIncome > 300000) tax += Math.min(taxableIncome - 300000, 400000) * 0.05;
+                if (taxableIncome > 700000) tax += Math.min(taxableIncome - 700000, 300000) * 0.10;
+                if (taxableIncome > 1000000) tax += Math.min(taxableIncome - 1000000, 200000) * 0.15;
+                if (taxableIncome > 1200000) tax += Math.min(taxableIncome - 1200000, 300000) * 0.20;
+                if (taxableIncome > 1500000) tax += (taxableIncome - 1500000) * 0.30;
+                tds = (tax * 1.04) / 12;
+            }
+
+            const totalDeductions = pf + esi + pt + tds;
+            const netPay = (adjustedGross - totalDeductions) + bonusAmount;
+
+            const formatCurrency = (num) => num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            document.getElementById(`basic_${empId}`).innerText = formatCurrency(basic);
+            document.getElementById(`hra_${empId}`).innerText = formatCurrency(hra);
+            document.getElementById(`lop_deduction_${empId}`).innerText = formatCurrency(lopDeduction);
+            document.getElementById(`lop_days_text_${empId}`).innerText = lopDays;
+            document.getElementById(`tds_${empId}`).innerText = formatCurrency(tds);
+            document.getElementById(`total_deductions_${empId}`).innerText = formatCurrency(totalDeductions);
+            document.getElementById(`net_pay_${empId}`).innerText = formatCurrency(netPay);
+        }
+
+        // --- History Filtering Logic ---
+        const filterMonth = document.getElementById('filterMonth');
+        const filterYear = document.getElementById('filterYear');
+        const historyRows = document.querySelectorAll('.history-row');
+        const historyCount = document.getElementById('historyCount');
+
+        function applyHistoryFilters() {
+            const m = filterMonth.value;
+            const y = filterYear.value;
+            let visibleCount = 0;
+
+            historyRows.forEach(row => {
+                const period = row.dataset.period; // e.g. "apr_2026"
+                const matchesMonth = !m || period.includes(m);
+                const matchesYear = !y || period.includes(y);
+
+                if (matchesMonth && matchesYear) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            historyCount.innerText = `${visibleCount} Records Found`;
+        }
+
+        filterMonth.addEventListener('change', applyHistoryFilters);
+        filterYear.addEventListener('change', applyHistoryFilters);
+
+        window.resetFilters = function() {
+            filterMonth.value = '';
+            filterYear.value = '';
+            applyHistoryFilters();
+        };
+
+        // Initial apply
+        applyHistoryFilters();
+
+        // --- Handle Tab persistence on pagination ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTabParam = urlParams.get('active_tab');
+        
+        if (activeTabParam === 'history') {
+            const historyTab = document.getElementById('history-tab');
+            if (historyTab) {
+                const tab = new bootstrap.Tab(historyTab);
+                tab.show();
+            }
+        } else if (activeTabParam === 'generate') {
+            const generateTab = document.getElementById('generate-tab');
+            if (generateTab) {
+                const tab = new bootstrap.Tab(generateTab);
+                tab.show();
+            }
+        } else if (urlParams.has('page_hist')) {
+            // Fallback for direct links
+            const historyTab = document.getElementById('history-tab');
+            if (historyTab) {
+                const tab = new bootstrap.Tab(historyTab);
+                tab.show();
+            }
+        }
+    });
+</script>
+{% endblock %}

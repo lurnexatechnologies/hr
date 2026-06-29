@@ -1,0 +1,17 @@
+[Unit]
+Description=gunicorn daemon for Lurnexa HRMS
+Requires=gunicorn.socket
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/lurnexa_hrms
+ExecStart=/home/ubuntu/lurnexa_hrms/venv/bin/gunicorn \
+          --access-logfile - \
+          --workers 3 \
+          --bind unix:/run/gunicorn.sock \
+          lurnexa_hrms.wsgi:application
+
+[Install]
+WantedBy=multi-user.target

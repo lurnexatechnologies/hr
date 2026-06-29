@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% load static %}
+ 
+{% block title %}Owner Dashboard - Lurnexa{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+ 
+{% block extra_css %}
+<style>
+    :root {
+        --owner-gradient: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        --accent-gold: #fbbf24;
+    }
+ 
+    .owner-header {
+        background: var(--owner-gradient);
+        border-radius: 24px;
+        padding: 40px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 30px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+ 
+    .owner-header::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 400px;
+        height: 400px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+ 
+    .stat-card {
+        border: none;
+        border-radius: 20px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: white;
+        border: 1px solid #f1f5f9;
+    }
+ 
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+    }
+ 
+    .icon-box {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+ 
+    .bg-soft-primary { background-color: #eff6ff; color: #2563eb; }
+    .bg-soft-success { background-color: #f0fdf4; color: #16a34a; }
+    .bg-soft-warning { background-color: #fffbeb; color: #d97706; }
+    .bg-soft-danger { background-color: #fef2f2; color: #dc2626; }
+ 
+    .approval-item {
+        padding: 16px;
+        border-radius: 16px;
+        background: #f8fafc;
+        border: 1px solid #f1f5f9;
+        margin-bottom: 12px;
+        transition: all 0.2s;
+    }
+ 
+    .approval-item:hover {
+        background: white;
+        border-color: #cbd5e1;
+    }
+ 
+    .chart-container {
+        height: 300px;
+    }
+ 
+    .badge-premium {
+        background: var(--accent-gold);
+        color: #78350f;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 100px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+</style>
+{% endblock %}
+ 
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Executive Welcome -->
+    <div class="owner-header d-flex justify-content-between align-items-center">
+        <div>
+            <div class="badge-premium mb-3">Executive Access</div>
+            <h1 class="display-5 fw-bold mb-2">Welcome back, {{ request.user.first_name }}</h1>
+            <p class="opacity-75 fs-5 mb-0">Here is your organization's performance overview for today.</p>
+        </div>
+        <div class="text-end d-none d-md-block">
+            <div class="fs-4 fw-bold">₹{{ total_monthly_salary|floatformat:2 }}</div>
+            <div class="opacity-50 small text-uppercase fw-bold">Est. Monthly Payroll</div>
+        </div>
+    </div>
+ 
+    <!-- Key Metrics -->
+    <div class="row g-4 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card p-4">
+                <div class="icon-box bg-soft-primary">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div class="text-muted small fw-bold text-uppercase">Total Workforce</div>
+                <div class="fs-2 fw-bold text-dark">{{ total_employees }}</div>
+                <div class="mt-2 text-success small">
+                    <i class="fa-solid fa-arrow-up me-1"></i> System Active
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card p-4">
+                <div class="icon-box bg-soft-success">
+                    <i class="fa-solid fa-sack-dollar"></i>
+                </div>
+                <div class="text-muted small fw-bold text-uppercase">Monthly Payroll</div>
+                <div class="fs-2 fw-bold text-dark">₹{{ total_monthly_salary|floatformat:0 }}</div>
+                <div class="mt-2 text-muted small">Projected Disbursement</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card p-4">
+                <div class="icon-box bg-soft-warning">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div class="text-muted small fw-bold text-uppercase">Pending Approvals</div>
+                <div class="fs-2 fw-bold text-dark">{{ pending_approvals|length }}</div>
+                <div class="mt-2 text-warning small">
+                    Requires your attention
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card p-4">
+                <div class="icon-box bg-soft-danger">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div class="text-muted small fw-bold text-uppercase">System Activity</div>
+                <div class="fs-2 fw-bold text-dark">{{ logins_today }}</div>
+                <div class="mt-2 text-muted small">Logins recorded today</div>
+            </div>
+        </div>
+    </div>
+ 
+    <div class="row g-4">
+        <!-- Approval Queue -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">Critical Approval Queue</h5>
+                </div>
+                <div class="card-body px-4 pb-4" style="max-height: 520px; overflow-y: auto;">
+                    {% if pending_approvals %}
+                        {% for item in pending_approvals %}
+                        <div class="approval-item d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                    {% if item.badge == 'Payroll' %}
+                                        <i class="fa-solid fa-money-bill-transfer text-success"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-user-shield text-danger"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark">{{ item.title }}</h6>
+                                    <p class="text-muted small mb-0">{{ item.subtitle }}</p>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge {% if item.badge == 'Payroll' %}bg-success{% else %}bg-danger{% endif %} bg-opacity-10 {% if item.badge == 'Payroll' %}text-success{% else %}text-danger{% endif %} rounded-pill px-3 py-2 small mb-2 d-inline-block">{{ item.badge }}</span>
+                                <br>
+                                <a href="{% url item.url %}" class="btn btn-sm btn-dark rounded-pill px-3">Review Now</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <img src="https://illustrations.popsy.co/blue/success.svg" alt="No Pending" style="width: 150px;" class="mb-4">
+                            <h6 class="fw-bold">All caught up!</h6>
+                            <p class="text-muted small">No critical approvals are pending at the moment.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+ 
+        <!-- Distribution -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 py-4 px-4">
+                    <h5 class="fw-bold mb-0">Workforce Distribution</h5>
+                </div>
+                <div class="card-body px-4">
+                    <div class="chart-container">
+                        <canvas id="deptChart"></canvas>
+                    </div>
+                    {{ dept_labels|json_script:"dept-labels" }}
+                    {{ dept_values|json_script:"dept-values" }}
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between mb-2 small">
+                            <span class="text-muted">Total Depts</span>
+                            <span class="fw-bold text-dark">{{ dept_labels|length }}</span>
+                        </div>
+                        <hr class="my-2 opacity-10">
+                        <div class="d-flex justify-content-between small">
+                            <span class="text-muted">Avg per Dept</span>
+                            <span class="fw-bold text-dark">{{ avg_per_dept }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+ 
+{% block extra_js %}
+<script src="{% static 'vendor/chartjs/chart.min.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('deptChart').getContext('2d');
+        const deptLabels = JSON.parse(document.getElementById('dept-labels').textContent || '[]');
+        const deptValues = JSON.parse(document.getElementById('dept-values').textContent || '[]');
+ 
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: deptLabels,
+                datasets: [{
+                    data: deptValues,
+                    backgroundColor: [
+                        '#9B5DE5', '#C77DFF', '#E056FD', '#5DA9FF', '#32C48D',
+                        '#2D2D2D', '#7B2CBF', '#E9D8FD'
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '75%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20,
+                            font: {
+                                size: 11,
+                                weight: '600'
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

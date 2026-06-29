@@ -1,0 +1,1027 @@
+{% extends "base.html" %}
+{% load employee_filters %}
+
+{% block title %}Profile - {{ employee.FirstName }} {{ employee.LastName }}{% endblock %}
+{% block nav_employees %}{% if request.user.role == 'HR ADMIN' and request.user.employee_id != employee.EmployeeID %}active{% endif %}{% endblock %}
+{% block nav_profile %}{% if request.user.employee_id == employee.EmployeeID %}active{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 profile-fixed-wrapper">
+    <div class="row g-4 h-100">
+        <!-- Left Column: Fixed Profile Summary -->
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm text-center p-0 overflow-hidden" style="border-radius: 20px;">
+                <div class="profile-header-bg py-5" style="background: linear-gradient(135deg, #1a4f8b 0%, #3182ce 100%);">
+                    <div class="avatar-wrapper mx-auto shadow-sm" style="width: 110px; height: 110px; border-radius: 50%; padding: 5px; background: rgba(255,255,255,0.2);">
+                        <div class="avatar border border-4 border-white overflow-hidden" style="width: 100%; height: 100%; border-radius: 50%; background: white;">
+                            {% if employee.PassportPhoto %}
+                                <img src="{% if employee.PassportPhoto|slice:':4' == 'http' %}{{ employee.PassportPhoto }}{% else %}/media/{{ employee.PassportPhoto }}{% endif %}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                            {% else %}
+                                <div class="h-100 d-flex align-items-center justify-content-center fw-bold text-primary" style="font-size: 2.2rem;">
+                                    {{ employee.FirstName|make_list|first|default:"U" }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body px-3 pb-4 mt-2">
+                    <h4 class="fw-bold text-dark mb-0 text-truncate px-2">{{ employee.FirstName }} {{ employee.LastName }}</h4>
+                    <p class="text-muted fw-bold smaller text-uppercase mb-2">{{ employee.Designation|default:"Employee" }}</p>
+                    <div class="mb-4">
+                        <span class="badge {% if employee.EmploymentType == 'Intern' %}bg-info{% else %}bg-primary{% endif %} rounded-pill px-3 py-2 smaller">
+                            <i class="fa-solid {% if employee.EmploymentType == 'Intern' %}fa-graduation-cap{% else %}fa-briefcase{% endif %} me-1"></i>
+                            {{ employee.EmploymentType|default:"Permanent" }}
+                        </span>
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-3 py-2 smaller ms-1">
+                            <i class="fa-solid {% if employee.Shift == 'Night Shift' %}fa-moon{% else %}fa-sun{% endif %} me-1"></i>
+                            {{ employee.Shift|default:"Day Shift" }}
+                        </span>
+                        {% if employee.EmploymentType == 'Intern' %}
+                        <div class="mt-2 text-muted smaller fw-bold">
+                            <i class="fa-solid fa-clock me-1"></i> {{ employee.InternshipPeriod|default:"0" }} MONTHS DURATION
+                        </div>
+                        {% elif employee.EmploymentStatus == 'Probation' %}
+                        <div class="mt-2 text-muted smaller fw-bold">
+                            <i class="fa-solid fa-hourglass-half me-1"></i> {{ employee.ProbationPeriod|default:"0" }} MONTHS PROBATION
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="contact-box text-start bg-light rounded-4 p-3 mb-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="fa-solid fa-id-badge text-primary me-3 opacity-50"></i>
+                            <div>
+                                <small class="text-muted d-block smaller fw-bold">ID</small>
+                                <span class="fw-bold text-dark smaller">{{ employee.EmployeeID }}</span>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="fa-solid fa-envelope text-primary me-3 opacity-50"></i>
+                            <div class="overflow-hidden">
+                                <small class="text-muted d-block smaller fw-bold">EMAIL</small>
+                                <span class="fw-bold text-dark smaller text-truncate d-block">{{ employee.Email }}</span>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-hourglass-half text-primary me-3 opacity-50"></i>
+                            <div>
+                                <small class="text-muted d-block smaller fw-bold">TOTAL EXPERIENCE</small>
+                                <span class="fw-bold text-primary smaller">{{ employee.JoinedDate|calculate_tenure }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if can_edit %}
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'edit_employee' employee.EmployeeID %}" class="btn btn-primary w-100 py-2 rounded-pill shadow-sm fw-bold smaller">
+                            <i class="fa-solid fa-pen-to-square me-2"></i> Edit Record
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Fixed Page with Scrollable Content -->
+        <div class="col-lg-9 d-flex flex-column" style="height: calc(100vh - 100px);">
+            <div class="card border-0 shadow-sm flex-grow-1 overflow-hidden d-flex flex-column" style="border-radius: 20px;">
+                <!-- Tab Headers (Fixed) -->
+                <div class="card-header bg-white p-0 border-0 flex-shrink-0">
+                    <ul class="nav nav-pills custom-pills m-3" id="profileTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold rounded-3 smaller" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal" type="button"><i class="fa-solid fa-user-check me-2"></i>Personal & Identity</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold rounded-3 smaller" id="family-tab" data-bs-toggle="tab" data-bs-target="#family" type="button"><i class="fa-solid fa-people-roof me-2"></i>Family</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold rounded-3 smaller" id="edu-tab" data-bs-toggle="tab" data-bs-target="#edu" type="button"><i class="fa-solid fa-graduation-cap me-2"></i>Education</button>
+                        </li>
+                        {% if employee.IsExperienced %}
+                        <li class="nav-item" role="presentation">
+                            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+                            <button class="nav-link fw-bold rounded-3 smaller" id="prof-tab" data-bs-toggle="tab" data-bs-target="#prof" type="button"><i class="fa-solid fa-user-tie me-2"></i>Professional</button>
+                            {% else %}
+                            <button class="nav-link fw-bold rounded-3 smaller" id="prof-tab" type="button" onclick="handleProfessionalTabClick()"><i class="fa-solid fa-user-tie me-2"></i>Professional</button>
+                            {% endif %}
+                        </li>
+                        {% endif %}
+                        <li class="nav-item" role="presentation">
+                            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+                            <button class="nav-link fw-bold rounded-3 smaller" id="pay-tab" data-bs-toggle="tab" data-bs-target="#pay" type="button"><i class="fa-solid fa-wallet me-2"></i>Financials</button>
+                            {% else %}
+                            <button class="nav-link fw-bold rounded-3 smaller" id="pay-tab" type="button" onclick="handleFinancialTabClick()"><i class="fa-solid fa-wallet me-2"></i>Financials</button>
+                            {% endif %}
+                        </li>
+                        {% if request.user.role == 'HR ADMIN' %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold rounded-3 smaller" id="leave-tab" data-bs-toggle="tab" data-bs-target="#leave-tab-pane" type="button"><i class="fa-solid fa-calendar-check me-2"></i>Leaves</button>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold rounded-3 smaller" id="cert-tab" data-bs-toggle="tab" data-bs-target="#cert" type="button"><i class="fa-solid fa-certificate me-2"></i>Certificates</button>
+                        </li>
+                    </ul>
+
+                </div>
+                
+                <!-- Tab Content Area (Scrollable) -->
+                <div class="card-body px-4 pb-4 overflow-auto custom-scrollbar flex-grow-1">
+                    <div class="tab-content h-100" id="profileTabsContent">
+                        
+                        <!-- TAB: Personal & Identity -->
+                        <div class="tab-pane fade show active" id="personal" role="tabpanel">
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-dark border-start border-4 border-primary ps-3 mb-4">Personal Background</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">DATE OF BIRTH</small>
+                                            <span class="fw-bold text-dark">{{ employee.DOB|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">GENDER</small>
+                                            <span class="fw-bold text-dark">{{ employee.Gender|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-dark border-start border-4 border-primary ps-3 mb-4">Employment Information</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">DEPARTMENT</small>
+                                            <span class="fw-bold text-dark">{{ employee.Department|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">DESIGNATION</small>
+                                            <span class="fw-bold text-dark">{{ employee.Designation|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    {% if request.user.role == 'HR ADMIN' %}
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">SYSTEM ROLE</small>
+                                            <span class="fw-bold text-indigo">{{ system_role|default:"Employee" }}</span>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">JOINING DATE</small>
+                                            <span class="fw-bold text-dark">{{ employee.JoinedDate|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">EMPLOYMENT TYPE</small>
+                                            <span class="fw-bold text-dark">{{ employee.EmploymentType|default:"Permanent" }}</span>
+                                        </div>
+                                    </div>
+                                    {% if employee.EmploymentType == 'Intern' %}
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">INTERNSHIP DURATION</small>
+                                            <span class="fw-bold text-dark">{{ employee.InternshipPeriod|default:"0" }} Months</span>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">EMPLOYMENT STATUS</small>
+                                            <span class="fw-bold text-dark">{{ employee.EmploymentStatus|default:"Full Time" }}</span>
+                                        </div>
+                                    </div>
+                                    {% if employee.EmploymentStatus == 'Probation' %}
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">PROBATION DURATION</small>
+                                            <span class="fw-bold text-dark">{{ employee.ProbationPeriod|default:"0" }} Months</span>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">WORK SHIFT</small>
+                                            <span class="fw-bold text-primary">{{ employee.Shift|default:"Day Shift" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-dark border-start border-4 border-success ps-3 mb-4">Identity & Document Vault</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 border rounded-4 bg-white d-flex flex-column align-items-center text-center h-100">
+                                            <div class="icon-circle bg-soft-primary text-primary mb-2"><i class="fa-solid fa-image"></i></div>
+                                            <h6 class="fw-bold mb-1 smaller">Passport Photo</h6>
+                                            <small class="text-muted smaller mb-3">Official Record</small>
+                                            {% if employee.PassportPhoto %}
+                                            <a href="{% if employee.PassportPhoto|slice:':4' == 'http' %}{{ employee.PassportPhoto }}{% else %}/media/{{ employee.PassportPhoto }}{% endif %}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill w-100 fw-bold">View Document</a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 border rounded-4 bg-white d-flex flex-column align-items-center text-center h-100">
+                                            <div class="icon-circle bg-soft-success text-success mb-2"><i class="fa-solid fa-id-card"></i></div>
+                                            <h6 class="fw-bold mb-1 smaller">Aadhar Card</h6>
+                                            <small class="text-primary smaller fw-bold mb-2 font-monospace">{{ employee.AadharNumber|default:"-" }}</small>
+                                            {% if employee.AadharCard %}
+                                            <a href="/media/{{ employee.AadharCard }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill w-100 fw-bold">View Document</a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 border rounded-4 bg-white d-flex flex-column align-items-center text-center h-100">
+                                            <div class="icon-circle bg-soft-warning text-warning mb-2"><i class="fa-solid fa-fingerprint"></i></div>
+                                            <h6 class="fw-bold mb-1 smaller">PAN Card Copy</h6>
+                                            <small class="text-warning smaller fw-bold mb-2 font-monospace">{{ employee.PanNumber|default:"-" }}</small>
+                                            {% if employee.PanCard %}
+                                            <a href="/media/{{ employee.PanCard }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill w-100 fw-bold">View Document</a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="category-section">
+                                <h6 class="fw-bold text-dark border-start border-4 border-info ps-3 mb-4">Contact & Address Details</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 h-100">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">CITY</small>
+                                            <span class="fw-bold text-dark">{{ employee.City|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <div class="p-3 bg-light rounded-4 h-100">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">FULL ADDRESS</small>
+                                            <span class="text-dark small" style="line-height: 1.5;">{{ employee.Address|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB: Family -->
+                        <div class="tab-pane fade" id="family" role="tabpanel">
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-dark border-start border-4 border-danger ps-3 mb-4">Family Information</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">FATHER'S NAME</small>
+                                            <span class="fw-bold text-dark">{{ employee.FatherName|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">MOTHER'S NAME</small>
+                                            <span class="fw-bold text-dark">{{ employee.MotherName|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">SPOUSE NAME</small>
+                                            <span class="fw-bold text-dark">{{ employee.SpouseName|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="category-section">
+                                <h6 class="fw-bold text-dark border-start border-4 border-danger ps-3 mb-4">Emergency Contacts</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="p-3 border-start border-4 border-danger bg-light rounded-end-4">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">CONTACT PERSON</small>
+                                            <span class="fw-bold text-dark">{{ employee.EmergencyContactName|default:"-" }} ({{ employee.EmergencyContactRelation|default:"-" }})</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="p-3 bg-light rounded-4">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">EMERGENCY PHONE</small>
+                                            <span class="fw-bold text-danger">{{ employee.EmergencyContactPhone|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB: Education -->
+                        <div class="tab-pane fade" id="edu" role="tabpanel">
+                            <h6 class="fw-bold text-dark border-start border-4 border-success ps-3 mb-4">Educational Portfolio</h6>
+                            <div class="row g-3">
+                                {% if "|" in employee.Education %}
+                                    {% for part in employee.Education|split:"|" %}
+                                        <div class="col-md-12">
+                                            <div class="p-4 border rounded-4 bg-white hover-shadow transition">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex align-items-center overflow-hidden">
+                                                        <div class="icon-sq bg-soft-success text-success me-3 flex-shrink-0"><i class="fa-solid fa-certificate"></i></div>
+                                                        <div class="text-truncate">
+                                                            <h6 class="fw-bold text-dark mb-1">
+                                                                {% if "Degree:" in part %}Degree / Post Graduation
+                                                                {% elif "Inter:" in part %}Higher Secondary (12th)
+                                                                {% elif "10th:" in part %}Secondary (10th)
+                                                                {% else %}Academic Record{% endif %}
+                                                            </h6>
+                                                            <p class="text-muted small mb-0 text-truncate">{{ part|strip }}</p>
+                                                        </div>
+                                                    </div>
+                                                    {% if "Degree:" in part and employee.Cert_Degree %}
+                                                        <a href="/media/{{ employee.Cert_Degree }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-4 fw-bold">View Certificate</a>
+                                                    {% elif "Inter:" in part and employee.Cert_Inter %}
+                                                        <a href="/media/{{ employee.Cert_Inter }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-4 fw-bold">View Certificate</a>
+                                                    {% elif "10th:" in part and employee.Cert_10th %}
+                                                        <a href="/media/{{ employee.Cert_10th }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-4 fw-bold">View Certificate</a>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="col-md-12 text-center py-5">
+                                        <div class="icon-sq bg-light text-muted mx-auto mb-3" style="width: 60px; height: 60px;"><i class="fa-solid fa-graduation-cap"></i></div>
+                                        <h6 class="text-muted">{{ employee.Education|default:"Academic records not updated." }}</h6>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- TAB: Professional (Experienced) -->
+                        {% if employee.IsExperienced %}
+                        <div class="tab-pane fade" id="prof" role="tabpanel">
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-dark border-start border-4 border-dark ps-3 mb-4">Prior Professional Background</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="p-4 bg-light rounded-4 h-100">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">LAST ORGANIZATION</small>
+                                            <h5 class="fw-bold text-dark mb-0">{{ employee.PreviousCompany|default:"-" }}</h5>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="p-4 bg-light rounded-4 h-100">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">LAST DESIGNATION</small>
+                                            <h5 class="fw-bold text-dark mb-0">{{ employee.LastDesignation|default:"-" }}</h5>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="p-3 bg-white border border-light shadow-sm rounded-4 h-100">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">PREVIOUS TOTAL EXPERIENCE</small>
+                                            <span class="fw-bold text-dark fs-5">{{ employee.ExperienceYears|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="p-3 bg-white border border-light shadow-sm rounded-4 h-100">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">PREVIOUS LAST WORKING DATE</small>
+                                            <span class="fw-bold text-dark fs-5">{{ employee.PrevLastWorkingDate|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-dark border-start border-4 border-success ps-3 mb-4">Prior Experience & Statutory Documents</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 border rounded-4 bg-white d-flex flex-column align-items-center text-center h-100 shadow-sm">
+                                            <div class="icon-circle bg-soft-primary text-primary mb-2"><i class="fa-solid fa-file-contract"></i></div>
+                                            <h6 class="fw-bold mb-1 smaller">Experience Letter</h6>
+                                            <small class="text-muted smaller mb-3">Prior Record</small>
+                                            {% if employee.ExperienceLetter %}
+                                            <a href="/media/{{ employee.ExperienceLetter }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill w-100 fw-bold">View Experience Letter</a>
+                                            {% else %}
+                                            <span class="text-muted smaller">Not Provided</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 border rounded-4 bg-white d-flex flex-column align-items-center text-center h-100 shadow-sm">
+                                            <div class="icon-circle bg-soft-success text-success mb-2"><i class="fa-solid fa-file-export"></i></div>
+                                            <h6 class="fw-bold mb-1 smaller">Relieving Letter</h6>
+                                            <small class="text-muted smaller mb-3">Prior Record</small>
+                                            {% if employee.RelievingLetter %}
+                                            <a href="/media/{{ employee.RelievingLetter }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill w-100 fw-bold">View Relieving Letter</a>
+                                            {% else %}
+                                            <span class="text-muted smaller">Not Provided</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 border rounded-4 bg-white d-flex flex-column align-items-center text-center h-100 shadow-sm">
+                                            <div class="icon-circle bg-soft-warning text-warning mb-2"><i class="fa-solid fa-file-invoice"></i></div>
+                                            <h6 class="fw-bold mb-1 smaller">PF Letter / Document</h6>
+                                            <small class="text-muted smaller mb-3">Statutory Record</small>
+                                            {% if employee.PFLetter %}
+                                            <a href="/media/{{ employee.PFLetter }}" target="_blank" class="btn btn-outline-warning btn-sm rounded-pill w-100 fw-bold">View PF Letter</a>
+                                            {% else %}
+                                            <span class="text-muted smaller">Not Provided</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h6 class="fw-bold text-dark border-start border-4 border-dark ps-3 mb-4 mt-5">Statutory Details (PF & UAN)</h6>
+                            <div class="p-4 border rounded-4 bg-light shadow-sm">
+                                <div class="row g-4 text-start">
+                                    <div class="col-md-6">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">PF ACCOUNT NUMBER</small>
+                                        <span class="fw-bold text-dark font-monospace">{{ employee.PFNumber|default:"-" }}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">UAN NUMBER</small>
+                                        <span class="fw-bold text-dark font-monospace">{{ employee.UANNumber|default:"-" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+{% endif %}
+
+                        <!-- TAB: Financials -->
+                        <div class="tab-pane fade" id="pay" role="tabpanel">
+                            <div class="salary-card p-4 rounded-4 text-white shadow-sm mb-5" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                <small class="text-uppercase fw-bold opacity-75 smaller d-block mb-1">Annual CTC Package</small>
+                                <h1 class="fw-bold mb-0">₹ {{ employee.SalaryPA|default:"0" }}</h1>
+                            </div>
+                            
+                            <h6 class="fw-bold text-dark border-start border-4 border-warning ps-3 mb-4">Bank Account Details</h6>
+                            <div class="p-4 border rounded-4 bg-light">
+                                <div class="row g-4 text-start">
+                                    <div class="col-md-4">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">BANK NAME</small>
+                                        <span class="fw-bold text-dark">{{ employee.BankName|default:"-" }}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">ACCOUNT NO.</small>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="fw-bold text-dark" id="accDisplay">********</span>
+                                            <button type="button" class="btn btn-link p-0 text-muted" onclick="toggleAccDisplay('{{ employee.AccountNumber|default:'-' }}', this)">
+                                                <i class="fa-solid fa-eye-slash smaller"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">IFSC CODE</small>
+                                        <span class="fw-bold text-dark">{{ employee.IFSCCode|default:"-" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {% if request.user.role == 'HR ADMIN' %}
+                        <!-- TAB: Leaves (HR Only) -->
+                        <div class="tab-pane fade" id="leave-tab-pane" role="tabpanel">
+                            <h6 class="fw-bold text-dark border-start border-4 border-primary ps-3 mb-4">Manage Leave Balances</h6>
+                            
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-soft-primary rounded-4 text-center">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">EARNED LEAVE (EL)</small>
+                                        <h4 class="fw-bold text-primary mb-0">{{ effective_pl }}</h4>
+                                        <small class="text-muted smaller">Gross: {{ balance_pl }} | Pending: {{ pending_pl }}</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-soft-success rounded-4 text-center">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">SICK LEAVE (SL)</small>
+                                        <h4 class="fw-bold text-success mb-0">{{ effective_sl }}</h4>
+                                        <small class="text-muted smaller">Gross: {{ balance_sl }} | Pending: {{ pending_sl }}</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-soft-warning rounded-4 text-center">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">CASUAL LEAVE (CL)</small>
+                                        <h4 class="fw-bold text-warning mb-0">{{ effective_cl }}</h4>
+                                        <small class="text-muted smaller">Gross: {{ balance_cl }} | Pending: {{ pending_cl }}</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-soft-info rounded-4 text-center">
+                                        <small class="text-muted d-block smaller fw-bold mb-1">COMP OFF (CO)</small>
+                                        <h4 class="fw-bold text-info mb-0">{{ effective_co }}</h4>
+                                        <small class="text-muted smaller">Gross: {{ balance_co }} | Pending: {{ pending_co }}</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Earned Leave Encashment Card -->
+                            <div class="card border border-success border-opacity-25 rounded-4 shadow-none p-4 mb-4" style="background: rgba(25, 135, 84, 0.03);">
+                                <h6 class="fw-bold text-success mb-3"><i class="fa-solid fa-money-bill-wave me-2"></i>Earned Leave (EL) Encashment</h6>
+                                <div class="row align-items-center">
+                                    <div class="col-lg-8">
+                                        <p class="text-muted small mb-3">
+                                            Pay the employee for their accumulated Earned Leaves. This calculates the payout as <strong>EL Balance &times; Per-day Salary</strong>. After processing, the employee's Earned Leave balance will be reset to 0.0.
+                                        </p>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            <div class="bg-white border rounded-4 px-3 py-2 text-center" style="min-width: 120px;">
+                                                <small class="text-muted d-block smaller fw-bold mb-1">EL BALANCE</small>
+                                                <span class="fw-bold text-dark fs-5">{{ balance_pl }} Days</span>
+                                            </div>
+                                            <div class="bg-white border rounded-4 px-3 py-2 text-center" style="min-width: 140px;">
+                                                <small class="text-muted d-block smaller fw-bold mb-1">PER-DAY SALARY</small>
+                                                <span class="fw-bold text-dark fs-5">₹ {{ el_daily_salary|floatformat:2 }}</span>
+                                            </div>
+                                            <div class="bg-success bg-opacity-10 border border-success border-opacity-10 rounded-4 px-3 py-2 text-center" style="min-width: 150px;">
+                                                <small class="text-success d-block smaller fw-bold mb-1">TOTAL PAYOUT</small>
+                                                <span class="fw-bold text-success fs-5">₹ {{ el_total_payout|floatformat:2 }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                                        <button type="button" class="btn btn-success px-4 py-2 rounded-pill fw-bold smaller shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmEncashModal" {% if balance_pl <= 0 %}disabled{% endif %}>
+                                            <i class="fa-solid fa-credit-card me-2"></i> Process Encashment
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Encashment Confirmation Modal -->
+                            <div class="modal fade" id="confirmEncashModal" tabindex="-1" aria-labelledby="confirmEncashModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                                        <div class="modal-header border-0 pb-0">
+                                            <h5 class="modal-title fw-bold text-dark" id="confirmEncashModalLabel">Confirm Encashment</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body py-4 text-center">
+                                            <div class="icon-circle bg-soft-success text-success mx-auto mb-3" style="width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; background: rgba(25, 135, 84, 0.1);">
+                                                <i class="fa-solid fa-money-bill-wave"></i>
+                                            </div>
+                                            <h5 class="fw-bold mb-2">Process EL Encashment?</h5>
+                                            <p class="text-muted small px-3 mb-4">
+                                                Are you sure you want to encash <strong>{{ balance_pl }}</strong> Earned Leaves for this employee?
+                                                This will process a payout of <strong>₹ {{ el_total_payout|floatformat:2 }}</strong> and reset their EL balance to 0.0.
+                                            </p>
+                                            
+                                            <form method="POST" action="{% url 'encash_earned_leave' employee.EmployeeID %}">
+                                                {% csrf_token %}
+                                                <div class="d-flex gap-2 justify-content-center px-3">
+                                                    <button type="button" class="btn btn-light rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">Confirm & Pay</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card border rounded-4 shadow-none bg-light p-4">
+                                <form method="POST" action="{% url 'adjust_leave_balance' employee.EmployeeID %}">
+                                    {% csrf_token %}
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold smaller text-muted">New EL Balance</label>
+                                            <input type="number" step="0.01" name="balance_pl" class="form-control rounded-3" value="{{ balance_pl }}">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold smaller text-muted">New SL Balance</label>
+                                            <input type="number" step="0.01" name="balance_sl" class="form-control rounded-3" value="{{ balance_sl }}">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold smaller text-muted">New CL Balance</label>
+                                            <input type="number" step="0.01" name="balance_cl" class="form-control rounded-3" value="{{ balance_cl }}">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold smaller text-muted">New Comp Off Balance</label>
+                                            <input type="number" step="0.01" name="balance_co" class="form-control rounded-3" value="{{ balance_co }}">
+                                        </div>
+                                        <div class="col-md-6 mt-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="allow_second_parental" name="allow_second_parental" {% if employee.AllowSecondParental == True %}checked{% endif %}>
+                                                <label class="form-check-label fw-bold smaller text-muted" for="allow_second_parental">Enable Maternity/Paternity Leave (Override)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mt-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="allow_second_marriage" name="allow_second_marriage" {% if employee.AllowSecondMarriage == True %}checked{% endif %}>
+                                                <label class="form-check-label fw-bold smaller text-muted" for="allow_second_marriage">Enable Marriage Leave (Override)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 mt-4">
+                                            <button type="submit" class="btn btn-primary px-4 py-2 rounded-pill fw-bold smaller">
+                                                <i class="fa-solid fa-floppy-disk me-2"></i> Update Balances
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="mt-4 p-3 bg-info bg-opacity-10 border border-info border-opacity-25 rounded-4">
+                                <small class="text-info d-block fw-bold smaller mb-1"><i class="fa-solid fa-circle-info me-2"></i>Note on Adjustments</small>
+                                <p class="text-muted small mb-0">Updating these balances will directly modify the employee's current gross balance. Pending leave requests are subtracted automatically when calculating the "Effective" balance shown to the employee.</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- TAB: Certificates -->
+                        <div class="tab-pane fade" id="cert" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h5 class="fw-bold text-dark border-start border-4 border-primary ps-3 mb-0">Professional Certificates</h5>
+                                {% if request.user.employee_id == employee.EmployeeID or request.user.role == 'HR ADMIN' %}
+                                <button class="btn btn-primary rounded-pill px-4 btn-sm fw-bold shadow-sm" data-bs-toggle="collapse" data-bs-target="#uploadCertCollapse">
+                                    <i class="fa-solid fa-plus me-1"></i> Upload New
+                                </button>
+                                {% endif %}
+                            </div>
+
+                            <!-- Upload Collapse -->
+                            <div class="collapse mb-4" id="uploadCertCollapse">
+                                <div class="card border rounded-4 shadow-none bg-light-blue p-4">
+                                    <h6 class="fw-bold mb-3"><i class="fa-solid fa-cloud-arrow-up me-2 text-primary"></i>Upload Certificate</h6>
+                                    <form method="POST" action="{% url 'upload_certificate' employee.EmployeeID %}" enctype="multipart/form-data">
+                                        {% csrf_token %}
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold smaller text-muted">Certificate Name</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text bg-white border border-end-0 text-muted"><i class="fa-solid fa-certificate"></i></span>
+                                                    <input type="text" name="certificate_name" class="form-control bg-white border border-start-0 py-2 px-3 rounded-end-3" placeholder="e.g. AWS Solutions Architect" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold smaller text-muted">Choose File (PDF, PNG, JPG, JPEG. Max 2MB)</label>
+                                                <input type="file" name="certificate_file" class="form-control bg-white border py-2 px-3 rounded-3" accept=".pdf,.png,.jpg,.jpeg" required>
+                                            </div>
+                                            <div class="col-12 text-end">
+                                                <button type="submit" class="btn btn-primary px-4 py-2 rounded-pill fw-bold smaller shadow-sm">
+                                                    <i class="fa-solid fa-paper-plane me-1"></i> Submit for Approval
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Active/Approved Certificates Gallery -->
+                            <div class="category-section mb-5">
+                                <h6 class="fw-bold text-success border-start border-4 border-success ps-3 mb-4">Verified Certificates</h6>
+                                <div class="row g-4" id="verifiedCertsGrid">
+                                    {% if employee.Certificates %}
+                                        {% for c in employee.Certificates %}
+                                            {% if c.Status == 'Approved' %}
+                                                <div class="col-md-6 col-lg-4 cert-card-wrapper">
+                                                    <div class="card border rounded-4 h-100 shadow-sm cert-card position-relative overflow-hidden" style="border-radius: 16px;">
+                                                        <div class="cert-verify-badge position-absolute top-0 end-0 bg-success text-white py-1 px-3 rounded-bottom-start shadow-sm smaller" style="font-size: 0.7rem; font-weight: 700; border-bottom-left-radius: 12px;">
+                                                            <i class="fa-solid fa-circle-check me-1"></i>VERIFIED
+                                                        </div>
+                                                        <div class="card-body p-4 text-center d-flex flex-column align-items-center justify-content-between h-100">
+                                                            <div class="icon-circle bg-soft-success text-success mb-3" style="width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; background: rgba(25, 135, 84, 0.08);">
+                                                                <i class="fa-solid fa-medal"></i>
+                                                            </div>
+                                                            <h6 class="fw-bold text-dark text-truncate w-100 mb-1" title="{{ c.Name }}">{{ c.Name }}</h6>
+                                                            <small class="text-muted d-block mb-3 smaller">Approved: {{ c.ApprovedAt|slice:":10" }}</small>
+                                                            <div class="d-flex gap-2 w-100">
+                                                                <a href="/media/{{ c.FilePath }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill w-100 fw-bold py-2"><i class="fa-solid fa-eye me-1"></i>View File</a>
+                                                                {% if request.user.role == 'HR ADMIN' %}
+                                                                <form method="POST" action="{% url 'delete_certificate' employee.EmployeeID c.CertificateID %}" class="d-inline flex-shrink-0" onsubmit="confirmDelete(event, this, 'Are you sure you want to delete this certificate?');">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle p-2" style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-trash"></i></button>
+                                                                </form>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    
+                                    <div class="col-12" id="noVerifiedCertsMsg" style="display: none;">
+                                        <div class="text-center py-5 bg-light rounded-4">
+                                            <i class="fa-solid fa-award fa-3x text-muted opacity-30 mb-3"></i>
+                                            <p class="text-muted mb-0">No verified certificates found on profile.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Pending & Rejected Requests -->
+                            {% if request.user.employee_id == employee.EmployeeID or request.user.role == 'HR ADMIN' %}
+                            <div class="category-section mb-4">
+                                <h6 class="fw-bold text-warning border-start border-4 border-warning ps-3 mb-4">Pending & Rejected Requests</h6>
+                                <div class="row g-4" id="pendingCertsGrid">
+                                    {% if employee.Certificates %}
+                                        {% for c in employee.Certificates %}
+                                            {% if c.Status != 'Approved' %}
+                                                <div class="col-md-6 pending-card-wrapper">
+                                                    <div class="card border rounded-4 shadow-sm {% if c.Status == 'Pending' %}border-warning bg-light-orange{% else %}border-danger bg-light-red{% endif %}" style="border-radius: 16px;">
+                                                        <div class="card-body p-4">
+                                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                                <div>
+                                                                    <h6 class="fw-bold text-dark mb-1">{{ c.Name }}</h6>
+                                                                    <small class="text-muted smaller">Uploaded: {{ c.UploadedAt|slice:":10" }}</small>
+                                                                </div>
+                                                                {% if c.Status == 'Pending' %}
+                                                                <span class="badge bg-warning text-dark rounded-pill px-3 py-2 smaller"><i class="fa-solid fa-spinner fa-spin me-1"></i>Pending HR</span>
+                                                                {% else %}
+                                                                <span class="badge bg-danger text-white rounded-pill px-3 py-2 smaller"><i class="fa-solid fa-circle-xmark me-1"></i>Rejected</span>
+                                                                {% endif %}
+                                                            </div>
+                                                            {% if c.Status == 'Rejected' and c.RejectionReason %}
+                                                            <div class="alert alert-danger border-0 p-2 mb-3 smaller" style="border-radius: 8px;">
+                                                                <i class="fa-solid fa-comment-dots me-1"></i><strong>Feedback:</strong> {{ c.RejectionReason }}
+                                                            </div>
+                                                            {% endif %}
+                                                            <div class="d-flex gap-2 justify-content-end mt-3">
+                                                                <a href="/media/{{ c.FilePath }}" target="_blank" class="btn btn-light btn-sm rounded-pill px-3 fw-bold"><i class="fa-solid fa-eye me-1"></i>View Draft</a>
+                                                                <form method="POST" action="{% url 'delete_certificate' employee.EmployeeID c.CertificateID %}" class="d-inline" onsubmit="confirmDelete(event, this, 'Are you sure you want to delete this certificate request?');">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold"><i class="fa-solid fa-trash me-1"></i>Delete</button>
+                                                                </form>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    
+                                    <div class="col-12" id="noPendingCertsMsg" style="display: none;">
+                                        <div class="text-center py-4 bg-light rounded-4">
+                                            <i class="fa-solid fa-clipboard-question fa-2x text-muted opacity-30 mb-2"></i>
+                                            <p class="text-muted smaller mb-0">No pending or rejected certificate requests.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Password Verification Modal -->
+<div class="modal fade" id="passwordConfirmModal" tabindex="-1" aria-labelledby="passwordConfirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark" id="passwordConfirmModalLabel">Confirm Identity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closePassModalBtn"></button>
+            </div>
+            <div class="modal-body py-4 text-center">
+                <div class="icon-circle bg-soft-warning text-warning mx-auto mb-3" style="width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; background: rgba(245, 158, 11, 0.1);">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <p class="text-muted small px-3 mb-4">enter password</p>
+                
+                <form id="passwordConfirmForm" onsubmit="submitPasswordVerification(event)">
+                    {% csrf_token %}
+                    <div class="mb-3 px-3">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-0 text-muted rounded-start-3" style="padding-left: 15px; padding-right: 15px;"><i class="fa-solid fa-key"></i></span>
+                            <input type="password" id="confirmPassInput" class="form-control bg-light border-0 py-2 px-3" placeholder="Enter password" required style="border-top-right-radius: 0; border-bottom-right-radius: 0;">
+                            <button class="btn btn-light border-0 text-muted rounded-end-3 px-3" type="button" onclick="togglePasswordVisibility('confirmPassInput', this)">
+                                <i class="fa-solid fa-eye-slash"></i>
+                            </button>
+                        </div>
+                        <div class="text-danger text-start ps-1 mt-2 d-none small fw-semibold" id="confirmPassError">Incorrect password. Please try again.</div>
+                    </div>
+                    <div class="px-3 d-grid">
+                        <button type="submit" class="btn btn-warning text-white py-2 rounded-pill fw-bold" id="confirmPassBtn">
+                            <span class="spinner-border spinner-border-sm me-2 d-none" id="confirmPassSpinner" role="status" aria-hidden="true"></span>
+                            Verify & Proceed
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function confirmDelete(event, form, message) {
+        event.preventDefault();
+        Lurnexa.confirm({
+            title: 'Delete Certificate',
+            message: message,
+            onConfirm: function() {
+                form.submit();
+            }
+        });
+    }
+
+    function toggleAccDisplay(realAcc, btn) {
+        const display = document.getElementById('accDisplay');
+        const icon = btn.querySelector('i');
+        if (display.innerText === '********') {
+            display.innerText = realAcc;
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        } else {
+            display.innerText = '********';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        }
+    }
+
+    function togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        }
+    }
+
+    let isFinancialUnlocked = false;
+    let isProfessionalUnlocked = false;
+    let tabToUnlock = null;
+
+    function handleFinancialTabClick() {
+        if (isFinancialUnlocked) {
+            // Show the financials tab programmatically
+            const triggerEl = document.querySelector('#pay-tab');
+            // Add attributes temporarily to let Bootstrap's Tab plugin activate it
+            triggerEl.setAttribute('data-bs-toggle', 'tab');
+            triggerEl.setAttribute('data-bs-target', '#pay');
+            const tab = new bootstrap.Tab(triggerEl);
+            tab.show();
+            // Remove attributes to prevent direct activation if they click away and come back
+            triggerEl.removeAttribute('data-bs-toggle');
+            triggerEl.removeAttribute('data-bs-target');
+        } else {
+            tabToUnlock = 'financial';
+            // Show confirmation modal
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('passwordConfirmModal'));
+            modal.show();
+        }
+    }
+
+    function handleProfessionalTabClick() {
+        if (isProfessionalUnlocked) {
+            // Show the professional tab programmatically
+            const triggerEl = document.querySelector('#prof-tab');
+            // Add attributes temporarily to let Bootstrap's Tab plugin activate it
+            triggerEl.setAttribute('data-bs-toggle', 'tab');
+            triggerEl.setAttribute('data-bs-target', '#prof');
+            const tab = new bootstrap.Tab(triggerEl);
+            tab.show();
+            // Remove attributes to prevent direct activation if they click away and come back
+            triggerEl.removeAttribute('data-bs-toggle');
+            triggerEl.removeAttribute('data-bs-target');
+        } else {
+            tabToUnlock = 'professional';
+            // Show confirmation modal
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('passwordConfirmModal'));
+            modal.show();
+        }
+    }
+
+    async function submitPasswordVerification(event) {
+        event.preventDefault();
+        const passInput = document.getElementById('confirmPassInput');
+        const errorDiv = document.getElementById('confirmPassError');
+        const spinner = document.getElementById('confirmPassSpinner');
+        const btn = document.getElementById('confirmPassBtn');
+        
+        errorDiv.classList.add('d-none');
+        spinner.classList.remove('d-none');
+        btn.disabled = true;
+        
+        try {
+            const response = await fetch('{% url "verify_password" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ password: passInput.value })
+            });
+            const result = await response.json();
+            
+            if (result.valid) {
+                if (tabToUnlock === 'financial') {
+                    isFinancialUnlocked = true;
+                    
+                    // Hide modal
+                    const modalEl = document.getElementById('passwordConfirmModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                    
+                    // Clear input
+                    passInput.value = '';
+                    
+                    // Activate tab
+                    handleFinancialTabClick();
+                } else if (tabToUnlock === 'professional') {
+                    isProfessionalUnlocked = true;
+                    
+                    // Hide modal
+                    const modalEl = document.getElementById('passwordConfirmModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                    
+                    // Clear input
+                    passInput.value = '';
+                    
+                    // Activate tab
+                    handleProfessionalTabClick();
+                }
+            } else {
+                errorDiv.innerText = result.error || 'Incorrect password. Please try again.';
+                errorDiv.classList.remove('d-none');
+                passInput.focus();
+                passInput.select();
+            }
+        } catch (err) {
+            errorDiv.innerText = 'Connection error. Please try again.';
+            errorDiv.classList.remove('d-none');
+        } finally {
+            spinner.classList.add('d-none');
+            btn.disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const payTabPane = document.getElementById('pay');
+        if (payTabPane) {
+            payTabPane.addEventListener('hidden.bs.tab', function () {
+                isFinancialUnlocked = false;
+            });
+        }
+
+        const profTabPane = document.getElementById('prof');
+        if (profTabPane) {
+            profTabPane.addEventListener('hidden.bs.tab', function () {
+                isProfessionalUnlocked = false;
+            });
+        }
+        
+        // Instantly lock and hide tabs when any other tab header is clicked
+        const allTabButtons = document.querySelectorAll('#profileTabs .nav-link');
+        allTabButtons.forEach(tab => {
+            tab.addEventListener('click', function() {
+                if (tab.id !== 'pay-tab') {
+                    isFinancialUnlocked = false;
+                    const payPane = document.getElementById('pay');
+                    if (payPane) {
+                        payPane.classList.remove('active', 'show');
+                    }
+                }
+                if (tab.id !== 'prof-tab') {
+                    isProfessionalUnlocked = false;
+                    const profPane = document.getElementById('prof');
+                    if (profPane) {
+                        profPane.classList.remove('active', 'show');
+                    }
+                }
+            });
+        });
+
+        // Certificates visibility helpers
+        const verifiedCards = document.querySelectorAll('#cert .cert-card-wrapper');
+        if (verifiedCards.length === 0) {
+            const msg = document.getElementById('noVerifiedCertsMsg');
+            if (msg) msg.style.display = 'block';
+        }
+        
+        const pendingCards = document.querySelectorAll('#cert .pending-card-wrapper');
+        if (pendingCards.length === 0) {
+            const msg = document.getElementById('noPendingCertsMsg');
+            if (msg) msg.style.display = 'block';
+        }
+        
+        // Auto-switch to tab if specified in URL hash or query param
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        const hash = window.location.hash;
+        
+        let targetTabId = '';
+        if (tabParam === 'cert' || hash === '#cert') {
+            targetTabId = 'cert-tab';
+        } else if (tabParam === 'leaves' || hash === '#leaves') {
+            targetTabId = 'leave-tab';
+        }
+        
+        if (targetTabId) {
+            const tabBtn = document.getElementById(targetTabId);
+            if (tabBtn) {
+                const tab = new bootstrap.Tab(tabBtn);
+                tab.show();
+            }
+        }
+    });
+</script>
+
+{% endblock %}

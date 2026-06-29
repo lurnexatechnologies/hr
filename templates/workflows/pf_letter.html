@@ -1,0 +1,161 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PF Statement - {{ employee.FirstName }} {{ employee.LastName }}</title>
+    {% if not is_pdf %}
+    <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
+    <!-- Lurnexa Custom Styles -->
+    <link href="{% static 'css/lurnexastyles.css' %}" rel="stylesheet">
+    {% endif %}
+    {% if is_pdf %}
+    <style>
+        @page {
+            size: A4;
+            margin: 2.5cm 2cm 2.5cm 2cm;
+        }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            background-color: #ffffff;
+            color: black;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        .letter-container {
+            padding: 0;
+            background: none;
+            box-shadow: none;
+            max-width: 100%;
+        }
+
+
+        
+        .header {
+            text-align: right;
+            margin-bottom: 40px;
+        }
+        .company-name {
+            font-size: 26px;
+            font-weight: bold;
+            color: black;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .company-address {
+            font-size: 11px;
+            color: black;
+            line-height: 1.4;
+        }
+        .letter-date {
+            margin-top: 30px;
+            margin-bottom: 35px;
+            font-size: 14px;
+        }
+        .letter-subject {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 40px;
+            color: black;
+            text-transform: uppercase;
+        }
+        .content p {
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: justify;
+        }
+        .signature-section {
+            margin-top: 50px;
+        }
+        .signature-line {
+            border-top: 1px solid #333;
+            width: 200px;
+            margin-bottom: 8px;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+            margin-bottom: 25px;
+            background-color: #f9fbff;
+            border: 1px solid #eef2f8;
+        }
+        .info-table td {
+            padding: 10px 15px;
+            font-size: 13px;
+        }
+    </style>
+    {% endif %}
+</head>
+<body>
+    {% if not is_pdf %}
+    <button class="print-btn no-print" onclick="window.print()">
+        Print / Save as PDF
+    </button>
+    {% endif %}
+
+    <div class="letter-container">
+         <div class="header">
+            <div style="display: inline-block; vertical-align: middle; text-align: right;">
+                {% if logo_base64 %}
+                <img src="{{ logo_base64 }}" alt="Logo" style="height: 35px; width: auto; vertical-align: middle; margin-right: 8px;" />
+                {% endif %}
+                <span class="company-name" style="vertical-align: middle;">LURNEXA</span>
+            </div>
+            <div style="font-size: 12px; color: black; margin-top: 5px;">HR & Payroll Department</div>
+        </div>
+
+        <div class="letter-subject">Provident Fund & Relieving Declaration</div>
+
+        <div class="content">
+            <p><strong>To,</strong></p>
+            <p>This is to certify the Provident Fund details of <strong>{% if employee.Gender|lower == 'male' %}Mr.{% elif employee.Gender|lower == 'female' %}Ms.{% else %}Mr./Ms.{% endif %} {{ employee.FirstName }} {{ employee.LastName }}</strong> who has been relieved from {% if employee.Gender|lower == 'male' %}his{% elif employee.Gender|lower == 'female' %}her{% else %}his/her{% endif %} services at <strong>Lurnexa</strong> on <strong>{{ lwd_fmt }}</strong>.</p>
+        </div>
+
+        <table class="info-table" style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 25px; background-color: #ffffff; border: 1px solid #000000; border-radius: 12px;">
+            <tr>
+                <td style="padding: 10px 15px; font-weight: bold; color: black; width: 200px; border-bottom: 1px solid #000000;">Employee Name:</td>
+                <td style="padding: 10px 15px; color: black; border-bottom: 1px solid #000000;">{{ employee.FirstName }} {{ employee.LastName }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 15px; font-weight: bold; color: black; border-bottom: 1px solid #000000;">Employee ID:</td>
+                <td style="padding: 10px 15px; color: black; border-bottom: 1px solid #000000;">{{ employee.EmployeeID }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 15px; font-weight: bold; color: black; border-bottom: 1px solid #000000;">PF Account Number:</td>
+                <td style="padding: 10px 15px; color: black; border-bottom: 1px solid #000000;">{{ employee.PFNumber|default:"N/A" }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 15px; font-weight: bold; color: black; border-bottom: 1px solid #000000;">UAN Number:</td>
+                <td style="padding: 10px 15px; color: black; border-bottom: 1px solid #000000;">{{ employee.UANNumber|default:"N/A" }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 15px; font-weight: bold; color: black;">Last Working Date:</td>
+                <td style="padding: 10px 15px; color: black;">{{ lwd_fmt }}</td>
+            </tr>
+        </table>
+
+        <div class="content">
+            <p>All statutory PF contributions for the mentioned employee have been remitted to the respective authorities as per the regulations. The employee is now eligible for PF transfer or withdrawal as per the EPF rules.</p>
+            
+            <p>The company has no objection to the transfer of the Provident Fund account to the next employer.</p>
+        </div>
+
+        <div class="signature-section">
+            {% if signature_stamp_base64 %}
+            <div style="margin-bottom: 5px; height: 110px;">
+                <img src="{{ signature_stamp_base64 }}" alt="Authorized Signature & Stamp" style="height: 110px; width: auto;" />
+            </div>
+            {% else %}
+            <div style="height: 110px;"></div>
+            {% endif %}
+            <div class="signature-line"></div>
+            <div class="signatory-name">Authorized Signatory</div>
+            <div style="color: black; font-size: 14px;">Payroll & Compliance, Lurnexa</div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load employee_filters %}
+
+{% block title %}Ex-Employees - Lurnexa{% endblock %}
+{% block nav_employees %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Ex-Employees Directory</h2>
+        <p class="text-muted">Viewing records of resigned and former team members.</p>
+    </div>
+    <div>
+        <a href="{% url 'employee_directory' %}" class="btn btn-outline-primary shadow-sm rounded-3"><i class="fa-solid fa-arrow-left me-2"></i> Back to Active Members</a>
+    </div>
+</div>
+
+<div class="card h-100">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 pt-4 pb-2">
+        <form method="GET" action="{% url 'ex_employee_directory' %}" class="w-100">
+            <div class="position-relative" style="max-width: 400px;">
+                <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                <input type="text" name="q" class="form-control ps-5 shadow-sm rounded-pill border-0 bg-light" 
+                    placeholder="Search former employees..." value="{{ query|default:'' }}">
+            </div>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light text-muted" style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">
+                    <tr>
+                        <th class="ps-4 border-0 py-3">Employee</th>
+                        <th class="border-0 py-3">ID</th>
+                        <th class="border-0 py-3">Department</th>
+
+                        <th class="border-0 py-3">Last Role</th>
+                        <th class="pe-4 border-0 py-3 text-end">Last Working Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td class="ps-4 py-3" onclick="window.location.href='{% url 'employee_profile' emp.EmployeeID %}'" style="cursor: pointer;" title="View History">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar shadow-sm me-3 overflow-hidden" style="width: 45px; height: 45px; background: rgba(100, 116, 139, 0.1); color: #64748b; display: flex; align-items: center; justify-content: center;">
+                                    {% if emp.PassportPhoto %}
+                                        <img src="{% if emp.PassportPhoto|slice:':4' == 'http' %}{{ emp.PassportPhoto }}{% else %}/media/{{ emp.PassportPhoto }}{% endif %}" alt="Profile" class="grayscale-img" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.7;">
+                                    {% else %}
+                                        {{ emp.FirstName|make_list|first|default:"E" }}
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h6 class="mb-0 fw-bold text-muted">{{ emp.FirstName }} {{ emp.LastName }}</h6>
+                                    <small class="text-muted">{{ emp.Email }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-muted small">{{ emp.EmployeeID }}</td>
+                        <td class="text-muted">{{ emp.Department|default:"-" }}</td>
+                        <td class="text-muted">{{ emp.Designation|default:"-" }}</td>
+                        <td class="pe-4 text-end fw-bold text-danger">{{ emp.LastWorkingDate|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-user-slash mb-3" style="font-size: 2rem;"></i><br>
+                            No ex-employees found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+        <span>Showing {{ employees.start_index }} - {{ employees.end_index }} out of {{ total_count }} ex-employee records</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if employees.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?page={{ employees.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">Previous</a></li>
+                {% else %}
+                    <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                {% endif %}
+                
+                <li class="page-item active"><a class="page-link" href="#">{{ employees.number }}</a></li>
+                
+                {% if employees.has_next %}
+                    <li class="page-item"><a class="page-link" href="?page={{ employees.next_page_number }}{% if query %}&q={{ query }}{% endif %}">Next</a></li>
+                {% else %}
+                    <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+
+
+{% endblock %}

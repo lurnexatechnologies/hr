@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PF Management - Lurnexa{% endblock %}
+{% block nav_pf_hr %}active{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                <div class="card-header py-3 px-4" style="background: linear-gradient(135deg, var(--brand-color) 0%, var(--accent-pink) 100%);">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-white p-2 rounded-3 me-3">
+                                <i class="fas fa-file-invoice text-primary fs-4"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-white mb-0 fw-bold">PF Management Dashboard</h4>
+                                <p class="text-white-50 mb-0 small">Track PF/UAN details and monthly payment status</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Month/Year Filter -->
+                        <form method="GET" class="d-flex align-items-center gap-2 bg-white bg-opacity-10 p-2 rounded-pill border border-white border-opacity-25">
+                            <select name="month" class="form-select form-select-sm border-0 bg-transparent text-white fw-bold cursor-pointer header-filter-select" style="width: auto;">
+                                {% for m_id, m_name in months %}
+                                <option value="{{ m_id }}" {% if selected_month == m_id %}selected{% endif %} class="text-dark">{{ m_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <select name="year" class="form-select form-select-sm border-0 bg-transparent text-white fw-bold cursor-pointer header-filter-select" style="width: auto;">
+                                {% for y in years %}
+                                <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %} class="text-dark">{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-light btn-sm rounded-pill px-3 fw-bold">
+                                <i class="fas fa-filter me-1"></i> Filter
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 bg-white p-3">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary-subtle text-primary p-3 rounded-4 me-3">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1 small fw-bold">Active PF Employees</h6>
+                        <h4 class="mb-0 fw-bold">{{ total_count }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 bg-white p-3">
+                <div class="d-flex align-items-center">
+                    <div class="bg-success-subtle text-success p-3 rounded-4 me-3">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1 small fw-bold">Viewing Period</h6>
+                        <h4 class="mb-0 fw-bold">{{ selected_month|upper }} {{ selected_year }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-0">
+                        <table class="table table-hover align-middle custom-table mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Employee</th>
+                                    <th>PF & UAN Details</th>
+                                    <th>PF Amount</th>
+                                    <th>ESI Amount</th>
+                                    <th>PF Status</th>
+                                    <th class="text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for emp in employees %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-sm me-3 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold">
+                                                {{ emp.FirstName|make_list|first }}{{ emp.LastName|make_list|first }}
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-0 fw-bold">{{ emp.FirstName }} {{ emp.LastName }}</h6>
+                                                <small class="text-muted">{{ emp.EmployeeID }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="small">
+                                            <div class="mb-1">
+                                                <span class="text-muted fw-bold">PF:</span> 
+                                                <span class="text-main">{{ emp.PFNumber|default:"-" }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="text-muted fw-bold">UAN:</span> 
+                                                <span class="text-main">{{ emp.UANNumber|default:"-" }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold {% if emp.CurrentPF > 0 %}text-success{% else %}text-muted{% endif %}">
+                                            ₹ {{ emp.CurrentPF|default:"0.00" }}
+                                        </div>
+                                        {% if not emp.HasPayslip %}
+                                        <small class="text-danger-emphasis" style="font-size: 0.65rem;"><i class="fas fa-exclamation-circle me-1"></i>No Payslip</small>
+                                        {% else %}
+                                        <small class="text-muted" style="font-size: 0.65rem;">Automated Deduction</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold {% if emp.CurrentESI > 0 %}text-info{% else %}text-muted{% endif %}">
+                                            ₹ {{ emp.CurrentESI|default:"0.00" }}
+                                        </div>
+                                        <small class="text-muted" style="font-size: 0.65rem;">Employee ESI</small>
+                                    </td>
+                                    <td>
+                                        {% if emp.PF_Paid %}
+                                        <span class="badge rounded-pill bg-success-subtle text-success px-3 py-2 border border-success border-opacity-25">
+                                            <i class="fas fa-check-circle me-1"></i> Paid
+                                        </span>
+                                        {% else %}
+                                        <span class="badge rounded-pill bg-warning-subtle text-warning px-3 py-2 border border-warning border-opacity-25">
+                                            <i class="fas fa-clock me-1"></i> Unpaid
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="dropstart">
+                                            <button class="btn btn-light btn-sm rounded-circle shadow-sm" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu border-0 shadow-lg rounded-3 p-2">
+                                                <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ emp.EmployeeID }}"><i class="fas fa-id-card me-2 text-muted"></i> PF/UAN Details</a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                {% if not emp.PF_Paid %}
+                                                <li>
+                                                    <form action="{% url 'mark_pf_paid' emp.EmployeeID %}" method="POST">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="month_year" value="{{ month_year }}">
+                                                        <input type="hidden" name="status" value="true">
+                                                        <button type="submit" class="dropdown-item py-2 text-success">
+                                                            <i class="fas fa-check-double me-2"></i> Mark as Paid
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                {% else %}
+                                                <li>
+                                                    <form action="{% url 'mark_pf_paid' emp.EmployeeID %}" method="POST">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="month_year" value="{{ month_year }}">
+                                                        <input type="hidden" name="status" value="false">
+                                                        <button type="submit" class="dropdown-item py-2 text-warning">
+                                                            <i class="fas fa-undo me-2"></i> Mark as Unpaid
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-5">
+                                        <div class="text-muted">
+                                            <i class="fas fa-users-slash fs-1 mb-3 d-block"></i>
+                                            <p class="mb-0">No permanent employees found for this period.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                </div>
+                <!-- Card Footer for Pagination -->
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ employees.start_index }} - {{ employees.end_index }} out of {{ total_count }} entries</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if employees.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page={{ employees.previous_page_number }}&month={{ selected_month }}&year={{ selected_year }}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            
+                            <li class="page-item active"><a class="page-link" href="#">{{ employees.number }}</a></li>
+                            
+                            {% if employees.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page={{ employees.next_page_number }}&month={{ selected_month }}&year={{ selected_year }}">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Safe Zone for Modals (Outside Table Structure) -->
+{% for emp in employees %}
+<div class="modal fade" id="editModal{{ emp.EmployeeID }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Update PF/UAN Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'update_pf_details' emp.EmployeeID %}" method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <input type="hidden" name="year" value="{{ selected_year }}">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">PF Number (EPFO)</label>
+                        <input type="text" name="pf_number" class="form-control rounded-3 text-uppercase" value="{{ emp.PFNumber|default:'' }}" placeholder="e.g. MHBAN00012340000005678" maxlength="22" required pattern="^[a-zA-Z0-9]{22}$" title="PF Number must be exactly 22 alphanumeric characters." style="text-transform: uppercase;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '');">
+                        <div class="form-text small text-muted" style="font-size: 0.75rem;">Must be exactly 22 alphanumeric characters.</div>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label small fw-bold">UAN Number</label>
+                        <input type="text" name="uan_number" class="form-control rounded-3" value="{{ emp.UANNumber|default:'' }}" placeholder="e.g. 100912345678" maxlength="12" required pattern="^[0-9]{12}$" title="UAN must be exactly 12 digits." oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        <div class="form-text small text-muted" style="font-size: 0.75rem;">Must be exactly 12 numeric digits.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}

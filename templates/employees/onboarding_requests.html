@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Onboarding Requests - Lurnexa{% endblock %}
+{% block nav_onboarding %}active{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="page-title">Onboarding Verification</h2>
+    <p class="text-muted">Review and approve documents for newly joined employees.</p>
+</div>
+
+<div class="row g-4">
+    <!-- Pending Requests -->
+    <div class="col-lg-12">
+        <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header bg-white pt-4 pb-0 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold"><i class="fa-solid fa-clock-rotate-left me-2 text-warning"></i> Pending Review</h5>
+                <span class="badge bg-warning text-dark rounded-pill px-3">{{ pending_requests|length }} Requests</span>
+            </div>
+            <div class="card-body">
+                {% if pending_requests %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border-top">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="border-0 px-4 py-3">Employee</th>
+                                <th class="border-0 py-3">ID</th>
+                                <th class="border-0 py-3">Department</th>
+                                <th class="border-0 py-3">Joined Date</th>
+                                <th class="border-0 py-3 text-end px-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in pending_requests %}
+                            <tr>
+                                <td class="px-4 py-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar me-3">
+                                            {% if emp.PassportPhoto %}
+                                            <img src="/media/{{ emp.PassportPhoto }}" alt="" class="rounded-circle" width="40" height="40" style="object-fit: cover;">
+                                            {% else %}
+                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">{{ emp.FirstName|slice:":1" }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark">{{ emp.FirstName }} {{ emp.LastName }}</div>
+                                            <div class="smaller text-muted">{{ emp.Email }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-light text-dark fw-normal">{{ emp.EmployeeID }}</span></td>
+                                <td>{{ emp.Department }}</td>
+                                <td>{{ emp.JoinedDate }}</td>
+                                <td class="text-end px-4">
+                                    <a href="{% url 'review_onboarding' emp.EmployeeID %}" class="btn btn-primary btn-sm rounded-pill px-4">
+                                        Review Docs
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-circle-check fa-3x text-light mb-3"></i>
+                    <p class="text-muted">No pending requests to review.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Rejected Requests -->
+    {% if rejected_requests %}
+    <div class="col-lg-12">
+        <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header bg-white pt-4 pb-0 border-0">
+                <h5 class="fw-bold text-danger"><i class="fa-solid fa-circle-xmark me-2"></i> Waiting for Re-upload</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <tbody>
+                            {% for emp in rejected_requests %}
+                            <tr>
+                                <td class="px-4">
+                                    <div class="fw-bold">{{ emp.FirstName }} {{ emp.LastName }}</div>
+                                    <div class="smaller text-muted">ID: {{ emp.EmployeeID }}</div>
+                                </td>
+                                <td>
+                                    <div class="smaller text-danger"><i class="fa-solid fa-comment-dots me-2"></i>{{ emp.RejectionReason }}</div>
+                                </td>
+                                <td class="text-end px-4">
+                                    <span class="badge bg-danger-subtle text-danger rounded-pill px-3">Rejected</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

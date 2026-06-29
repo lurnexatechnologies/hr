@@ -1,0 +1,475 @@
+{% extends 'base.html' %}
+
+{% block title %}HR Attendance Dashboard - Lurnexa{% endblock %}
+{% block nav_hr_attendance %}active{% endblock %}
+
+
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">{% if is_today %}Attendance Dashboard{% else %}Historical Attendance{% endif %}</h3>
+            <p class="text-muted small">Tracking for <strong>{{ view_date }}</strong></p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+
+            <div class="btn btn-outline-primary shadow-sm rounded-pill px-3 d-flex align-items-center">
+                <i class="fa-solid fa-calendar-day me-2"></i>
+                <input type="date" id="datePicker" class="border-0 bg-transparent small fw-bold" style="color: inherit; outline: none; cursor: pointer;" value="{{ view_date }}" max="{{ today_str }}" onchange="const targetUrl = new window.URL(window.location.href); targetUrl.searchParams.set('date', this.value); const activeTab = document.querySelector('.nav-pills .nav-link.active'); if(activeTab) { const target = activeTab.getAttribute('data-bs-target').substring(1); targetUrl.searchParams.set('tab', target === 'all' ? 'all' : (target === 'present' ? 'present' : 'onleave')); } targetUrl.searchParams.delete('page_all'); targetUrl.searchParams.delete('page_pres'); targetUrl.searchParams.delete('page_leave'); window.location.href=targetUrl.href;">
+            </div>
+            <div class="dropdown">
+                <button class="btn btn-outline-primary shadow-sm rounded-pill px-4 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fa-solid fa-file-csv me-2"></i> Export Data
+                </button>
+                <ul class="dropdown-menu border-0 shadow-sm rounded-4 mt-2">
+                    <li><a class="dropdown-item py-2 fw-semibold" href="{% url 'download_attendance_report' %}?date={{ view_date }}"><i class="fa-solid fa-calendar-day me-2 text-success"></i> Export Today's Report</a></li>
+                    <li><a class="dropdown-item py-2 fw-semibold" href="{% url 'download_attendance_report' %}?export=all"><i class="fa-solid fa-database me-2 text-primary"></i> Export All History</a></li>
+                </ul>
+            </div>
+            <button class="btn btn-outline-primary shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#timingModal">
+                <i class="fa-solid fa-clock me-2"></i> Set Office Timings
+            </button>
+            <button class="btn btn-outline-primary shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="fa-solid fa-file-import me-2"></i> Import Data
+            </button>
+        </div>
+    </div>
+
+    <!-- Timing Status Alert -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="alert bg-primary bg-opacity-10 border-0 rounded-4 p-3 mb-0 d-flex align-items-center h-100">
+                <i class="fa-solid fa-sun text-primary me-3 fs-4"></i>
+                <div>
+                    <span class="fw-bold text-primary">Day Shift Window:</span> 
+                    <span class="text-dark fw-medium">{{ office_timings.StartTime }} to {{ office_timings.EndTime }}</span>
+                    <div class="small text-muted">Day shift employees clock-in restriction.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="alert bg-indigo bg-opacity-10 border-0 rounded-4 p-3 mb-0 d-flex align-items-center h-100" style="background-color: rgba(79, 70, 229, 0.1);">
+                <i class="fa-solid fa-moon text-indigo me-3 fs-4" style="color: #4f46e5;"></i>
+                <div>
+                    <span class="fw-bold" style="color: #4f46e5;">Night Shift Window:</span> 
+                    <span class="text-dark fw-medium">{{ office_timings.NightStartTime|default:"22:00" }} to {{ office_timings.NightEndTime|default:"06:00" }}</span>
+                    <div class="small text-muted">Night shift employees clock-in restriction.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-6">
+            <div class="card attendance-card shadow-sm bg-white p-4 h-100">
+                <div class="d-flex align-items-center">
+                    <div class="icon-btn bg-success bg-opacity-10 text-success me-3">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-bold">Present Today</div>
+                        <h2 class="fw-black mb-0">{{ present_count }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card attendance-card shadow-sm bg-white p-4 h-100">
+                <div class="d-flex align-items-center">
+                    <div class="icon-btn bg-primary bg-opacity-10 text-primary me-3">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-bold">Total Workforce</div>
+                        <h2 class="fw-black mb-0">{{ total_workforce }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs for detailed views -->
+    <div class="table-container">
+            <ul class="nav nav-pills align-items-center" id="attendanceTabs" role="tablist">
+                <!-- Search Form -->
+                <li class="nav-item me-3">
+                    <form method="GET" action="" class="d-flex align-items-center bg-white border rounded px-3 shadow-sm search-pill" style="min-width: 280px; transition: all 0.3s ease;">
+                        <i class="fa-solid fa-search text-muted me-2"></i>
+                        <input type="text" name="q" value="{{ search_query }}" class="border-0 bg-transparent small fw-medium text-dark w-100" placeholder="Search employee..." style="outline: none; box-shadow: none; padding: 0.5rem 0;">
+                        <input type="hidden" name="date" value="{{ view_date }}">
+                        <input type="hidden" name="tab" value="{{ request.GET.tab|default:'all' }}">
+                    </form>
+                    <style>
+                        .search-pill:focus-within {
+                            border-color: var(--primary) !important;
+                            box-shadow: 0 0 0 3px rgba(155, 93, 229, 0.15) !important;
+                        }
+                        .search-pill input:focus {
+                            outline: none !important;
+                            box-shadow: none !important;
+                            background-color: transparent !important;
+                        }
+                    </style>
+                </li>
+                
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if request.GET.tab != 'present' and request.GET.tab != 'onleave' %}active{% endif %}" data-bs-toggle="pill" data-bs-target="#all" type="button">All Members ({{ all_count }})</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if request.GET.tab == 'present' %}active{% endif %}" data-bs-toggle="pill" data-bs-target="#present" type="button">Present Today ({{ present_count }})</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if request.GET.tab == 'onleave' %}active{% endif %}" data-bs-toggle="pill" data-bs-target="#onleave" type="button">On Leave ({{ leave_count }})</button>
+                </li>
+                
+                <!-- Filter Dropdown inside the tab list -->
+                <li class="nav-item ms-3 {% if request.GET.tab != 'onleave' %}d-none{% endif %}" id="leaveFilterItem">
+                    <div class="d-flex align-items-center bg-white border rounded px-3 shadow-sm filter-dropdown" style="min-width: 200px; transition: all 0.3s ease;">
+                        <i class="fa-solid fa-umbrella-beach text-muted me-2"></i>
+                        <select id="leaveTypeFilter" class="border-0 bg-transparent small fw-medium text-dark" style="outline: none; box-shadow: none; width: 100%; padding: 0.5rem 0; cursor: pointer;" onchange="window.location.href='?tab=onleave&leave_type=' + encodeURIComponent(this.value)">
+                            <option value="">All Leave Types</option>
+                            {% for lt in leave_types %}
+                            <option value="{{ lt }}" {% if selected_leave_type == lt %}selected{% endif %}>{{ lt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <style>
+                        .filter-dropdown:focus-within {
+                            border-color: var(--primary) !important;
+                            box-shadow: 0 0 0 3px rgba(155, 93, 229, 0.15) !important;
+                        }
+                        .filter-dropdown select:focus {
+                            outline: none !important;
+                            box-shadow: none !important;
+                        }
+                    </style>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content" id="attendanceTabsContent">
+            <!-- All Members Tab -->
+            <div class="tab-pane fade {% if request.GET.tab != 'present' and request.GET.tab != 'onleave' %}show active{% endif %}" id="all" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>ID</th>
+                                <th>Shift</th>
+                                <th>Status</th>
+                                <th>Clock In</th>
+                                <th>Clock Out</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in all_members_list %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                            <i class="fa-solid fa-user text-muted smaller"></i>
+                                        </div>
+                                        <span class="text-dark">{{ emp.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-muted small">{{ emp.id }}</td>
+                                <td class="small">
+                                    {% if emp.shift == 'Night Shift' %}
+                                        <i class="fa-solid fa-moon text-indigo me-1"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-sun text-warning me-1"></i>
+                                    {% endif %}
+                                    {{ emp.shift }}
+                                </td>
+                                <td>
+                                    {% if emp.status == 'Present' %}
+                                        <span class="status-badge status-present">Present</span>
+                                    {% elif emp.status == 'On Leave' %}
+                                         <span class="status-badge status-leave">On Leave: {{ emp.leave_type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ emp.clock_in|default:"--" }}</td>
+                                <td class="text-muted small">{{ emp.clock_out|default:"--" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ all_members_list.start_index }} - {{ all_members_list.end_index }} out of {{ all_count }} members</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if all_members_list.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_all={{ all_members_list.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_all' and key != 'tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}&tab=all">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ all_members_list.number }}</a></li>
+                            {% if all_members_list.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_all={{ all_members_list.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_all' and key != 'tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}&tab=all">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Present Tab -->
+            <div class="tab-pane fade {% if request.GET.tab == 'present' %}show active{% endif %}" id="present" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>ID</th>
+                                <th>Shift</th>
+                                <th>Clock In</th>
+                                <th>Clock Out</th>
+                                <th>Total Hours</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in present_employees %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                            <i class="fa-solid fa-user text-muted smaller"></i>
+                                        </div>
+                                        <span class="text-dark">{{ emp.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-muted small">{{ emp.id }}</td>
+                                <td class="small">
+                                    {% if emp.shift == 'Night Shift' %}
+                                        <i class="fa-solid fa-moon text-indigo me-1"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-sun text-warning me-1"></i>
+                                    {% endif %}
+                                    {{ emp.shift }}
+                                </td>
+                                <td class="text-dark">{{ emp.clock_in }}</td>
+                                <td class="text-dark">{{ emp.clock_out }}</td>
+                                <td>
+                                    <span class="fw-bold {% if emp.hours >= 8 %}text-success{% else %}text-warning{% endif %}">
+                                        {{ emp.hours }} hrs
+                                    </span>
+                                </td>
+                                <td><span class="status-badge status-present">Present</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="7" class="text-center py-4 text-muted">No one has clocked in yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ present_employees.start_index }} - {{ present_employees.end_index }} out of {{ present_count }} present</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if present_employees.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_pres={{ present_employees.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_pres' and key != 'tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}&tab=present">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ present_employees.number }}</a></li>
+                            {% if present_employees.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_pres={{ present_employees.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_pres' and key != 'tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}&tab=present">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+
+
+            <!-- On Leave Tab -->
+            <div class="tab-pane fade {% if request.GET.tab == 'onleave' %}show active{% endif %}" id="onleave" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table align-middle" id="onLeaveTable">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>ID</th>
+                                <th>Shift</th>
+                                <th>Leave Category</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in on_leave_employees %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                            <i class="fa-solid fa-user text-muted smaller"></i>
+                                        </div>
+                                        <span class="text-dark">{{ emp.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-muted small">{{ emp.id }}</td>
+                                <td class="small">
+                                    {% if emp.shift == 'Night Shift' %}
+                                        <i class="fa-solid fa-moon text-indigo me-1"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-sun text-warning me-1"></i>
+                                    {% endif %}
+                                    {{ emp.shift }}
+                                </td>
+                                <td class="text-dark fw-semibold small">{{ emp.leave_type }}</td>
+                                <td><span class="status-badge status-leave">On Leave</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center py-4 text-muted">No one is on leave today.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ on_leave_employees.start_index }} - {{ on_leave_employees.end_index }} out of {{ leave_count }} on leave</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if on_leave_employees.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_leave={{ on_leave_employees.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_leave' and key != 'tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}&tab=onleave">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ on_leave_employees.number }}</a></li>
+                            {% if on_leave_employees.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_leave={{ on_leave_employees.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_leave' and key != 'tab' %}&{{ key }}={{ value }}{% endif %}{% endfor %}&tab=onleave">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Set Office Timings Modal -->
+<div class="modal fade" id="timingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 24px;">
+            <div class="modal-header border-bottom-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold">Set Office Timings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'update_timings' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body px-4">
+                    <div class="alert bg-warning bg-opacity-10 border-0 rounded-3 small mb-4">
+                        <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>
+                        Employees will be blocked from Clock-In outside of their assigned shift hours.
+                    </div>
+                    
+                    <h6 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-sun me-2"></i> Day Shift Timings</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Start Time</label>
+                            <input type="time" name="start_time" class="form-control border-0 bg-light rounded-3 p-3" value="{{ office_timings.StartTime }}" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">End Time</label>
+                            <input type="time" name="end_time" class="form-control border-0 bg-light rounded-3 p-3" value="{{ office_timings.EndTime }}" required>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold mb-3" style="color: #4f46e5;"><i class="fa-solid fa-moon me-2"></i> Night Shift Timings</h6>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Start Time</label>
+                            <input type="time" name="night_start_time" class="form-control border-0 bg-light rounded-3 p-3" value="{{ office_timings.NightStartTime|default:"22:00" }}" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">End Time</label>
+                            <input type="time" name="night_end_time" class="form-control border-0 bg-light rounded-3 p-3" value="{{ office_timings.NightEndTime|default:"06:00" }}" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pb-4 px-4">
+                    <button type="submit" class="btn btn-primary rounded-pill w-100 py-3 fw-bold shadow-sm">Save All Timings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+    </div>
+</div>
+
+<!-- Import Data Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 24px;">
+            <div class="modal-header border-bottom-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold">Import Attendance Data</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'import_attendance' %}" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body px-4">
+                    <div class="p-4 border-2 border-dashed border-primary bg-primary bg-opacity-10 rounded-4 text-center mb-4" 
+                         style="cursor: pointer;" onclick="document.getElementById('attendanceFile').click()">
+                        <i class="fa-solid fa-file-csv text-primary fs-1 mb-3"></i>
+                        <h6 class="fw-bold mb-1">Upload CSV File</h6>
+                        <p class="text-muted small mb-3">Click to browse your files</p>
+                        <input type="file" id="attendanceFile" name="attendance_file" class="d-none" accept=".csv" required 
+                               onchange="this.nextElementSibling.innerText = this.files[0].name">
+                        <div class="small text-primary fw-bold"></div>
+                    </div>
+
+                    <div class="card bg-light border-0 rounded-4">
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold small text-uppercase mb-2">CSV Format Guide:</h6>
+                            <div class="text-muted smaller">
+                                <p class="mb-2">Your CSV must include the following headers in order:</p>
+                                <code class="d-block bg-white p-2 rounded mb-2 border text-center">Date, Employee Name, Employee ID, Shift, Status, Clock In, Clock Out</code>
+                                <ul class="mb-0 ps-3">
+                                    <li><strong>Date:</strong> YYYY-MM-DD (e.g. 2026-05-16)</li>
+                                    <li><strong>Employee ID:</strong> e.g. LT-26001</li>
+                                    <li><strong>Clock In/Out:</strong> HH:MM (24-hour format)</li>
+                                    <li><strong>Status:</strong> Present / Unpaid / On Leave</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pb-4 px-4">
+                    <button type="submit" class="btn btn-primary rounded-pill w-100 py-3 fw-bold shadow-sm">
+                        <i class="fa-solid fa-cloud-arrow-up me-2"></i> Start Import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Custom Script for Client-Side Filtering -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterItem = document.getElementById('leaveFilterItem');
+    const leaveFilter = document.getElementById('leaveTypeFilter');
+    const tabButtons = document.querySelectorAll('button[data-bs-toggle="pill"]');
+    
+    if (filterItem && tabButtons.length > 0) {
+        tabButtons.forEach(btn => {
+            btn.addEventListener('shown.bs.tab', function(e) {
+                if (e.target.getAttribute('data-bs-target') === '#onleave') {
+                    filterItem.classList.remove('d-none');
+                } else {
+                    filterItem.classList.add('d-none');
+                }
+            });
+        });
+    }
+});
+</script>
+
+{% endblock %}

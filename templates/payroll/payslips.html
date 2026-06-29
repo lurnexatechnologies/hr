@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Payslips - Lurnexa{% endblock %}
+{% block nav_payroll %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">My Payslips</h2>
+        <p class="text-muted">View and download your monthly salary statements.</p>
+    </div>
+</div>
+
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body p-4">
+        <h5 class="fw-bold mb-4"><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i> Search Payslip</h5>
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label fw-bold text-muted small text-uppercase">Month</label>
+                <select name="month" class="form-select shadow-sm rounded-3 border-light-subtle py-2" required>
+                    <option value="">Select Month</option>
+                    {% for val, name in months %}
+                        <option value="{{ val }}" {% if selected_month == val %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label fw-bold text-muted small text-uppercase">Year</label>
+                <select name="year" class="form-select shadow-sm rounded-3 border-light-subtle py-2" required>
+                    <option value="">Select Year</option>
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if selected_year|stringformat:"s" == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100 shadow-sm rounded-3 py-2 fw-bold">
+                    <i class="fa-solid fa-eye me-2"></i> View
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if selected_record %}
+<div class="card border-0 shadow-sm animate__animated animate__fadeIn">
+    <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
+                <i class="fa-regular fa-calendar-check text-primary"></i>
+            </div>
+            <div>
+                <h6 class="mb-0 fw-bold">{{ selected_month|title }} {{ selected_year }}</h6>
+                <small class="text-muted">Salary Statement</small>
+            </div>
+        </div>
+        <a href="{% url 'download_payslip' selected_record.MonthYear %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+            <i class="fa-solid fa-download me-2"></i> Download PDF
+        </a>
+    </div>
+</div>
+{% elif selected_month and selected_year %}
+<div class="card border-0 shadow-sm py-5 animate__animated animate__fadeIn">
+    <div class="card-body text-center">
+        <div class="mb-4">
+            <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                <i class="fa-solid fa-file-circle-xmark text-muted opacity-50" style="font-size: 2.5rem;"></i>
+            </div>
+        </div>
+        <h5 class="fw-bold">No Payslip Found</h5>
+        <p class="text-muted mx-auto" style="max-width: 400px;">We couldn't find a generated payslip for <strong>{{ selected_month|title }} {{ selected_year }}</strong>. Please verify the period or contact HR.</p>
+        <a href="{% url 'payslips_view' %}" class="btn btn-light rounded-pill px-4 mt-2">Clear Search</a>
+    </div>
+</div>
+{% else %}
+<div class="card border-0 shadow-sm py-5">
+    <div class="card-body text-center">
+        <div class="mb-4">
+            <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                <i class="fa-solid fa-calendar-check text-primary" style="font-size: 2.5rem;"></i>
+            </div>
+        </div>
+        <h5 class="fw-bold">Select a Period</h5>
+        <p class="text-muted">Choose a month and year above to view your salary statement.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

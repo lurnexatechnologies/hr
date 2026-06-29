@@ -1,0 +1,506 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lurnexa HRMS - The Future of HR</title>
+    <!-- Google Fonts: Inter -->
+    <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
+    
+    <!-- Prevent browser caching to fix back-button navigation state issues -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- Bootstrap 5 CSS -->
+    <link href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
+    <style>
+        :root {
+            --primary: #9B5DE5;
+            --secondary: #C77DFF;
+            --accent: #E056FD;
+            --dark: #2D2D2D;
+            --light: #F8F6FF;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            
+            /* Override Bootstrap Default Blue */
+            --bs-primary: #9B5DE5;
+            --bs-primary-rgb: 155, 93, 229;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #334155;
+            background-color: var(--light);
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-text {
+            font-family: 'Inter', sans-serif;
+            letter-spacing: -0.5px;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 1rem 2rem;
+            transition: all 0.3s ease;
+        }
+        .navbar-brand {
+            font-weight: 800;
+            color: var(--primary);
+            font-size: 1.5rem;
+            letter-spacing: -0.5px;
+        }
+        .nav-link {
+            font-weight: 500;
+            color: #475569;
+            margin: 0 0.5rem;
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover {
+            color: var(--primary);
+        }
+        .btn-signin {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            font-weight: 600;
+            padding: 0.6rem 1.5rem;
+            border-radius: 50px;
+            border: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .btn-signin:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(155, 93, 229, 0.3);
+            color: white;
+        }
+
+        /* Hero Section */
+        .hero {
+            position: relative;
+            padding: 160px 0 100px;
+            background: radial-gradient(circle at top right, #F3E8FF 0%, #F8F6FF 100%);
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(155, 93, 229, 0.15) 0%, transparent 70%);
+            border-radius: 50px;
+            transform: rotate(45deg);
+        }
+        .hero-title {
+            font-size: 4rem;
+            font-weight: 800;
+            line-height: 1.1;
+            color: var(--dark);
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--dark), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: #64748b;
+            margin-bottom: 2.5rem;
+            max-width: 600px;
+        }
+        .hero-img-container {
+            position: relative;
+            z-index: 10;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            background: white;
+            padding: 10px;
+            transform: perspective(1000px) rotateY(-5deg) rotateX(5deg);
+            transition: transform 0.5s ease;
+        }
+        .hero-img-container:hover {
+            transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+        }
+
+        /* Features Section */
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        .section-tag {
+            color: var(--secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-size: 0.85rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .feature-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2.5rem;
+            border: 1px solid #e2e8f0;
+            height: 100%;
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+            border-color: var(--secondary);
+        }
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(155, 93, 229, 0.1);
+            color: var(--primary);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover .feature-icon {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Customization Section */
+        .customization {
+            background: var(--dark);
+            color: white;
+            padding: 100px 0;
+            position: relative;
+        }
+        .customization .section-tag {
+            color: #C77DFF;
+        }
+        .custom-badge {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            display: inline-block;
+            margin: 0.5rem;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Pricing Section */
+        .pricing-card {
+            background: white;
+            border-radius: 24px;
+            padding: 3rem 2rem;
+            border: 1px solid #e2e8f0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .pricing-card.popular {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-color: var(--primary);
+            border-width: 2px;
+            box-shadow: 0 30px 60px rgba(155, 93, 229, 0.1);
+            transform: scale(1.05);
+        }
+        .pricing-card.popular::before {
+            content: 'Most Popular';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .price {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: var(--dark);
+            margin: 1.5rem 0;
+        }
+        .price span {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        .pricing-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 2.5rem;
+        }
+        .pricing-list li {
+            margin-bottom: 1rem;
+            color: #475569;
+            display: flex;
+            align-items: center;
+        }
+        .pricing-list li i {
+            color: #10b981;
+            margin-right: 10px;
+        }
+
+        /* Contact Section */
+        .contact-section {
+            padding: 100px 0;
+            background: white;
+        }
+        .contact-form {
+            background: var(--light);
+            padding: 3rem;
+            border-radius: 24px;
+        }
+        .form-control {
+            border-radius: 12px;
+            padding: 0.8rem 1.2rem;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 1.5rem;
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 3px rgba(155, 93, 229, 0.1);
+            border-color: var(--primary);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: #94a3b8;
+            padding: 4rem 0 2rem;
+        }
+        footer h5 {
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+        footer a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        footer a:hover {
+            color: white;
+        }
+    </style>
+</head>
+<body data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <!-- Navigation -->
+    <nav id="navbar" class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="fa-solid fa-briefcase me-2"></i> Lurnexa
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mx-auto">
+                    <li class="nav-item"><a class="nav-link" href="#home">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#customization">Customization</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#pricing">Pricing</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#contact">Contact Us</a></li>
+                </ul>
+                <div class="d-flex">
+                    <a href="{% url 'login' %}" class="btn btn-signin"><i class="fa-solid fa-right-to-bracket me-2"></i> Sign In</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero d-flex align-items-center">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6 mb-5 mb-lg-0">
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill mb-4 fw-bold">Next-Gen HRMS 🚀</span>
+                    <h1 class="hero-title">Elevate Your HR Experience.</h1>
+                    <p class="hero-subtitle">The modern, beautiful, and comprehensive Human Resource Management System built for the future of work.</p>
+                    <div class="d-flex gap-3">
+                        <a href="#features" class="btn btn-signin" style="padding: 1rem 2rem; font-size: 1.1rem;">Explore Features</a>
+                        <a href="{% url 'login' %}" class="btn btn-light" style="padding: 1rem 2rem; font-size: 1.1rem; border-radius: 50px; font-weight: 600; border: 1px solid #e2e8f0;">Sign In</a>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="hero-img-container">
+                        <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" alt="HR Dashboard Interface" class="img-fluid rounded" style="border-radius: 14px !important;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-5 my-5">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Powerful Features</span>
+                <h2 class="display-5 fw-bold text-dark">Everything you need to manage your team</h2>
+            </div>
+            
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <h4 class="fw-bold mb-3">Automated Workflows</h4>
+                        <p class="text-muted mb-0">Seamlessly automate leave approvals, WFH requests, and expense claims with our intelligent routing engine.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-sack-dollar"></i>
+                        </div>
+                        <h4 class="fw-bold mb-3">Payroll & PF Engine</h4>
+                        <p class="text-muted mb-0">Generate payslips, track provident fund deductions, and manage historical salary disbursements instantly.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h4 class="fw-bold mb-3">Secure Document Vault</h4>
+                        <p class="text-muted mb-0">All employee documents, receipts, and medical certificates are securely stored with enterprise-grade encryption.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Customization Section -->
+    <section id="customization" class="customization">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-5 mb-5 mb-lg-0">
+                    <span class="section-tag">Endless Flexibility</span>
+                    <h2 class="display-5 fw-bold mb-4">Tailored to your organizational DNA.</h2>
+                    <p class="fs-5 mb-4 text-light opacity-75">We don't force you into a box. Lurnexa adapts to your hierarchy, policies, and operational structures seamlessly.</p>
+                    
+                    <div class="mt-4">
+                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Custom Leave Policies</span>
+                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Dynamic Multi-level Approvals</span>
+                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Custom Role Hierarchies</span>
+                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Variable Payroll Structures</span>
+                    </div>
+                </div>
+                <div class="col-lg-6 offset-lg-1">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="img-fluid rounded-4 shadow-lg mb-3" alt="Customization 1">
+                        </div>
+                        <div class="col-6 mt-5">
+                            <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="img-fluid rounded-4 shadow-lg" alt="Customization 2">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-5 my-5 bg-light">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Transparent Pricing</span>
+                <h2 class="display-5 fw-bold text-dark">Tailored for Your Enterprise</h2>
+            </div>
+            
+            <div class="row justify-content-center">
+                <!-- Custom Enterprise Plan -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="pricing-card text-center border-primary shadow-sm" style="border-width: 2px;">
+                        <h3 class="fw-bold">Enterprise Custom</h3>
+                        <p class="text-muted mb-4">Scalable HR solutions for modern organizations</p>
+                        <div class="price" style="font-size: 2.5rem;">Custom<span>/mo</span></div>
+                        
+                        <div class="text-start mx-auto mt-4" style="max-width: 350px;">
+                            <ul class="pricing-list">
+                                <li><i class="fa-solid fa-check-circle"></i> Unlimited Employees & Profiles</li>
+                                <li><i class="fa-solid fa-check-circle"></i> Advanced Payroll & PF Calculations</li>
+                                <li><i class="fa-solid fa-check-circle"></i> Enterprise-Grade Security & Compliance</li>
+                                <li><i class="fa-solid fa-check-circle"></i> Custom Multi-level Approval Workflows</li>
+                                <li><i class="fa-solid fa-check-circle"></i> Complete Analytics & Reporting</li>
+                                <li><i class="fa-solid fa-check-circle"></i> White-Glove Onboarding & Account Management</li>
+                            </ul>
+                        </div>
+                        <a href="#contact" class="btn btn-signin w-100 rounded-pill py-3 mt-3" style="max-width: 350px;">Contact Us</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-5 mb-5 mb-lg-0">
+                    <span class="section-tag">Get in Touch</span>
+                    <h2 class="display-5 fw-bold mb-4">Let's transform your HR together.</h2>
+                    <p class="text-muted mb-4 fs-5">Have questions about deployment, custom features, or enterprise pricing? Our team is ready to assist you.</p>
+                    
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon mb-0 me-3" style="width: 50px; height: 50px;">
+                            <i class="fa-solid fa-envelope"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Email Us</h6>
+                            <p class="text-muted mb-0">lurnexasolution@gmail.com</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 offset-lg-1">
+                    <form action="/core/contact-us/" method="POST" class="contact-form shadow-sm border border-light">
+                        {% csrf_token %}
+                        <!-- Messages Block -->
+                        {% if messages %}
+                        <div class="mb-4">
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="fw-medium mb-2 small">First Name</label>
+                                <input type="text" name="first_name" class="form-control" placeholder="John" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-medium mb-2 small">Last Name</label>
+                                <input type="text" name="last_name" class="form-control" placeholder="Doe" required>
+                            </div>
+                        </div>
+                        <label class="fw-medium mb-2 small">Work Email</label>
+                        <input type="email" name="email" class="form-control" placeholder="john@company.com" required>
+                        
+                        <label class="fw-medium mb-2 small">Message</label>
+                        <textarea name="message" class="form-control" rows="4" placeholder="How can we help you?" required></textarea>
+                        
+                        <button type="submit" class="btn btn-signin w-100 py-3">Send Message <i class="fa-solid fa-paper-plane ms-2"></i></button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+    <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+</body>
+</html>

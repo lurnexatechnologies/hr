@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Expenses - Lurnexa{% endblock %}
+{% block nav_expenses %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Expense Claims</h2>
+        <p class="text-muted">Submit and track your company expenses.</p>
+    </div>
+    <div>
+        <button class="btn btn-primary shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="fa-solid fa-plus me-2"></i> New Claim</button>
+    </div>
+</div>
+
+<div class="card h-100">
+    <div class="card-header bg-white pt-4 pb-2">
+        <h5 class="fw-bold mb-0">My Applications</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light text-muted" style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">
+                    <tr>
+                        <th class="ps-4 border-0 py-3">Req ID</th>
+                        <th class="border-0 py-3">Date</th>
+                        <th class="border-0 py-3">Category</th>
+                        <th class="border-0 py-3">Amount</th>
+                        <th class="border-0 py-3">Status</th>
+                        <th class="border-0 py-3">Approval Tracking</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr>
+                        <td class="ps-4 py-3 fw-medium text-main">{{ r.RequestID|slice:":8"|upper }}</td>
+                        <td class="text-muted">{{ r.Date }}</td>
+                        <td class="text-muted">{{ r.Category }}</td>
+                        <td class="fw-bold">₹{{ r.Amount }}</td>
+                        <td>
+                            {% if r.Status == 'Approved' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-1 smaller fw-bold"><i class="fa-solid fa-circle-check me-1"></i> Fully Approved</span>
+                            {% elif r.Status == 'Manager Approved' %}
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-3 py-1 smaller fw-bold"><i class="fa-solid fa-user-check me-1"></i> Manager Approved</span>
+                            {% elif r.Status == 'Pending Manager Approval' %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 rounded-pill px-3 py-1 smaller fw-bold">Waiting for Manager</span>
+                            {% elif r.Status == 'Pending HR ADMIN Approval' %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 rounded-pill px-3 py-1 smaller fw-bold">Waiting for HR ADMIN</span>
+                            {% elif r.Status == 'Rejected' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-1 smaller fw-bold">Rejected</span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2">{{ r.Status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            <div class="text-muted smaller mb-1"><i class="fa-solid fa-paper-plane me-1"></i> Submitted on {{ r.Date }}</div>
+                            {% if r.ApprovedByManager %}
+                                <div class="text-success smaller mb-1"><i class="fa-solid fa-check me-1"></i> Manager approved on {% if r.ManagerApprovalDate %}{{ r.ManagerApprovalDate }}{% else %}{{ r.Date }}{% endif %}</div>
+                            {% endif %}
+                            {% if r.ApprovedByHR %}
+                                <div class="text-success fw-bold smaller mb-1"><i class="fa-solid fa-check-double me-1"></i> HR approved on {% if r.HRApprovalDate %}{{ r.HRApprovalDate }}{% else %}{{ r.Date }}{% endif %}</div>
+                                {% if r.PaymentStatus == 'Paid' %}
+                                    <div class="badge bg-success bg-opacity-10 text-success smaller mb-1" style="font-size: 0.65rem;"><i class="fa-solid fa-money-bill-wave me-1"></i> Reimbursed on {{ r.PaymentDate }}</div>
+                                {% else %}
+                                    <div class="text-primary smaller mb-1" style="font-size: 0.7rem;"><i class="fa-solid fa-calendar-check me-1"></i> Scheduled Transfer: <b>{{ r.EstimatedTransferDate|default:"Within 2 days" }}</b></div>
+                                {% endif %}
+                            {% elif r.Status == 'Manager Approved' %}
+                                <div class="text-info smaller mb-1"><i class="fa-solid fa-clock me-1"></i> Pending HR ADMIN Finalization</div>
+                            {% endif %}
+                            {% if r.Status == 'Rejected' %}
+                                <div class="text-danger smaller mb-1"><i class="fa-solid fa-circle-xmark me-1"></i> Rejected on {% if r.RejectionDate %}{{ r.RejectionDate }}{% else %}{{ r.Date }}{% endif %}</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-receipt mb-3 text-muted opacity-50" style="font-size: 2.5rem;"></i><br>
+                            You have no expense claims.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+        <span>Showing {{ records.start_index }} - {{ records.end_index }} out of {{ total_count }} claims</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if records.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?page={{ records.previous_page_number }}">Previous</a></li>
+                {% else %}
+                    <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                {% endif %}
+                <li class="page-item active"><a class="page-link" href="#">{{ records.number }}</a></li>
+                {% if records.has_next %}
+                    <li class="page-item"><a class="page-link" href="?page={{ records.next_page_number }}">Next</a></li>
+                {% else %}
+                    <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Add Expense Modal -->
+<div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow" style="border-radius: 12px;">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold">New Expense Claim</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'expenses_view' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Category</label>
+                        <select class="form-select" name="category" required>
+                            <option value="Meals & Entertainment">Meals & Entertainment</option>
+                            <option value="Office Supplies">Office Supplies</option>
+                            <option value="Transportation">Transportation</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Amount (₹)</label>
+                        <input type="number" step="0.01" class="form-control" name="amount" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Description</label>
+                        <textarea class="form-control" name="description" rows="2" required></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Receipt <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" name="receipt" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Submit Claim</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

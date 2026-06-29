@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-lg border-0 rounded-4 overflow-hidden mb-4">
+                <div class="card-header bg-gradient-primary py-3 px-4">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-white p-2 rounded-3 me-3">
+                                <i class="fas fa-file-invoice text-primary fs-4"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-white mb-0 fw-bold">PF Onboarding Tracker</h4>
+                                <p class="text-white-50 mb-0 small">Manage your Provident Fund activation process</p>
+                            </div>
+                        </div>
+                        <div class="badge bg-white text-primary px-3 py-2 rounded-pill fw-bold">
+                            Status: {{ workflow.Status|default:"Initiated" }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <!-- Workflow Progress Bar -->
+                    <div class="position-relative mb-5 px-md-5">
+                        <div class="progress" style="height: 4px;">
+                            {% with stage=workflow.CurrentStage %}
+                            <div class="progress-bar bg-primary" role="progressbar" 
+                                style="width: {% if stage == 'KYC Pending' %}0%{% elif stage == 'HR KYC Verification' %}25%{% elif 'Approval Pending' in stage %}75%{% elif stage == 'Completed' %}100%{% else %}0%{% endif %}">
+                            </div>
+                            {% endwith %}
+                        </div>
+                        <div class="d-flex justify-content-between position-absolute top-50 start-0 w-100 translate-middle-y">
+                            {% for s in stages %}
+                            <div class="text-center" style="width: 20%;">
+                                <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center 
+                                    {% if workflow.CurrentStage == s.id %}bg-primary text-white shadow-sm{% elif workflow.Status == 'PF Active' %}bg-success text-white{% else %}bg-light text-muted border{% endif %}" 
+                                    style="width: 40px; height: 40px; border-width: 2px !important; z-index: 2;">
+                                    <i class="fas {{ s.icon }} small"></i>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="small fw-bold d-block text-truncate">{{ s.label }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mt-4">
+                        <!-- KYC Form Section -->
+                        <div class="col-lg-8">
+                            <div class="card border-0 bg-light rounded-4 h-100">
+                                <div class="card-body p-4">
+                                    <h5 class="fw-bold mb-4 d-flex align-items-center">
+                                        <i class="fas fa-address-card text-primary me-2"></i>
+                                        KYC Details Submission
+                                    </h5>
+
+                                    {% if workflow.CurrentStage == 'KYC Pending' or workflow.Status == 'Rejected' %}
+                                    <form action="{% url 'pf_kyc_submit' %}" method="POST">
+                                        {% csrf_token %}
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-muted">Aadhaar Number (12 Digits)</label>
+                                                <input type="text" name="aadhaar_number" class="form-control" maxlength="12" pattern="\d{12}" required value="{{ profile.AadhaarNumber }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-muted">PAN Number</label>
+                                                <input type="text" name="pan_number" class="form-control text-uppercase" maxlength="10" required value="{{ profile.PANNumber }}">
+                                            </div>
+                                            <div class="col-md-12">
+                                                <label class="form-label small fw-bold text-muted">Full Name (As per Aadhaar)</label>
+                                                <input type="text" name="name_as_per_aadhaar" class="form-control" required value="{{ profile.NameAsPerAadhaar }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-muted">Bank Account Number</label>
+                                                <input type="text" name="bank_account" class="form-control" required value="{{ profile.BankAccountNumber }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-muted">IFSC Code</label>
+                                                <input type="text" name="ifsc_code" class="form-control text-uppercase" required value="{{ profile.IFSCCode }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-muted">Aadhaar Linked Mobile</label>
+                                                <input type="tel" name="aadhaar_mobile" class="form-control" required value="{{ profile.AadhaarLinkedMobile }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-muted">Date of Joining</label>
+                                                <input type="date" name="doj" class="form-control" required value="{{ profile.DateOfJoining|default:employee.JoinedDate|default:'' }}">
+                                            </div>
+                                            <div class="col-md-12">
+                                                <div class="form-check form-switch mt-3">
+                                                    <input class="form-check-input" type="checkbox" name="has_existing_uan" id="hasUAN" value="Yes" {% if profile.HasExistingUAN %}checked{% endif %} onchange="toggleUANField()">
+                                                    <label class="form-check-label fw-bold" for="hasUAN">Do you have an existing UAN?</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-12" id="uanField" style="display: {% if profile.HasExistingUAN %}block{% else %}none{% endif %};">
+                                                <label class="form-label small fw-bold text-muted">Existing UAN Number</label>
+                                                <input type="text" name="existing_uan" class="form-control" maxlength="12" value="{{ profile.ExistingUAN }}">
+                                            </div>
+                                            <input type="hidden" name="salary" value="{{ employee.SalaryPA|default:0 }}">
+                                        </div>
+                                        <div class="mt-4 text-end">
+                                            <button type="submit" class="btn btn-primary px-4 py-2 rounded-pill shadow-sm">
+                                                Submit KYC Details <i class="fas fa-paper-plane ms-1"></i>
+                                            </button>
+                                        </div>
+                                    </form>
+                                    {% else %}
+                                    <div class="alert alert-info border-0 rounded-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        Your KYC details have been submitted and are currently in <strong>{{ workflow.CurrentStage }}</strong>.
+                                    </div>
+                                    <div class="row g-3 opacity-75">
+                                        <div class="col-md-6">
+                                            <p class="mb-0 small text-muted fw-bold">Aadhaar Number</p>
+                                            <p class="fw-bold">XXXX XXXX {{ profile.AadhaarNumber|slice:"-4:" }}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p class="mb-0 small text-muted fw-bold">PAN Number</p>
+                                            <p class="fw-bold">{{ profile.PANNumber }}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p class="mb-0 small text-muted fw-bold">Bank Account</p>
+                                            <p class="fw-bold">{{ profile.BankAccountNumber|slice:"0:2" }}XXXXXX{{ profile.BankAccountNumber|slice:"-4:" }}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p class="mb-0 small text-muted fw-bold">IFSC Code</p>
+                                            <p class="fw-bold">{{ profile.IFSCCode }}</p>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Timeline/History Section -->
+                        <div class="col-lg-4">
+                            <div class="card border-0 bg-light rounded-4 h-100">
+                                <div class="card-body p-4">
+                                    <h5 class="fw-bold mb-4 d-flex align-items-center">
+                                        <i class="fas fa-history text-primary me-2"></i>
+                                        Workflow Timeline
+                                    </h5>
+                                    <div class="timeline-small">
+                                        {% for log in workflow.History|dictsortreversed:"Timestamp" %}
+                                        <div class="d-flex mb-3">
+                                            <div class="me-3 position-relative">
+                                                <div class="bg-primary rounded-circle" style="width: 10px; height: 10px; margin-top: 5px;"></div>
+                                                {% if not forloop.last %}<div class="bg-primary-subtle position-absolute top-100 start-50 translate-middle-x" style="width: 2px; height: calc(100% - 10px);"></div>{% endif %}
+                                            </div>
+                                            <div>
+                                                <p class="mb-0 small fw-bold">{{ log.Stage }}</p>
+                                                <p class="mb-0 text-muted" style="font-size: 0.75rem;">{{ log.Action }}</p>
+                                                <p class="mb-0 text-muted" style="font-size: 0.7rem;">{{ log.Timestamp|slice:"0:10" }} {{ log.Timestamp|slice:"11:16" }}</p>
+                                            </div>
+                                        </div>
+                                        {% empty %}
+                                        <p class="text-muted small">No activity logged yet.</p>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleUANField() {
+        const uanField = document.getElementById('uanField');
+        const hasUAN = document.getElementById('hasUAN').checked;
+        uanField.style.display = hasUAN ? 'block' : 'none';
+    }
+</script>
+
+
+{% endblock %}

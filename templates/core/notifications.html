@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="fw-bold mb-0">Notifications</h4>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-light btn-sm px-3" style="border-radius: 8px;">Mark all as read</button>
+                    <form action="{% url 'clear_notifications' %}" method="POST" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Clear All Notifications', message: 'Are you sure you want to clear all notifications permanently?', onConfirm: () => form.submit()}); return false;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm px-3" style="border-radius: 8px;">
+                            <i class="fa-solid fa-trash-can me-2"></i> Clear All
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-0" id="notifications-container">
+                    {% for n in notifications %}
+                    <div class="p-4 {% if not forloop.last %}border-bottom{% endif %} d-flex align-items-start gap-3 {% if not n.IsRead %}bg-light-subtle{% endif %}">
+                        <div class="icon-lg bg-{{ n.Color }}-subtle text-{{ n.Color }} rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px; min-width: 48px; font-size: 1.2rem;">
+                            <i class="fa-solid {{ n.Icon }}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between">
+                                <h6 class="mb-1 fw-bold">{{ n.Title }}</h6>
+                                <span class="text-muted small">{{ n.Timestamp|slice:":10" }} {{ n.Timestamp|slice:"11:16" }}</span>
+                            </div>
+                            <p class="text-muted mb-0 small">{{ n.Message }}</p>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-link text-muted p-0" data-bs-toggle="dropdown">
+                                <i class="fa-solid fa-ellipsis-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                                <li><a class="dropdown-item py-2 small" href="{% url 'notification_detail' n.Timestamp %}"><i class="fa-regular fa-eye me-2"></i> View Details</a></li>
+                                <li><a class="dropdown-item py-2 small text-danger" href="{% url 'delete_notification' n.Timestamp %}" onclick="event.preventDefault(); const url = this.href; Lurnexa.confirm({title: 'Delete Notification', message: 'Are you sure you want to delete this notification?', onConfirm: () => window.location.href = url});"><i class="fa-regular fa-trash-can me-2"></i> Delete</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-5 text-center">
+                        <i class="fa-solid fa-bell-slash text-muted mb-3" style="font-size: 3rem; opacity: 0.2;"></i>
+                        <p class="text-muted">No new notifications</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="text-center mt-4" id="load-more-wrapper" {% if not last_timestamp %}style="display: none;"{% endif %}>
+                <button id="load-more-btn" class="btn btn-link text-muted text-decoration-none small" data-last="{{ last_timestamp }}">Load Older Notifications</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('load-more-btn')?.addEventListener('click', function() {
+    const btn = this;
+    const lastTimestamp = btn.getAttribute('data-last');
+    const container = document.getElementById('notifications-container');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Loading...';
+    
+    fetch(`{% url 'load_more_notifications' %}?last_timestamp=${encodeURIComponent(lastTimestamp)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                Lurnexa.alert('Error loading notifications: ' + data.error, 'Error');
+                return;
+            }
+            
+            data.notifications.forEach(n => {
+                const html = `
+                    <div class="p-4 border-top d-flex align-items-start gap-3 ${n.IsRead ? '' : 'bg-light-subtle'}">
+                        <div class="icon-lg bg-${n.Color}-subtle text-${n.Color} rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px; min-width: 48px; font-size: 1.2rem;">
+                            <i class="fa-solid ${n.Icon}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between">
+                                <h6 class="mb-1 fw-bold">${n.Title}</h6>
+                                <span class="text-muted small">${n.Timestamp.slice(0, 10)} ${n.Timestamp.slice(11, 16)}</span>
+                            </div>
+                            <p class="text-muted mb-0 small">${n.Message}</p>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-link text-muted p-0" data-bs-toggle="dropdown">
+                                <i class="fa-solid fa-ellipsis-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                                <li><a class="dropdown-item py-2 small" href="/core/notifications/detail/${encodeURIComponent(n.Timestamp)}/"><i class="fa-regular fa-eye me-2"></i> View Details</a></li>
+                                <li><a class="dropdown-item py-2 small text-danger" href="/core/notifications/delete/${encodeURIComponent(n.Timestamp)}/" onclick="event.preventDefault(); const url = this.href; Lurnexa.confirm({title: 'Delete Notification', message: 'Are you sure you want to delete this notification?', onConfirm: () => window.location.href = url});"><i class="fa-regular fa-trash-can me-2"></i> Delete</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+            
+            if (data.last_timestamp) {
+                btn.setAttribute('data-last', data.last_timestamp);
+                btn.disabled = false;
+                btn.innerHTML = 'Load Older Notifications';
+            } else {
+                document.getElementById('load-more-wrapper').style.display = 'none';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            btn.disabled = false;
+            btn.innerHTML = 'Load Older Notifications';
+        });
+});
+</script>
+{% endblock %}

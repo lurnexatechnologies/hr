@@ -1,0 +1,58 @@
+{% extends "base_auth.html" %}
+
+{% block content %}
+<form method="POST" action="{% url 'login' %}">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label for="username" class="form-label fw-medium text-muted">Email or Employee ID</label>
+        <div class="input-group">
+            <span class="input-group-text bg-white border-end-0"><i class="fa-regular fa-envelope text-muted"></i></span>
+            <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" placeholder="Enter your email or ID" required>
+        </div>
+    </div>
+    
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <label for="password" class="form-label fw-medium text-muted mb-0">Password</label>
+            <a href="{% url 'forgot_password' %}" class="text-decoration-none" style="font-size: 0.85rem; color: #1a4f8b;">Forgot password?</a>
+        </div>
+        <div class="input-group">
+            <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-lock text-muted"></i></span>
+            <input type="password" class="form-control border-start-0 border-end-0 ps-0" id="password" name="password" placeholder="••••••••" required>
+            <span class="input-group-text bg-white border-start-0" id="togglePassword" style="cursor: pointer;">
+                <i class="fa-regular fa-eye text-muted"></i>
+            </span>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('togglePassword').addEventListener('click', function (e) {
+            const passwordInput = document.getElementById('password');
+            const icon = this.querySelector('i');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+    </script>
+    
+    <div class="mb-4 form-check">
+        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me" value="true">
+        <label class="form-check-label text-muted" for="rememberMe" style="font-size: 0.9rem;">Remember me</label>
+    </div>
+    
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
+    </div>
+
+
+
+
+</form>
+{% endblock %}

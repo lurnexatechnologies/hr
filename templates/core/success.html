@@ -1,0 +1,15 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Success - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="text-center p-4">
+    <div class="mb-4">
+        <i class="fa-solid fa-circle-check text-success" style="font-size: 5rem;"></i>
+    </div>
+    <h2 class="fw-bold mb-3">Action Successful!</h2>
+    <p class="text-muted mb-4">{{ message }}</p>
+    <a href="{% url 'login' %}" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm">Proceed to Login</a>
+</div>
+{% endblock %}
+

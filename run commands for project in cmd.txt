@@ -1,0 +1,14 @@
+.\venv\Scripts\Activate.ps1; python -c "
+
+.\venv\Scripts\python.exe manage.py init_dynamo
+
+.\venv\Scripts\python.exe manage.py init_demo_users
+
+.\venv\Scripts\python.exe manage.py runserver
+
+docker run -p 8001:8000 amazon/dynamodb-local
+
+
+(venv) C:\Users\kyle2\.gemini\antigravity\scratch>python.exe manage.py runserver
+
+C:\Users\kyle2\.gemini\antigravity\scratch>run_dynamodb.bat

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Resignation - Lurnexa{% endblock %}
+{% block nav_resignation_emp %}active{% endblock %}
+
+{% block extra_css %}
+
+{% endblock %}
+
+{% block content %}
+<div class="resignation-container">
+    <div class="resignation-card">
+        {% if record and record.Status != 'Rejected' %}
+            <div class="notice-title">Resignation Details</div>
+            <div class="notice-subtitle">Your resignation has been submitted and is currently being processed.</div>
+
+            <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <span class="form-label-custom">Status</span>
+                    <span class="badge {% if record.Status == 'Accepted Resignation' %}bg-success{% elif record.Status == 'Rejected' %}bg-danger{% else %}bg-warning{% endif %} bg-opacity-10 {% if record.Status == 'Accepted Resignation' %}text-success{% elif record.Status == 'Rejected' %}text-danger{% else %}text-warning{% endif %} px-3 py-2 rounded-pill border {% if record.Status == 'Accepted Resignation' %}border-success{% elif record.Status == 'Rejected' %}border-danger{% else %}border-warning{% endif %} border-opacity-10 fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                        {% if record.Status == 'Accepted Resignation' %}Accepted{% elif record.Status == 'Rejected' %}Rejected{% else %}Pending Review{% endif %}
+                    </span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <span class="form-label-custom">Submitted On</span>
+                    <div class="fw-semibold">{{ record.SubmittedOn }}</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <span class="form-label-custom">Reason</span>
+                    <div class="fw-semibold">{{ record.Reason }}</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <span class="form-label-custom">Last Working Day</span>
+                    <div class="fw-semibold">{{ record.LastWorkingDay }}</div>
+                </div>
+                {% if record.Comments %}
+                <div class="col-12 mb-3">
+                    <span class="form-label-custom">Comments</span>
+                    <div class="p-3 bg-light rounded text-muted small">{{ record.Comments }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="timeline-container">
+                <h6 class="fw-bold mb-3">Workflow Timeline</h6>
+                <div class="position-relative ps-4" style="border-left: 2px solid #edf2f7;">
+                    <div class="mb-4 position-relative">
+                        <span class="position-absolute bg-primary rounded-circle" style="width: 12px; height: 12px; left: -25px; top: 5px;"></span>
+                        <div class="fw-bold small">Submission Received</div>
+                        <div class="text-muted" style="font-size: 0.8rem;">{{ record.SubmittedOn }}</div>
+                    </div>
+                    <div class="position-relative">
+                        <span class="position-absolute {% if record.Status == 'Accepted Resignation' %}bg-success{% elif record.Status == 'Rejected' %}bg-danger{% else %}bg-warning{% endif %} rounded-circle" style="width: 12px; height: 12px; left: -25px; top: 5px;"></span>
+                        <div class="fw-bold small">{% if record.Status == 'Accepted Resignation' %}Resignation Accepted{% elif record.Status == 'Rejected' %}Resignation Rejected{% else %}Pending HR Review{% endif %}</div>
+                        <div class="text-muted" style="font-size: 0.8rem;">Pending final sign-off from HR ADMIN Department.</div>
+                    </div>
+                </div>
+            </div>
+
+        {% else %}
+            {% if record.Status == 'Rejected' %}
+                <div class="alert alert-danger border-0 shadow-sm mb-4" style="border-radius: 12px; background-color: #fff5f5;">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-solid fa-circle-xmark fa-2xl me-3 text-danger"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1">Resignation Rejected</h6>
+                            <p class="mb-0 small text-muted">Your previous resignation request was rejected on <strong>{{ record.RejectedOn|slice:":10" }}</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <form id="resignationForm" method="POST" action="{% url 'resignation_view' %}">
+                {% csrf_token %}
+                
+                <h2 class="notice-title">Notice of Resignation</h2>
+                <p class="notice-subtitle">
+                    We're sorry to see you go. Please complete this form to initiate the offboarding process. 
+                    <strong>Note:</strong> A minimum notice period of 60 days is required.
+                </p>
+
+                <div class="mb-4">
+                    <label for="reason" class="form-label-custom">Reason for Leaving <span class="text-danger">*</span></label>
+                    <select class="form-select form-control-lg bg-light border-0" id="reason" name="reason" required style="border-radius: 12px;">
+                        <option value="" disabled selected>Select a reason</option>
+                        <option value="Better Opportunity">Better Opportunity</option>
+                        <option value="Higher Education">Higher Education</option>
+                        <option value="Relocation">Relocation</option>
+                        <option value="Health/Personal Reasons">Health/Personal Reasons</option>
+                        <option value="Career Change">Career Change</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label for="lwd" class="form-label-custom">Proposed Last Working Day <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control form-control-lg bg-light border-0" id="lwd" name="lwd" required style="border-radius: 12px;" min="{{ min_lwd }}" value="{{ min_lwd }}">
+                    <div class="form-text text-muted small mt-2"><i class="fa-solid fa-info-circle me-1"></i> Please select your preferred last working day.</div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="comments" class="form-label-custom">Additional Comments</label>
+                    <textarea class="form-control bg-light border-0" id="comments" name="comments" rows="4" placeholder="Optional: Tell us more about your decision..." style="border-radius: 12px;"></textarea>
+                </div>
+
+                <button type="submit" name="submit_resignation" class="btn btn-danger btn-lg w-100 py-3 fw-bold shadow-sm" style="border-radius: 12px;">
+                    <i class="fa-solid fa-paper-plane me-2"></i> Submit Resignation Request
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

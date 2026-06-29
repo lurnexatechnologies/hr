@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+
+{% block title %}Apply Leave - Lurnexa{% endblock %}
+{% block nav_leave %}active{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
+                <h5 class="fw-bold mb-0">Apply for Leave</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{% url 'apply_leave' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-4">
+                        <label for="leave_type" class="form-label fw-medium">Leave Type <span class="text-danger">*</span></label>
+                        <select class="form-select" id="leave_type" name="leave_type" required>
+                            <option value="">Select leave type</option>
+                            {% if not is_intern %}
+                            <option value="Earned Leave (EL)">Earned Leave (EL)</option>
+                            <option value="Sick Leave (SL)">Sick Leave (SL)</option>
+                            <option value="Casual Leave (CL)">Casual Leave (CL)</option>
+                            <option value="Compensatory Off (Comp Off)">Compensatory Off (Comp Off)</option>
+                            {% if not has_parental_leave %}
+                            <option value="{{ parental_leave_type }}">{{ parental_leave_type }}</option>
+                            {% endif %}
+                            {% if not has_marriage_leave %}
+                            <option value="Marriage Leave">Marriage Leave</option>
+                            {% endif %}
+                            {% endif %}
+                            <option value="Unpaid Leave">Unpaid Leave</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label for="start_date" class="form-label fw-medium">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        <div class="col-md-6" id="end-date-container">
+                            <label for="end_date" class="form-label fw-medium">End Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 d-flex align-items-center gap-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is_half_day" name="is_half_day" value="true">
+                            <label class="form-check-label fw-medium" for="is_half_day">Half Day Request</label>
+                        </div>
+                        <div id="half-day-session-container" style="display:none;">
+                            <select class="form-select form-select-sm" name="half_day_session" id="half_day_session">
+                                <option value="First Half">First Half (Morning)</option>
+                                <option value="Second Half">Second Half (Afternoon)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Working days count badge -->
+                    <div id="working-days-info" class="mb-4" style="display:none;">
+                        <div class="d-flex align-items-center gap-2 p-3 rounded-3" style="background: linear-gradient(135deg, rgba(26,79,139,0.06), rgba(40,167,69,0.06)); border: 1px solid rgba(26,79,139,0.12);">
+                            <i class="fa-solid fa-calendar-check text-primary"></i>
+                            <span class="fw-medium text-dark">Total leave days:</span>
+                            <span id="working-days-count" class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill fw-bold" style="font-size: 0.9rem;">0 working days</span>
+                            <span class="text-muted small ms-auto"><i class="fa-solid fa-circle-info me-1"></i>Holidays and weekends are excluded</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Document Upload Container -->
+                    <div id="document-upload-container" class="mb-4">
+                        <label for="leave_document" class="form-label fw-medium">Supporting Document <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="leave_document" name="leave_document" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <div class="form-text text-muted">File size should be less than 2MB. Please upload medical certificates, tickets, or any other proof.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="reason" class="form-label fw-medium">Reason <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="reason" name="reason" rows="4" placeholder="Please provide brief details about your leave request..." required></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <div class="d-flex align-items-center text-muted">
+                            <i class="fa-solid fa-circle-info me-2"></i>
+                            <small>Your request will be sent to your immediate manager for approval.</small>
+                        </div>
+                        <div>
+                            <a href="{% url 'leave_history' %}" class="btn btn-light shadow-sm me-2">Cancel</a>
+                            <button type="submit" class="btn btn-primary shadow-sm px-4">Submit Application</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 d-none d-lg-block">
+        <div class="card h-100">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                <h5 class="fw-bold mb-0">Leave Balances</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-muted small text-uppercase">Select Leave Type</label>
+                    <select id="balance_type_selector" class="form-select shadow-sm border-light-subtle rounded-3 py-2 mb-4">
+                        {% if not is_intern %}
+                        <option value="el" selected>Earned Leave (EL)</option>
+                        <option value="sl">Sick Leave (SL)</option>
+                        <option value="cl">Casual Leave (CL)</option>
+                        <option value="co">Compensatory Off (CO)</option>
+                        <option value="parental">{{ parental_leave_type }}</option>
+                        <option value="marriage">Marriage Leave</option>
+                        {% endif %}
+                        <option value="unpaid" {% if is_intern %}selected{% endif %}>Unpaid Leave</option>
+                    </select>
+
+                    <div id="balance_display_container">
+                        <!-- Dual Progress Bar -->
+                        <div class="progress rounded-pill mb-3" style="height: 8px; background-color: #f0f2f5;">
+                            <div id="spent_bar" class="progress-bar bg-danger" role="progressbar" style="width: 0%; transition: width 0.6s;"></div>
+                            <div id="remaining_bar" class="progress-bar bg-success" role="progressbar" style="width: 0%; transition: width 0.6s;"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-secondary small">Spent Leaves</span>
+                            <span class="fw-bold text-dark" id="spent_val">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary small">Remaining Leaves</span>
+                            <span class="fw-bold text-dark" id="remaining_val">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-light border-0 py-3 mt-auto">
+                <p class="mb-0 text-muted small text-center"><a href="{% url 'policies' %}?open=leave" class="text-decoration-none">View leave policy document</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const holidayDates = JSON.parse('{{ holiday_dates|safe|escapejs }}' || '[]');
+    const startInput = document.getElementById('start_date');
+    const endInput = document.getElementById('end_date');
+    const endContainer = document.getElementById('end-date-container');
+    const isHalfDay = document.getElementById('is_half_day');
+    const sessionContainer = document.getElementById('half-day-session-container');
+    const infoBox = document.getElementById('working-days-info');
+    const countBadge = document.getElementById('working-days-count');
+    const leaveTypeSelect = document.getElementById('leave_type');
+    const form = startInput.closest('form');
+
+    // Set min date to today
+    const today = new Date().toISOString().split('T')[0];
+    startInput.setAttribute('min', today);
+    endInput.setAttribute('min', today);
+
+    function isWeekend(dateStr) {
+        if (!dateStr) return false;
+        const d = new Date(dateStr + 'T00:00:00');
+        const day = d.getDay(); // 0 = Sunday, 6 = Saturday
+        return day === 0 || day === 6;
+    }
+    
+    function isHoliday(dateStr) {
+        return holidayDates.includes(dateStr);
+    }
+
+    function countWorkingDays(start, end) {
+        if (isHalfDay.checked) return 0.5;
+        
+        let count = 0;
+        let current = new Date(start + 'T00:00:00');
+        const endDate = new Date(end + 'T00:00:00');
+        while (current <= endDate) {
+            const day = current.getDay();
+            // Manual format YYYY-MM-DD to avoid timezone shifts from toISOString()
+            const year = current.getFullYear();
+            const month = String(current.getMonth() + 1).padStart(2, '0');
+            const date = String(current.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${date}`;
+            
+            if (day !== 0 && day !== 6 && !isHoliday(dateStr)) count++;
+            current.setDate(current.getDate() + 1);
+        }
+        return count;
+    }
+
+    function showWarning(msg) {
+        const old = document.getElementById('weekend-warning-toast');
+        if (old) old.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'weekend-warning-toast';
+        toast.className = 'alert alert-warning d-flex align-items-center shadow-sm border-0 py-2 px-3 mb-3';
+        toast.style.cssText = 'animation: fadeInDown 0.3s ease; font-size: 0.9rem;';
+        toast.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>' + msg;
+        form.insertBefore(toast, form.firstChild);
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
+    }
+
+    function validateDate(input) {
+        if (input.value) {
+            if (isWeekend(input.value)) {
+                showWarning('Saturdays and Sundays are not allowed. Please select a weekday.');
+                input.value = '';
+                return false;
+            }
+            if (isHoliday(input.value)) {
+                showWarning('Public holidays are not allowed. Please select a working day.');
+                input.value = '';
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function checkDocUploadRequirement() {
+        // Document upload is now mandatory for ALL leave types per latest business rules.
+        // No dynamic toggling required.
+    }
+
+    function updateWorkingDays() {
+        if (startInput.value && (endInput.value || isHalfDay.checked)) {
+            const days = countWorkingDays(startInput.value, endInput.value || startInput.value);
+            if (days > 0) {
+                countBadge.textContent = days + ' working day' + (days > 1 ? 's' : '');
+                infoBox.style.display = 'block';
+            } else {
+                infoBox.style.display = 'none';
+            }
+        } else {
+            infoBox.style.display = 'none';
+        }
+        checkDocUploadRequirement();
+    }
+
+    function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function autoCalculateEndDate() {
+        const leaveType = leaveTypeSelect.value;
+        const startDateValue = startInput.value;
+        if (!startDateValue || isHalfDay.checked) return;
+
+        if (leaveType === 'Paternity Leave' || leaveType === 'Maternity Leave' || leaveType === 'Marriage Leave') {
+            const limit = (leaveType === 'Maternity Leave') ? 90 : 10;
+            let workingDaysReached = 0;
+            let tempDate = new Date(startDateValue + 'T00:00:00');
+            
+            while (workingDaysReached < limit) {
+                const day = tempDate.getDay();
+                const year = tempDate.getFullYear();
+                const month = String(tempDate.getMonth() + 1).padStart(2, '0');
+                const date = String(tempDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${date}`;
+                
+                if (day !== 0 && day !== 6 && !isHoliday(dateStr)) {
+                    workingDaysReached++;
+                }
+                
+                if (workingDaysReached < limit) {
+                    tempDate.setDate(tempDate.getDate() + 1);
+                }
+            }
+            endInput.value = formatDate(tempDate);
+            updateWorkingDays();
+        }
+    }
+
+    isHalfDay.addEventListener('change', function() {
+        if (this.checked) {
+            sessionContainer.style.display = 'block';
+            endContainer.style.visibility = 'hidden';
+            endInput.removeAttribute('required');
+            endInput.value = startInput.value;
+        } else {
+            sessionContainer.style.display = 'none';
+            endContainer.style.visibility = 'visible';
+            endInput.setAttribute('required', '');
+            autoCalculateEndDate();
+        }
+        updateWorkingDays();
+    });
+
+    startInput.addEventListener('change', function() {
+        validateDate(this);
+        if (this.value) {
+            endInput.setAttribute('min', this.value);
+            if (isHalfDay.checked) {
+                endInput.value = this.value;
+            } else {
+                autoCalculateEndDate();
+            }
+        }
+        updateWorkingDays();
+    });
+
+    leaveTypeSelect.addEventListener('change', function() {
+        autoCalculateEndDate();
+        checkDocUploadRequirement();
+    });
+
+    endInput.addEventListener('change', function() {
+        validateDate(this);
+        updateWorkingDays();
+    });
+
+    form.addEventListener('submit', function(e) {
+        if (isWeekend(startInput.value) || (!isHalfDay.checked && isWeekend(endInput.value))) {
+            e.preventDefault();
+            showWarning('Leave cannot start or end on a weekend.');
+            return false;
+        }
+        if (isHoliday(startInput.value) || (!isHalfDay.checked && isHoliday(endInput.value))) {
+            e.preventDefault();
+            showWarning('Leave cannot start or end on a public holiday.');
+            return false;
+        }
+        if (startInput.value && (endInput.value || isHalfDay.checked)) {
+            const days = countWorkingDays(startInput.value, endInput.value || startInput.value);
+            if (days === 0) {
+                e.preventDefault();
+                showWarning('Your selected dates contain no working days.');
+                return false;
+            }
+        }
+
+        // Validate file size (Max 2MB)
+        const fileInput = document.getElementById('leave_document');
+        if (fileInput && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            if (file.size > maxSize) {
+                e.preventDefault();
+                showWarning('The supporting document must be less than 2MB.');
+                return false;
+            }
+        }
+    });
+
+    const balanceSelector = document.getElementById('balance_type_selector');
+    const spentVal = document.getElementById('spent_val');
+    const remainingVal = document.getElementById('remaining_val');
+    const spentBar = document.getElementById('spent_bar');
+    const remainingBar = document.getElementById('remaining_bar');
+    
+    const balanceData = {
+        'el': { spent: '{{ spent_pl|floatformat:1 }}', remaining: '{{ balance_pl|floatformat:1 }}', total: (parseFloat('{{ spent_pl }}') || 0.0) + (parseFloat('{{ balance_pl }}') || 0.0) || 12 },
+        'sl': { spent: '{{ spent_sl|floatformat:1 }}', remaining: '{{ balance_sl|floatformat:1 }}', total: 12 },
+        'cl': { spent: '{{ spent_cl|floatformat:1 }}', remaining: '{{ balance_cl|floatformat:1 }}', total: 12 },
+        'co': { spent: '{{ spent_co|floatformat:1 }}', remaining: '{{ balance_co|floatformat:1 }}', total: (parseFloat('{{ spent_co }}') || 0.0) + (parseFloat('{{ balance_co }}') || 0.0) || 10 },
+        'marriage': { spent: '{{ spent_marriage|floatformat:1 }}', remaining: 10 - parseFloat('{{ spent_marriage }}'), total: 10 },
+        'parental': { 
+            spent: '{{ spent_parental|floatformat:1 }}', 
+            remaining: ('{{ parental_leave_type }}' == 'Maternity Leave' ? 90 : 10) - parseFloat('{{ spent_parental }}'), 
+            total: ('{{ parental_leave_type }}' == 'Maternity Leave' ? 90 : 10) 
+        },
+        'unpaid': { spent: '{{ spent_unpaid|floatformat:1 }}', remaining: 0, total: parseFloat('{{ spent_unpaid }}') || 1 }
+    };
+
+    function updateBalanceDisplay() {
+        const selected = balanceSelector.value;
+        const data = balanceData[selected];
+        if (data) {
+            spentVal.textContent = data.spent;
+            remainingVal.textContent = data.remaining === '∞' ? '∞' : parseFloat(data.remaining).toFixed(1);
+            
+            let sPercent = 0;
+            let rPercent = 0;
+            
+            if (selected === 'unpaid') {
+                sPercent = 100;
+                rPercent = 0;
+            } else {
+                const s = parseFloat(data.spent);
+                const r = parseFloat(data.remaining);
+                const total = s + r;
+                if (total > 0) {
+                    sPercent = (s / total) * 100;
+                    rPercent = (r / total) * 100;
+                }
+            }
+            
+            spentBar.style.width = sPercent + '%';
+            remainingBar.style.width = rPercent + '%';
+        }
+    }
+
+    if (balanceSelector) {
+        balanceSelector.addEventListener('change', updateBalanceDisplay);
+        updateBalanceDisplay(); // Initial load
+    }
+
+    document.querySelectorAll('.dynamic-progress').forEach(bar => {
+        const width = bar.getAttribute('data-width');
+        if (width) bar.style.width = width + '%';
+    });
+})();
+</script>
+
+
+{% endblock %}

@@ -1,0 +1,25 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('hr_dashboard/', views.HRDashboardView.as_view(), name='hr_dashboard'),
+    path('super_admin_dashboard/', views.SuperAdminDashboardView.as_view(), name='super_admin_dashboard'),
+    path('manager_dashboard/', views.ManagerDashboardView.as_view(), name='manager_dashboard'),
+    path('employee_dashboard/', views.EmployeeDashboardView.as_view(), name='employee_dashboard'),
+    path('export_employees/', views.ExportEmployeesCSVView.as_view(), name='export_employees'),
+    path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('notifications/', views.NotificationsView.as_view(), name='notifications'),
+    path('notifications/clear/', views.ClearNotificationsView.as_view(), name='clear_notifications'),
+    path('notifications/delete/<path:timestamp>/', views.DeleteNotificationView.as_view(), name='delete_notification'),
+    path('notifications/detail/<path:timestamp>/', views.NotificationDetailView.as_view(), name='notification_detail'),
+    path('notifications/load-more/', views.LoadMoreNotificationsView.as_view(), name='load_more_notifications'),
+    path('policies/', views.PoliciesView.as_view(), name='policies'),
+    path('policies/add/', views.AddPolicyView.as_view(), name='add_policy'),
+    path('policies/edit/<str:policy_id>/', views.EditPolicyView.as_view(), name='edit_policy'),
+    path('policies/delete/', views.DeletePolicyView.as_view(), name='delete_policy'),
+    path('search/', views.GlobalSearchView.as_view(), name='global_search'),
+    path('super_admin/approvals/', views.SuperAdminApprovalsView.as_view(), name='super_admin_approvals'),
+    path('hr/generate-letter/', views.HRGenerateLetterView.as_view(), name='hr_generate_letter'),
+    path('hr/send-letter-email/<str:employee_id>/<str:letter_id>/', views.HRSendLetterEmailView.as_view(), name='hr_send_letter_email'),
+    path('contact-us/', views.ContactUsView.as_view(), name='contact_us'),
+]

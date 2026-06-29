@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Leave Approvals - Lurnexa{% endblock %}
+{% block nav_leave_approvals %}active{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="page-title mb-1">Leave Approvals</h2>
+    <p class="text-muted">Review and act on leave requests from your team.</p>
+</div>
+
+<div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
+    <div class="card-header bg-white border-bottom p-0">
+        <ul class="nav nav-tabs border-bottom-0" id="approvalTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'pending' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">
+                    Pending Requests <span class="badge bg-primary ms-2">{{ pending_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
+                    Approval History
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <!-- Filter Bar -->
+        <div class="px-4 py-3 bg-light border-bottom">
+            <form method="GET" id="filterForm" class="row g-2 align-items-center">
+                <input type="hidden" name="tab" id="activeTabInput" value="{{ active_tab }}">
+                <div class="col-md-4">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Search employee or ID..." value="{{ request.GET.q }}">
+                    </div>
+                </div>
+                {% if request.user.role == 'HR ADMIN' %}
+                <div class="col-md-3">
+                    <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Departments</option>
+                        {% for d in departments %}
+                        <option value="{{ d }}" {% if request.GET.dept == d %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-2">
+                    <select name="range" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="all" {% if request.GET.range == 'all' or not request.GET.range %}selected{% endif %}>All Time</option>
+                        <option value="month" {% if request.GET.range == 'month' %}selected{% endif %}>This Month</option>
+                        <option value="3months" {% if request.GET.range == '3months' %}selected{% endif %}>Last 3 Months</option>
+                        <option value="year" {% if request.GET.range == 'year' %}selected{% endif %}>This Year</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="desc" {% if request.GET.sort == 'desc' or not request.GET.sort %}selected{% endif %}>Newest First</option>
+                        <option value="asc" {% if request.GET.sort == 'asc' %}selected{% endif %}>Oldest First</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div class="tab-content" id="approvalTabsContent">
+            <!-- Pending Tab -->
+            <div class="tab-pane fade {% if active_tab == 'pending' %}show active{% endif %}" id="pending" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Leave Type</th>
+                                <th class="border-0 py-3">Duration</th>
+                                <th class="border-0 py-3">Reason</th>
+                                <th class="pe-4 border-0 py-3 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in pending_leaves %}
+                            <tr>
+                                <td class="ps-4 py-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm me-3 bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                            <i class="fa-regular fa-user text-muted"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-main">{{ l.EmployeeName }}</div>
+                                            <div class="text-muted small fw-bold">{{ l.EmployeeID }}</div>
+                                            <div class="text-muted small">Submitted on {{ l.SubmittedAt|slice:":10" }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-10 px-3 py-2 rounded-pill">{{ l.Type }}</span></td>
+                                <td class="text-muted small fw-medium">
+                                    {{ l.LeaveDate }} {% if l.EndDate != l.LeaveDate %}<i class="fa-solid fa-arrow-right mx-1 opacity-50"></i> {{ l.EndDate }}{% endif %}
+                                    {% if l.DaysCount %}
+                                    <br>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-2 mt-1" style="font-size: 0.7rem;">
+                                        {{ l.DaysCount }} day{{ l.DaysCount|pluralize }}
+                                        {% if l.IsHalfDay %} ({{ l.HalfDaySession }}){% endif %}
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small" style="max-width: 200px;">
+                                    <div class="text-truncate" title="{{ l.Reason }}">{{ l.Reason }}</div>
+                                    {% if l.DocumentPath %}
+                                    <a href="/static/{{ l.DocumentPath }}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill mt-2" style="font-size: 0.7rem;"><i class="fa-solid fa-file-pdf me-1"></i>View Document</a>
+                                    {% endif %}
+                                </td>
+                                <td class="pe-4 text-end">
+                                    <div class="d-flex gap-2 justify-content-end">
+                                        <a href="{% url 'approve_leave' l.EmployeeID l.LeaveDate %}" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm"><i class="fa-solid fa-check me-1"></i> Approve</a>
+                                        <a href="{% url 'reject_leave' l.EmployeeID l.LeaveDate %}" class="btn btn-sm btn-outline-danger px-3 rounded-pill shadow-sm"><i class="fa-solid fa-xmark me-1"></i> Reject</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <div class="icon-btn mx-auto mb-3" style="background: rgba(40, 167, 69, 0.1); color: #28a745; width: 60px; height: 60px;">
+                                        <i class="fa-solid fa-clipboard-check" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    <h6 class="fw-bold">All caught up!</h6>
+                                    <p class="small mb-0">No pending leave requests to review.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ pending_leaves.start_index }} - {{ pending_leaves.end_index }} out of {{ pending_count }} pending requests</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if pending_leaves.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_p={{ pending_leaves.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ pending_leaves.number }}</a></li>
+                            {% if pending_leaves.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_p={{ pending_leaves.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane fade {% if active_tab == 'history' %}show active{% endif %}" id="history" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Leave Type</th>
+                                <th class="border-0 py-3">Duration</th>
+                                <th class="border-0 py-3">Status</th>
+                                <th class="border-0 py-3">Approved By</th>
+                                <th class="pe-4 border-0 py-3 text-end">Processed Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in processed_leaves %}
+                            <tr class="opacity-75">
+                                <td class="ps-4 py-4">
+                                    <div class="fw-bold text-main">{{ l.EmployeeName }}</div>
+                                    <div class="text-muted small fw-bold">{{ l.EmployeeID }}</div>
+                                </td>
+                                <td><span class="badge bg-light text-muted border px-3 py-2 rounded-pill">{{ l.Type }}</span></td>
+                                <td class="text-muted small">
+                                    {{ l.LeaveDate }} {% if l.EndDate != l.LeaveDate %} to {{ l.EndDate }}{% endif %}
+                                    {% if l.DaysCount %}
+                                    <br>
+                                    <span class="badge bg-light text-muted border rounded-pill px-2 mt-1" style="font-size: 0.7rem;">
+                                        {{ l.DaysCount }} day{{ l.DaysCount|pluralize }}
+                                        {% if l.IsHalfDay %} ({{ l.HalfDaySession }}){% endif %}
+                                    </span>
+                                    {% endif %}
+                                    {% if l.DocumentPath %}
+                                    <br>
+                                    <a href="/static/{{ l.DocumentPath }}" target="_blank" class="badge bg-info bg-opacity-10 text-info border border-info px-2 mt-1 text-decoration-none" style="font-size: 0.7rem;"><i class="fa-solid fa-paperclip me-1"></i>Doc Attached</a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if l.Status == 'Approved' %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> {{ l.Status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-xmark me-1"></i> {{ l.Status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ l.ProcessorName|default:"System" }}</td>
+                                <td class="pe-4 text-end text-muted small">
+                                    {{ l.LeaveDate }}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <p class="small mb-0">No processing history found.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                    <span>Showing {{ processed_leaves.start_index }} - {{ processed_leaves.end_index }} out of {{ processed_count }} processed records</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            {% if processed_leaves.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page_h={{ processed_leaves.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ processed_leaves.number }}</a></li>
+                            {% if processed_leaves.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page_h={{ processed_leaves.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function updateActiveTab(tabName) {
+        const input = document.getElementById('activeTabInput');
+        if (input) input.value = tabName;
+        // Update all pagination links to include the current tab
+        const paginationLinks = document.querySelectorAll('.pagination a');
+        paginationLinks.forEach(link => {
+            const url = new URL(link.href, window.location.origin);
+            url.searchParams.set('tab', tabName);
+            link.href = url.pathname + url.search;
+        });
+    }
+
+    // On page load, ensure pagination links have the correct tab
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        
+        if (tabParam) {
+            const tabEl = document.getElementById(tabParam + '-tab');
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+                updateActiveTab(tabParam);
+            }
+        } else {
+             const currentTab = document.getElementById('activeTabInput').value;
+             if (currentTab) updateActiveTab(currentTab);
+        }
+    });
+</script>
+{% endblock %}

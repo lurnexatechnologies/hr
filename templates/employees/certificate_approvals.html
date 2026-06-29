@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Certificate Approvals - Lurnexa{% endblock %}
+{% block nav_certificate_approvals %}active{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="page-title">Certificate Verification</h2>
+    <p class="text-muted">Review and verify professional certificates uploaded by employees.</p>
+</div>
+
+<div class="row g-4">
+    <!-- Pending Requests Table -->
+    <div class="col-lg-12">
+        <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header bg-white pt-4 pb-0 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold"><i class="fa-solid fa-stamp me-2 text-warning"></i> Pending Verification</h5>
+                <span class="badge bg-warning text-dark rounded-pill px-3">{{ pending_requests|length }} Pending</span>
+            </div>
+            <div class="card-body">
+                {% if pending_requests %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border-top">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="border-0 px-4 py-3">Employee</th>
+                                <th class="border-0 py-3">Department</th>
+                                <th class="border-0 py-3">Certificate Name</th>
+                                <th class="border-0 py-3">Uploaded At</th>
+                                <th class="border-0 py-3 text-end px-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in pending_requests %}
+                            <tr>
+                                <td class="px-4 py-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar me-3">
+                                            {% if req.PassportPhoto %}
+                                            <img src="/media/{{ req.PassportPhoto }}" alt="" class="rounded-circle" width="40" height="40" style="object-fit: cover;">
+                                            {% else %}
+                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-weight: 700;">{{ req.FirstName|slice:":1" }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark">{{ req.FirstName }} {{ req.LastName }}</div>
+                                            <div class="smaller text-muted">ID: {{ req.EmployeeID }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ req.Department|default:"-" }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fa-solid fa-award text-warning me-2" style="font-size: 1.1rem;"></i>
+                                        <span class="fw-semibold text-dark">{{ req.Name }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ req.UploadedAt|slice:":10" }} {{ req.UploadedAt|slice:"11:16" }}</td>
+                                <td class="text-end px-4">
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <a href="/media/{{ req.FilePath }}" target="_blank" class="btn btn-light btn-sm rounded-pill px-3 fw-bold">
+                                            <i class="fa-solid fa-eye me-1"></i> View Doc
+                                        </a>
+                                        <form method="POST" action="{% url 'certificate_action' req.EmployeeID req.CertificateID %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="approve">
+                                            <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 fw-bold">
+                                                <i class="fa-solid fa-circle-check me-1"></i> Approve
+                                            </button>
+                                        </form>
+                                        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" onclick="openRejectModal('{{ req.EmployeeID }}', '{{ req.CertificateID }}', '{{ req.Name }}')">
+                                            <i class="fa-solid fa-circle-xmark me-1"></i> Reject
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-circle-check fa-3x text-light mb-3"></i>
+                    <p class="text-muted">All uploaded employee certificates are verified and approved!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectCertModal" tabindex="-1" aria-labelledby="rejectCertModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark" id="rejectCertModalLabel">Reject Certificate Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="rejectCertForm" method="POST" action="">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="reject">
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Provide feedback to the employee on why their certificate <strong id="rejectCertTitle" class="text-dark"></strong> is being rejected so they can re-upload or update it.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold smaller text-muted">Rejection Reason / Feedback</label>
+                        <textarea class="form-control rounded-3 py-2 px-3 bg-light border-0" name="reason" rows="4" placeholder="e.g. The document uploaded is blurry or the name does not match." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Reject Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openRejectModal(empId, certId, certName) {
+        // Set action url dynamically
+        const form = document.getElementById('rejectCertForm');
+        form.action = `/employees/certificates/${empId}/${certId}/action/`;
+        
+        // Set cert title
+        document.getElementById('rejectCertTitle').innerText = certName;
+        
+        // Show modal
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectCertModal'));
+        modal.show();
+    }
+</script>
+{% endblock %}
