@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from core.dynamodb_service import EmployeesTable, PayslipsTable
+from core.utils import get_local_now
 import datetime
 
 class Command(BaseCommand):
@@ -8,7 +9,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         self.stdout.write('Generating payslips for current month...')
         
-        now = datetime.datetime.now()
+        now = get_local_now()
         month_year = now.strftime('%Y-%m') # e.g. 2026-04
         
         employees = EmployeesTable.scan()

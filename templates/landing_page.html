@@ -4,7 +4,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lurnexa HRMS - The Future of HR</title>
+    
+    <!-- Primary SEO Metadata -->
+    <title>Lurnexa HRMS - Next-Gen Human Resource Management Platform</title>
+    <meta name="description" content="Lurnexa HRMS is a next-generation Human Resource Management System built for the future of work. Automate payroll, track leave, securely manage employee documents, and streamline organizational workflows.">
+    <meta name="keywords" content="HRMS, Human Resource Management System, Lurnexa, HR Software, Payroll automation, Leave tracking, Workflow automation, Employee portal, Secure document vault">
+    <meta name="author" content="Lurnexa Technologies">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+    <meta property="og:title" content="Lurnexa HRMS - Next-Gen Human Resource Management Platform">
+    <meta property="og:description" content="Automate payroll, track leaves, manage employee documents, and streamline organizational workflows with Lurnexa HRMS.">
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <meta property="og:site_name" content="Lurnexa">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+    <meta name="twitter:title" content="Lurnexa HRMS - Next-Gen Human Resource Management Platform">
+    <meta name="twitter:description" content="Automate payroll, track leaves, manage employee documents, and streamline organizational workflows with Lurnexa HRMS.">
+    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}?v=2">
+
+    <!-- JSON-LD Structured Data Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Lurnexa HRMS",
+      "operatingSystem": "All",
+      "applicationCategory": "BusinessApplication",
+      "description": "Lurnexa is a modern, next-generation Human Resource Management System featuring automated workflows, secure document vault, transparent payroll processing, and flexible policy management.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Lurnexa Technologies",
+        "url": "{{ request.scheme }}://{{ request.get_host }}/"
+      }
+    }
+    </script>
+
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
     
@@ -107,6 +153,7 @@
             margin-bottom: 1.5rem;
             background: linear-gradient(135deg, var(--dark), var(--primary));
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         .hero-subtitle {
@@ -297,7 +344,7 @@
     <nav id="navbar" class="navbar navbar-expand-lg fixed-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="#">
-                <i class="fa-solid fa-briefcase me-2"></i> Lurnexa
+                <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa Logo" height="30" class="me-2"> Lurnexa
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <i class="fa-solid fa-bars"></i>

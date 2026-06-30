@@ -12,7 +12,7 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
     Saves to DynamoDB and optionally sends an email in a background thread.
     """
     
-    timestamp = datetime.datetime.now().isoformat()
+    timestamp = get_local_now().isoformat()
     
     # 1. Save to DynamoDB
     notification_item = {
@@ -111,7 +111,7 @@ def get_initial_leave_balance(employee, leave_type):
 
     try:
         joined_date = datetime.datetime.strptime(joined_date_str, '%Y-%m-%d').date()
-        today = datetime.date.today()
+        today = get_local_date()
         
         if joined_date.year < today.year:
             # Joined in a previous year, gets full 12.0 days
@@ -130,7 +130,7 @@ def refresh_monthly_leaves(employee):
     - On Jan 1st, resets SL and CL to 12.0 (previous year's balance disappears).
     - On every month's 1st day, accrues Earned Leave (EL) based on last month's working days / 20.
     """
-    today = datetime.date.today()
+    today = get_local_date()
     if today.day != 1:
         return False # Only on the 1st
 
@@ -221,7 +221,7 @@ def apply_pending_hikes():
     from core.dynamodb_service import EmployeesTable, EmployeeLettersTable
     import datetime
     try:
-        today = datetime.date.today().isoformat()
+        today = get_local_date().isoformat()
         # Scan for Hike Letters
         letters = EmployeeLettersTable.scan(
             FilterExpression="LetterType = :lt",
@@ -350,5 +350,21 @@ def get_authorized_signature_stamp_base64():
         except Exception as e:
             print(f"Error base64 encoding signature stamp: {e}")
     return ""
+
+
+def get_local_now():
+    """
+    Returns the current datetime in the configured TIME_ZONE (Asia/Kolkata).
+    """
+    from django.utils import timezone
+    return timezone.localtime(timezone.now())
+
+
+def get_local_date():
+    """
+    Returns the current date in the configured TIME_ZONE (Asia/Kolkata).
+    """
+    return get_local_now().date()
+
 
 

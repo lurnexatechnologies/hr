@@ -1,4 +1,5 @@
 import datetime
+from core.utils import get_local_date
 from django.core.management.base import BaseCommand
 from django.core.mail import send_mail
 from django.conf import settings
@@ -9,7 +10,7 @@ class Command(BaseCommand):
     help = 'Sends holiday greetings to all active employees at 12 AM on the day of a holiday.'
 
     def handle(self, *args, **options):
-        today = datetime.date.today().isoformat()
+        today = get_local_date().isoformat()
         
         # 1. Fetch all holidays
         holidays = HolidaysTable.scan()

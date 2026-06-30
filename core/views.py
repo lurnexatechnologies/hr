@@ -14,14 +14,14 @@ from core.dynamodb_service import (
     ResignationsTable, NotificationsTable, WFHRequestsTable,
     UsersTable, LoginHistoryTable, PayrollApprovalsTable
 )
-from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float
+from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now
 
 class HRDashboardView(HRRequiredMixin, TemplateView):
     template_name = 'core/hr_dashboard.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today_date = datetime.date.today()
+        today_date = get_local_date()
         today = today_date.strftime('%Y-%m-%d')
         
         # 1. Stats
@@ -297,7 +297,7 @@ class EmployeeDashboardView(LoginRequiredMixin, ApprovedOnboardingMixin, Templat
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        today = datetime.date.today().isoformat()
+        today = get_local_date().isoformat()
         
         # Fetch today's attendance
         today_record = None
@@ -707,7 +707,7 @@ class AddPolicyView(HRRequiredMixin, View):
             'Icon': icon,
             'Color': color,
             'Gradient': f"linear-gradient(135deg, {color}22 0%, {color}44 100%)",
-            'CreatedAt': datetime.datetime.now().isoformat()
+            'CreatedAt': get_local_now().isoformat()
         }
         
         try:
@@ -1025,7 +1025,7 @@ class HRGenerateLetterView(HRRequiredMixin, View):
                 'EmployeeID': employee_id,
                 'LetterID': letter_id,
                 'LetterType': letter_type,
-                'GeneratedDate': datetime.datetime.now().isoformat(),
+                'GeneratedDate': get_local_now().isoformat(),
                 'FilePath': file_path,
                 'EmailSent': False
             }
@@ -1202,7 +1202,6 @@ class HRGenerateLetterView(HRRequiredMixin, View):
             <div class="container">
                 <div class="header">
                     <div style="text-align: center; margin-bottom: 5px;">
-                        <img src="{logo_base64}" alt="Logo" style="height: 35px; width: auto; vertical-align: middle; margin-right: 8px;" />
                         <h2 style="margin: 0; color: black; font-size: 24px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; display: inline-block; vertical-align: middle;">LURNEXA</h2>
                     </div>
                     <p style="margin: 5px 0 0 0; font-size: 14px; color: black;">Official Employee Document</p>
@@ -1238,7 +1237,7 @@ class HRGenerateLetterView(HRRequiredMixin, View):
             'EmployeeID': employee_id,
             'LetterID': letter_id,
             'LetterType': letter_type,
-            'GeneratedDate': datetime.datetime.now().isoformat(),
+            'GeneratedDate': get_local_now().isoformat(),
             'FilePath': file_path,
             'EmailSent': False
         }

@@ -1,13 +1,13 @@
 from django.core.management.base import BaseCommand
 from core.dynamodb_service import EmployeesTable
-from core.utils import refresh_monthly_leaves
+from core.utils import refresh_monthly_leaves, get_local_date
 import datetime
 
 class Command(BaseCommand):
     help = 'Refresh employee leave balances on the 1st of the month'
 
     def handle(self, *args, **kwargs):
-        today = datetime.date.today()
+        today = get_local_date()
         if today.day != 1:
             self.stdout.write(self.style.WARNING(f"Today is not the 1st (it's the {today.day}). Refresh skipped."))
             # In a real scenario, you might want a --force flag.

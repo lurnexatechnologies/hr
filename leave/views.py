@@ -5,7 +5,7 @@ from django.views import View
 from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, ManagerRequiredMixin, ApprovedOnboardingMixin
 from core.dynamodb_service import UsersTable, EmployeesTable, LeaveRequestsTable, ReportingHierarchyTable, HolidaysTable
-from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float
+from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now
 from boto3.dynamodb.conditions import Key
 import datetime
 import uuid
@@ -484,7 +484,7 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
             'HalfDaySession': half_day_session,
             'ApproverRole': approver_role,
             'ApproverID': approver_id,
-            'SubmittedAt': datetime.datetime.now().isoformat()
+            'SubmittedAt': get_local_now().isoformat()
         }
         
         if file_path:
@@ -548,7 +548,7 @@ class LeaveHistoryView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView
         
         # Filtering logic
         current_filter = self.request.GET.get('filter', 'all')
-        now = datetime.datetime.now()
+        now = get_local_now()
         this_year_str = str(now.year)
         last_year_str = str(now.year - 1)
         
@@ -598,7 +598,7 @@ class LeaveApprovalsView(ManagerRequiredMixin, TemplateView):
         dept = self.request.GET.get('dept', '')
         date_range = self.request.GET.get('range', 'all')
         sort_order = self.request.GET.get('sort', 'desc')
-        today = datetime.date.today()
+        today = get_local_date()
 
         # Scan for leaves
         all_leaves = LeaveRequestsTable.scan()
@@ -751,7 +751,7 @@ class ApproveLeaveView(ManagerRequiredMixin, View):
             ExpressionAttributeValues={
                 ':val': 'Approved',
                 ':pb': request.user.employee_id,
-                ':d': datetime.datetime.now().isoformat()
+                ':d': get_local_now().isoformat()
             }
         )
         
@@ -794,7 +794,7 @@ class RejectLeaveView(ManagerRequiredMixin, View):
             ExpressionAttributeValues={
                 ':val': 'Rejected',
                 ':pb': request.user.employee_id,
-                ':d': datetime.datetime.now().isoformat()
+                ':d': get_local_now().isoformat()
             }
         )
         
@@ -854,7 +854,7 @@ class AdjustLeaveBalanceView(HRRequiredMixin, View):
                     if abs(difference) > 0.001:
                         adjustments = employee.get('COAdjustments', [])
                         adjustments.append({
-                            'Date': datetime.date.today().isoformat(),
+                            'Date': get_local_date().isoformat(),
                             'Amount': str(round(difference, 2))
                         })
                         updates['COAdjustments'] = adjustments

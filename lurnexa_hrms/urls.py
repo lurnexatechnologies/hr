@@ -15,8 +15,19 @@ def index_redirect(request):
 
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib.sitemaps.views import sitemap
+from django.views.generic.base import RedirectView
+from core.sitemaps import LurnexaStaticSitemap
+from core.seo import robots_txt
+
+sitemaps = {
+    'static': LurnexaStaticSitemap,
+}
 
 urlpatterns = [
+    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
+    path('robots.txt', robots_txt, name='robots_txt'),
+    path('favicon.ico', RedirectView.as_view(url='/static/img/namelesslogolurnexa.png?v=2'), name='favicon'),
     path('', index_redirect, name='index'),
     path('dashboard/', index_redirect, name='dashboard_redirect'),
     path('auth/', include('auth_custom.urls')),

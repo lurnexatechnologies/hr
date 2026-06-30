@@ -1,14 +1,14 @@
 from django.core.management.base import BaseCommand
 import datetime
 from core.dynamodb_service import HolidaysTable, EmployeesTable
-from core.utils import send_notification
+from core.utils import send_notification, get_local_date
 
 class Command(BaseCommand):
     help = 'Send notifications to all employees about upcoming holidays (runs daily)'
 
     def handle(self, *args, **options):
         # We check for holidays occurring tomorrow
-        tomorrow_date = datetime.date.today() + datetime.timedelta(days=1)
+        tomorrow_date = get_local_date() + datetime.timedelta(days=1)
         tomorrow_str = tomorrow_date.isoformat()
         
         self.stdout.write(f"Checking for holidays on {tomorrow_str}...")

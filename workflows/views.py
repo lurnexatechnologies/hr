@@ -9,7 +9,7 @@ from core.dynamodb_service import (
     PayslipsTable, ExpensesTable, ResignationsTable, 
     ReportingHierarchyTable, LoginHistoryTable, WFHRequestsTable
 )
-from core.utils import save_uploaded_file, send_notification, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64
+from core.utils import save_uploaded_file, send_notification, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64, get_local_date, get_local_now
 from boto3.dynamodb.conditions import Key
 import datetime
 import uuid
@@ -84,7 +84,7 @@ def save_employee_letter_if_not_exists(emp_id, letter_type, html_content):
                 'EmployeeID': emp_id,
                 'LetterID': letter_id,
                 'LetterType': letter_type,
-                'GeneratedDate': datetime.datetime.now().isoformat(),
+                'GeneratedDate': get_local_now().isoformat(),
                 'FilePath': file_path
             }
             EmployeeLettersTable.put_item(letter_item)
@@ -175,7 +175,7 @@ class ExpensesView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
             'Category': category,
             'Description': description,
             'Status': status,
-            'Date': datetime.date.today().isoformat(),
+            'Date': get_local_date().isoformat(),
             'ReceiptImage': receipt_name,
             'ApproverID': approver_id,
             'ManagerID': manager_id
@@ -206,7 +206,7 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         record = ResignationsTable.get_item({'EmployeeID': request.user.employee_id})
         
         # Default LWD is 60 days from today (standard notice period)
-        min_lwd_date = datetime.date.today() + datetime.timedelta(days=60)
+        min_lwd_date = get_local_date() + datetime.timedelta(days=60)
         min_lwd = min_lwd_date.isoformat()
         
         return render(request, 'workflows/resignation.html', {
@@ -234,7 +234,7 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         if employee and employee.get('JoinedDate'):
             try:
                 joined_date = datetime.datetime.strptime(employee.get('JoinedDate'), '%Y-%m-%d').date()
-                tenure_days = (datetime.date.today() - joined_date).days
+                tenure_days = (get_local_date() - joined_date).days
                 if tenure_days < 60:
                     wait_days = 60 - tenure_days
                     messages.error(request, f"Resignation can be applied after 60 days of service only. You can apply in {wait_days} day{'s' if wait_days > 1 else ''}.")
@@ -249,7 +249,7 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
             if rejected_on_str:
                 try:
                     rejected_on = datetime.datetime.fromisoformat(rejected_on_str).date()
-                    days_since_rejection = (datetime.date.today() - rejected_on).days
+                    days_since_rejection = (get_local_date() - rejected_on).days
                     if days_since_rejection < 3:
                         wait_days = 3 - days_since_rejection
                         messages.error(request, f"Your previous resignation was rejected. You can apply again in {wait_days} day{'s' if wait_days > 1 else ''}.")
@@ -276,7 +276,7 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
                 'LastWorkingDay': lwd,
                 'Comments': comments,
                 'Status': 'Pending HR ADMIN Review',
-                'SubmittedOn': datetime.date.today().isoformat(),
+                'SubmittedOn': get_local_date().isoformat(),
                 'ApproverID': approver_id
             }
             ResignationsTable.put_item(item)
@@ -318,7 +318,7 @@ class ExpenseApprovalsView(ManagerRequiredMixin, TemplateView):
         dept = self.request.GET.get('dept', '')
         date_range = self.request.GET.get('range', 'all')
         sort_order = self.request.GET.get('sort', 'desc')
-        today = datetime.date.today()
+        today = get_local_date()
         
         pending = []
         processed = []
@@ -418,12 +418,12 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
         
         if user_role in ['HR ADMIN', 'Super admin']:
             new_status = 'Approved'
-            est_date = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
+            est_date = (get_local_date() + datetime.timedelta(days=2)).isoformat()
             update_expr = "SET #s = :s, ApprovedByHR = :u, HRApprovalDate = :d, PaymentStatus = :ps, EstimatedTransferDate = :etd, ProcessedBy = :pb"
             expr_vals = {
                 ':s': new_status,
                 ':u': request.user.employee_id,
-                ':d': datetime.date.today().isoformat(),
+                ':d': get_local_date().isoformat(),
                 ':ps': 'Scheduled',
                 ':etd': est_date,
                 ':pb': request.user.employee_id
@@ -433,12 +433,12 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
             if applicant_role == 'HR ADMIN':
                 new_status = 'Approved'
                 msg = "Expense claim fully approved. (Manager approval is final for HR)"
-                est_date = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
+                est_date = (get_local_date() + datetime.timedelta(days=2)).isoformat()
                 update_expr = "SET #s = :s, ApprovedByManager = :u, ManagerApprovalDate = :d, PaymentStatus = :ps, EstimatedTransferDate = :etd, ProcessedBy = :pb"
                 expr_vals = {
                     ':s': new_status,
                     ':u': request.user.employee_id,
-                    ':d': datetime.date.today().isoformat(),
+                    ':d': get_local_date().isoformat(),
                     ':ps': 'Scheduled',
                     ':etd': est_date,
                     ':pb': request.user.employee_id
@@ -450,7 +450,7 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
                 expr_vals = {
                     ':s': new_status,
                     ':u': request.user.employee_id,
-                    ':d': datetime.date.today().isoformat(),
+                    ':d': get_local_date().isoformat(),
                     ':pb': request.user.employee_id
                 }
 
@@ -505,7 +505,7 @@ class RejectExpenseView(ManagerRequiredMixin, View):
             ExpressionAttributeValues={
                 ':val': 'Rejected',
                 ':u': request.user.employee_id,
-                ':d': datetime.date.today().isoformat(),
+                ':d': get_local_date().isoformat(),
                 ':pb': request.user.employee_id
             }
         )
@@ -536,7 +536,7 @@ class ProcessPaymentView(HRRequiredMixin, View):
             UpdateExpression="SET PaymentStatus = :p, PaymentDate = :d, ProcessedBy = :pb",
             ExpressionAttributeValues={
                 ':p': 'Paid',
-                ':d': datetime.date.today().isoformat(),
+                ':d': get_local_date().isoformat(),
                 ':pb': request.user.employee_id
             }
         )
@@ -568,7 +568,7 @@ class ResignationApprovalsView(HRRequiredMixin, TemplateView):
         all_resignations = ResignationsTable.scan()
         all_employees = EmployeesTable.scan()
         emp_map = {e['EmployeeID']: e for e in all_employees}
-        today = datetime.date.today()
+        today = get_local_date()
         
         # Get Filter Params
         query = self.request.GET.get('q', '').strip().lower()
@@ -707,7 +707,7 @@ class ProcessResignationView(HRRequiredMixin, View):
         
         if status == 'Rejected':
             update_expr += ", RejectedOn = :d"
-            expr_vals[':d'] = datetime.datetime.now().isoformat()
+            expr_vals[':d'] = get_local_now().isoformat()
 
         ResignationsTable.update_item(
             Key={'EmployeeID': emp_id},
@@ -758,7 +758,7 @@ class ProcessResignationView(HRRequiredMixin, View):
             lwd = res_record.get('LastWorkingDay') if res_record else None
             
             # --- SYNC STATUS TO EMPLOYEES TABLE ---
-            today = datetime.date.today()
+            today = get_local_date()
             emp = EmployeesTable.get_item({'EmployeeID': emp_id})
             if emp:
                 upd_expr = "SET OnboardingStatus = :s, LastWorkingDate = :lwd"
@@ -923,7 +923,7 @@ class ApproveWFHView(ManagerRequiredMixin, View):
             ExpressionAttributeValues={
                 ':val': new_status, 
                 ':u': request.user.employee_id, 
-                ':d': datetime.date.today().isoformat(),
+                ':d': get_local_date().isoformat(),
                 ':pb': request.user.employee_id
             }
         )
@@ -974,7 +974,7 @@ class ApproveWFHView(ManagerRequiredMixin, View):
 
 class RejectWFHView(ManagerRequiredMixin, View):
     def get(self, request, emp_id, req_id):
-        WFHRequestsTable.update_item(Key={'EmployeeID': emp_id, 'RequestID': req_id}, UpdateExpression="SET #s = :val, RejectedBy = :u, RejectionDate = :d, ProcessedBy = :pb", ExpressionAttributeNames={'#s': 'Status'}, ExpressionAttributeValues={':val': 'Rejected', ':u': request.user.employee_id, ':d': datetime.date.today().isoformat(), ':pb': request.user.employee_id})
+        WFHRequestsTable.update_item(Key={'EmployeeID': emp_id, 'RequestID': req_id}, UpdateExpression="SET #s = :val, RejectedBy = :u, RejectionDate = :d, ProcessedBy = :pb", ExpressionAttributeNames={'#s': 'Status'}, ExpressionAttributeValues={':val': 'Rejected', ':u': request.user.employee_id, ':d': get_local_date().isoformat(), ':pb': request.user.employee_id})
         # Notify Employee
         wfh = WFHRequestsTable.get_item({'EmployeeID': emp_id, 'RequestID': req_id})
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
@@ -1007,7 +1007,7 @@ class GenerateExperienceLetterView(HRRequiredMixin, TemplateView):
             
         context['employee'] = employee
         context['resignation'] = resignation
-        context['today'] = datetime.date.today().strftime('%B %d, %Y')
+        context['today'] = get_local_date().strftime('%B %d, %Y')
         context['logo_base64'] = get_lurnexa_logo_base64()
         context['signature_stamp_base64'] = get_authorized_signature_stamp_base64()
         try:
@@ -1036,7 +1036,7 @@ class GeneratePFLetterView(HRRequiredMixin, TemplateView):
             
         context['employee'] = employee
         context['resignation'] = resignation
-        context['today'] = datetime.date.today().strftime('%B %d, %Y')
+        context['today'] = get_local_date().strftime('%B %d, %Y')
         context['logo_base64'] = get_lurnexa_logo_base64()
         context['signature_stamp_base64'] = get_authorized_signature_stamp_base64()
         try:

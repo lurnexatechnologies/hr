@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard - Lurnexa{% endblock %}</title>
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
     <!-- Bootstrap 5 CSS -->
@@ -37,7 +37,7 @@
     {% if request.user.is_authenticated %}
     <aside class="sidebar" id="sidebar">
         <a href="/" class="sidebar-brand" style="color: var(--brand-color);">
-            <i class="fa-solid {% if request.user.role == 'Super admin' %}fa-crown{% else %}fa-briefcase{% endif %} me-2"></i> Lurnexa
+            <i class="fa-solid {% if request.user.role == 'Super admin' %}fa-crown{% else %}fa-user{% endif %} me-2"></i> Lurnexa
         </a>
         <div class="sidebar-nav">
             <div class="nav-item">
@@ -246,7 +246,7 @@
             
             <div class="text-center" style="flex: 1;">
                 <div class="d-flex align-items-center justify-content-center">
-                    <img src="{% static 'img/namelesslogolurnexa.png' %}" alt="Logo" style="height: 35px; margin-right: 12px; width: auto;">
+                    <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Logo" style="height: 35px; margin-right: 12px; width: auto;">
                     <h4 class="mb-0 fw-bold" style="letter-spacing: 4px; color: var(--brand-color); font-family: 'Inter', sans-serif;">LURNEXA</h4>
                 </div>
             </div>
@@ -445,17 +445,31 @@
 
         // Sidebar Toggle Logic
         const sidebarToggle = document.getElementById('sidebarToggle');
-        if (sidebarToggle) {
-            sidebarToggle.addEventListener('click', function() {
-                document.body.classList.toggle('sidebar-closed');
-                // Save preference in localStorage if you want
-                const isClosed = document.body.classList.contains('sidebar-closed');
-                localStorage.setItem('sidebarStatus', isClosed ? 'closed' : 'open');
+        const sidebar = document.getElementById('sidebar');
+        if (sidebarToggle && sidebar) {
+            sidebarToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (window.innerWidth <= 992) {
+                    sidebar.classList.toggle('show');
+                } else {
+                    document.body.classList.toggle('sidebar-closed');
+                    const isClosed = document.body.classList.contains('sidebar-closed');
+                    localStorage.setItem('sidebarStatus', isClosed ? 'closed' : 'open');
+                }
             });
         }
 
-        // Restore sidebar state
-        if (localStorage.getItem('sidebarStatus') === 'closed') {
+        // Close mobile sidebar when clicking outside
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth <= 992 && sidebar && sidebar.classList.contains('show')) {
+                if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+                    sidebar.classList.remove('show');
+                }
+            }
+        });
+
+        // Restore sidebar state (desktop only)
+        if (window.innerWidth > 992 && localStorage.getItem('sidebarStatus') === 'closed') {
             document.body.classList.add('sidebar-closed');
         }
 

@@ -4,6 +4,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.views import View
 from core.dynamodb_service import UsersTable, EmployeesTable, LoginHistoryTable, PasswordResetTokensTable
+from core.utils import get_local_date, get_local_now
 from boto3.dynamodb.conditions import Key
 import uuid
 from django.core.mail import send_mail
@@ -72,7 +73,7 @@ class LoginView(View):
                         if lwd_str:
                             try:
                                 lwd = datetime.datetime.strptime(lwd_str, '%Y-%m-%d').date()
-                                today = datetime.date.today()
+                                today = get_local_date()
                                 if today > lwd:
                                     # Auto-deactivate if not already
                                     if user_data.get('IsActive', True):
@@ -125,7 +126,7 @@ class LoginView(View):
 
                     LoginHistoryTable.put_item({
                         'UserID': user_data['UserID'],
-                        'LoginTime': datetime.datetime.now().isoformat(),
+                        'LoginTime': get_local_now().isoformat(),
                         'Browser': browser,
                         'OS': os_name,
                         'Device': device,
@@ -180,7 +181,7 @@ class ForgotPasswordView(View):
             return render(request, 'auth_custom/forgot_password.html')
 
         token = str(uuid.uuid4())
-        expiry = (datetime.datetime.now() + datetime.timedelta(hours=1)).isoformat()
+        expiry = (get_local_now() + datetime.timedelta(hours=1)).isoformat()
         
         try:
             PasswordResetTokensTable.put_item({
@@ -224,7 +225,7 @@ class ResetPasswordView(View):
             return redirect('login')
         
         expiry = datetime.datetime.fromisoformat(token_data['Expiry'])
-        if datetime.datetime.now() > expiry:
+        if get_local_now() > expiry:
             PasswordResetTokensTable.delete_item({'Token': token})
             messages.error(request, "Password reset token has expired.")
             return redirect('login')

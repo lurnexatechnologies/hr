@@ -8,16 +8,16 @@ from core.dynamodb_service import (
     AttendanceTable, EmployeesTable, LeaveRequestsTable, 
     SettingsTable, WFHRequestsTable, ReportingHierarchyTable, UsersTable
 )
-from core.utils import send_notification
+from core.utils import send_notification, get_local_now, get_local_date
 import uuid
 from boto3.dynamodb.conditions import Key
 import datetime
 
 class ClockInView(LoginRequiredMixin, View):
     def post(self, request):
-        today = datetime.date.today().isoformat()
-        now = datetime.datetime.now()
-        now_time_str = now.time().strftime("%H:%M")
+        now = get_local_now()
+        today = now.date().isoformat()
+        now_time_str = now.strftime("%H:%M")
         eid = request.user.employee_id
         
         # Fetch employee for shift info
@@ -90,9 +90,10 @@ class ClockInView(LoginRequiredMixin, View):
 
 class ClockOutView(LoginRequiredMixin, View):
     def post(self, request):
-        today = datetime.date.today().isoformat()
-        yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
-        now_time = datetime.datetime.now().time().strftime("%H:%M")
+        now = get_local_now()
+        today = now.date().isoformat()
+        yesterday = (now.date() - datetime.timedelta(days=1)).isoformat()
+        now_time = now.strftime("%H:%M")
         eid = request.user.employee_id
 
         # 1. Check if user is on leave today
@@ -157,7 +158,8 @@ class AttendanceHistoryView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today = datetime.date.today().isoformat()
+        local_today = get_local_date()
+        today = local_today.isoformat()
         records = AttendanceTable.query(
             KeyConditionExpression=Key('EmployeeID').eq(self.request.user.employee_id)
         )
@@ -217,7 +219,7 @@ class AttendanceHistoryView(LoginRequiredMixin, TemplateView):
         
         # Search in all_records to ensure active card appears on all paginated pages
         today_record = next((r for r in all_records if r.get('RecordDate') == today), None)
-        yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        yesterday = (local_today - datetime.timedelta(days=1)).isoformat()
         yesterday_record = next((r for r in all_records if r.get('RecordDate') == yesterday), None)
         
         employee = EmployeesTable.get_item({'EmployeeID': self.request.user.employee_id})
@@ -389,7 +391,7 @@ class ApplyWFHView(LoginRequiredMixin, View):
             'Reason': reason,
             'Status': status,
             'ApproverID': approver_id,
-            'RequestDate': datetime.date.today().isoformat(),
+            'RequestDate': get_local_date().isoformat(),
             'OriginalRole': user_role
         }
         WFHRequestsTable.put_item(item)
@@ -416,7 +418,7 @@ class HRAttendanceView(HRRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today_obj = datetime.date.today()
+        today_obj = get_local_date()
         today_str = today_obj.isoformat()
         
         # Get selected date or default to today
@@ -624,7 +626,7 @@ class OfficeTimingSettingsView(HRRequiredMixin, View):
             'EndTime': end_time,
             'NightStartTime': night_start_time,
             'NightEndTime': night_end_time,
-            'UpdatedAt': datetime.datetime.now().isoformat()
+            'UpdatedAt': get_local_now().isoformat()
         })
         
         messages.success(request, "Office timings updated successfully.")
@@ -642,7 +644,7 @@ class DownloadAttendanceReportView(HRRequiredMixin, View):
         all_users = UsersTable.scan()
         all_emp_raw = EmployeesTable.scan()
         employees = []
-        today_str = datetime.date.today().isoformat()
+        today_str = get_local_date().isoformat()
         ref_date = target_date or today_str
         
         for emp in all_emp_raw:
@@ -714,7 +716,7 @@ class DownloadAttendanceReportView(HRRequiredMixin, View):
         else:
             # Export specific day (existing logic improved)
             if not target_date:
-                target_date = datetime.date.today().isoformat()
+                target_date = get_local_date().isoformat()
                 
             target_attendance = {r['EmployeeID']: r for r in all_attendance if r.get('RecordDate') == target_date}
             target_leaves = {}

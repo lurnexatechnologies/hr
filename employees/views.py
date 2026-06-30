@@ -11,7 +11,7 @@ from core.dynamodb_service import (
     LeaveRequestsTable, AttendanceTable, PayslipsTable, ExpensesTable,
     ResignationsTable, LoginHistoryTable, NotificationsTable
 )
-from core.utils import save_uploaded_file, send_notification, safe_float
+from core.utils import save_uploaded_file, send_notification, safe_float, get_local_date, get_local_now
 import uuid
 import bcrypt
 import datetime
@@ -71,7 +71,7 @@ class EmployeeDirectoryView(HRRequiredMixin, ApprovedOnboardingMixin, TemplateVi
         
         # Filter out Resigned employees (passed LWD)
         active_employees = []
-        today = datetime.date.today()
+        today = get_local_date()
         for emp in all_employees:
             user = next((u for u in all_users if u.get('UserID') == emp.get('UserID')), None)
             is_user_active = user.get('IsActive', True) if user else True
@@ -162,7 +162,7 @@ class ExEmployeeDirectoryView(HRRequiredMixin, ApprovedOnboardingMixin, Template
         context = super().get_context_data(**kwargs)
         all_employees = EmployeesTable.scan()
         all_users = UsersTable.scan()
-        today = datetime.date.today()
+        today = get_local_date()
         ex_employees = []
         for emp in all_employees:
             user = next((u for u in all_users if u.get('UserID') == emp.get('UserID')), None)
@@ -741,7 +741,7 @@ class EditEmployeeView(HRRequiredMixin, View):
         if dob:
             try:
                 dob_dt = datetime.datetime.strptime(dob, '%Y-%m-%d').date()
-                today = datetime.date.today()
+                today = get_local_date()
                 age = today.year - dob_dt.year - ((today.month, today.day) < (dob_dt.month, dob_dt.day))
                 if age < 21:
                     messages.error(request, f"Update failed: Employee must be at least 21 years old (Current age: {age}).")
@@ -847,11 +847,11 @@ class EditEmployeeView(HRRequiredMixin, View):
             
             if prev_type == 'Intern' and new_type != 'Intern':
                 # Transitioning to Permanent/Probation - Initialize Leaves
-                months_count = 12 - datetime.date.today().month + 1
+                months_count = 12 - get_local_date().month + 1
                 prorated_val = str(float(max(1, months_count)))
                 employee['Balance_SL'] = prorated_val
                 employee['Balance_CL'] = prorated_val
-                employee['LastLeaveRefresh'] = datetime.date.today().strftime('%Y-%m')
+                employee['LastLeaveRefresh'] = get_local_date().strftime('%Y-%m')
 
                 # Manual PF handling message
                 messages.info(request, f"Employee transitioned from Internship. Leaves have been initialized from this month. Please ensure PF and UAN numbers are manually updated in EPFO and recorded here.")
@@ -975,14 +975,14 @@ class BulkOnboardingLinkView(HRRequiredMixin, View):
                 employment_type = row[5].strip() or 'Permanent'
                 employment_status = row[6].strip() or 'Full Time'
                 role = row[7].strip() or 'Employee'
-                joining_date = row[8].strip() or datetime.date.today().isoformat()
+                joining_date = row[8].strip() or get_local_date().isoformat()
                 
                 employee_id = f"TEMP-{uuid.uuid4().hex[:8].upper()}"
                 token = str(uuid.uuid4())
                 
                 OnboardingTokensTable.put_item({
                     'Token': token,
-                    'CreatedAt': datetime.datetime.now().isoformat(),
+                    'CreatedAt': get_local_now().isoformat(),
                     'TargetEmail': target_email,
                     'EmployeeID': employee_id,
                     'SalaryPA': salary_pa,
@@ -1043,7 +1043,7 @@ class GenerateOnboardingLinkView(HRRequiredMixin, View):
         token = str(uuid.uuid4())
         OnboardingTokensTable.put_item({
             'Token': token,
-            'CreatedAt': datetime.datetime.now().isoformat(),
+            'CreatedAt': get_local_now().isoformat(),
             'TargetEmail': target_email,
             'EmployeeID': employee_id,
             'SalaryPA': request.POST.get('salary_pa'),
@@ -1104,7 +1104,7 @@ class SelfOnboardingView(View):
         created_at_str = token_data.get('CreatedAt')
         if created_at_str:
             created_at = datetime.datetime.fromisoformat(created_at_str)
-            if datetime.datetime.now() - created_at > datetime.timedelta(hours=24):
+            if get_local_now() - created_at > datetime.timedelta(hours=24):
                 return render(request, 'core/error.html', {'message': 'This onboarding link has expired. Please contact HR for a new link.'})
 
         return render(request, 'employees/self_onboarding.html', {
@@ -1123,7 +1123,7 @@ class SelfOnboardingView(View):
         created_at_str = token_data.get('CreatedAt')
         if created_at_str:
             created_at = datetime.datetime.fromisoformat(created_at_str)
-            if datetime.datetime.now() - created_at > datetime.timedelta(hours=24):
+            if get_local_now() - created_at > datetime.timedelta(hours=24):
                 return render(request, 'core/error.html', {'message': 'This onboarding link has expired. Please contact HR for a new link.'})
 
         email = request.POST.get('email')
@@ -1153,7 +1153,7 @@ class SelfOnboardingView(View):
         if dob:
             try:
                 dob_dt = datetime.datetime.strptime(dob, '%Y-%m-%d').date()
-                today = datetime.date.today()
+                today = get_local_date()
                 age = today.year - dob_dt.year - ((today.month, today.day) < (dob_dt.month, dob_dt.day))
                 if age < 21:
                     messages.error(request, f"Onboarding failed: You must be at least 21 years old to join Lurnexa (Current age: {age}).")
@@ -1250,7 +1250,7 @@ class SelfOnboardingView(View):
             'ExperienceLetter': save_uploaded_file(request.FILES.get('exp_letter'), 'employees/docs'),
             'RelievingLetter': save_uploaded_file(request.FILES.get('relieving_letter'), 'employees/docs'),
             'PFLetter': save_uploaded_file(request.FILES.get('pf_letter'), 'employees/docs'),
-            'JoinedDate': token_data.get('JoinedDate', datetime.date.today().isoformat()),
+            'JoinedDate': token_data.get('JoinedDate', get_local_date().isoformat()),
             'DOB': request.POST.get('dob') or token_data.get('DOB'),
             'Gender': gender,
             'IsExperienced': request.POST.get('is_experienced') == 'on',
@@ -1273,10 +1273,10 @@ class SelfOnboardingView(View):
                 'PFLetter': 'Pending' if request.FILES.get('pf_letter') else None
             },
             'Balance_PL': '0.0',
-            'Balance_SL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('JoinedDate') or datetime.date.today().isoformat()).split('-')[1]) + 1))),
-            'Balance_CL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('JoinedDate') or datetime.date.today().isoformat()).split('-')[1]) + 1))),
+            'Balance_SL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('JoinedDate') or get_local_date().isoformat()).split('-')[1]) + 1))),
+            'Balance_CL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('JoinedDate') or get_local_date().isoformat()).split('-')[1]) + 1))),
             'Balance_CO': '0.0',
-            'LastLeaveRefresh': datetime.date.today().strftime('%Y-%m')
+            'LastLeaveRefresh': get_local_date().strftime('%Y-%m')
         }
         EmployeesTable.put_item(employee_item)
 
@@ -1859,7 +1859,7 @@ class UploadCertificateView(LoginRequiredMixin, View):
             'CertificateID': str(uuid.uuid4()),
             'Name': cert_name,
             'FilePath': file_path,
-            'UploadedAt': datetime.datetime.now().isoformat(),
+            'UploadedAt': get_local_now().isoformat(),
             'Status': 'Pending',
             'RejectionReason': ''
         }
@@ -1944,7 +1944,7 @@ class CertificateActionView(HRAdminOnlyMixin, View):
 
         if action == 'approve':
             target_cert['Status'] = 'Approved'
-            target_cert['ApprovedAt'] = datetime.datetime.now().isoformat()
+            target_cert['ApprovedAt'] = get_local_now().isoformat()
             target_cert['RejectionReason'] = ''
             messages.success(request, f"Certificate '{target_cert.get('Name')}' approved for {employee.get('FirstName')}.")
         elif action == 'reject':

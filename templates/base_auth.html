@@ -5,6 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Login - Lurnexa{% endblock %}</title>
+    <meta name="description" content="Access the Lurnexa HRMS platform. Enter your credentials to log in or request a password reset.">
+    <meta name="robots" content="index, nofollow">
+    <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
     <!-- Bootstrap 5 CSS -->
@@ -25,7 +30,7 @@
             <div class="auth-card">
                 <div class="auth-header">
                     <div class="brand-logo">
-                        <img src="{% static 'img/namelesslogolurnexa.png' %}" alt="Lurnexa" style="height: 40px; width: auto;">
+                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa" style="height: 40px; width: auto;">
                     </div>
                     <h3>Lurnexa</h3>
                     <p>Enter your credentials to access your account</p>

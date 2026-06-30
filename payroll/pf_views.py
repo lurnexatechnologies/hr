@@ -4,13 +4,14 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from auth_custom.mixins import HRRequiredMixin
 from core.dynamodb_service import EmployeesTable, PayslipsTable
+from core.utils import get_local_date
 import datetime
 import calendar
 
 class PFManagementView(HRRequiredMixin, View):
     def get(self, request):
         # Default to current month/year if not provided
-        today = datetime.date.today()
+        today = get_local_date()
         selected_month = request.GET.get('month', today.strftime('%b').lower())
         selected_year = request.GET.get('year', str(today.year))
         month_year = f"{selected_month}_{selected_year}".lower()

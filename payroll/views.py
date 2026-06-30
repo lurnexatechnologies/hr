@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin
 from core.dynamodb_service import PayslipsTable, EmployeesTable, AttendanceTable, LeaveRequestsTable, HolidaysTable, PayrollApprovalsTable, UsersTable, ExpensesTable
 from core.kotak_service import KotakBankService
-from core.utils import safe_float
+from core.utils import safe_float, get_local_date, get_local_now
 from boto3.dynamodb.conditions import Key
 import io
 from reportlab.pdfgen import canvas
@@ -115,11 +115,11 @@ def get_attendance_summary(employee_id, month, year):
             weight = approved_leave_map[date_str]
             paid_days += weight
             # If it's a half-day leave and they aren't present, the other half is LOP
-            if weight < 1.0 and date_obj <= datetime.date.today():
+            if weight < 1.0 and date_obj <= get_local_date():
                 lop_days += (1.0 - weight)
         # 5. Otherwise it's LOP (Only if the day has already passed)
         else:
-            if date_obj <= datetime.date.today():
+            if date_obj <= get_local_date():
                 lop_days += 1
             # Future days are not counted as LOP yet in the preview/calculation
             
@@ -349,7 +349,7 @@ class PayslipsView(LoginRequiredMixin, TemplateView):
         ]
         
         # Dynamic year list (2024 to current year)
-        current_year = datetime.date.today().year
+        current_year = get_local_date().year
         context['years'] = list(range(2024, current_year + 1))
         
         # Check for selected period
@@ -372,7 +372,7 @@ class ManagePayrollView(PayrollRequiredMixin, View):
         all_employees = EmployeesTable.scan()
         all_users = UsersTable.scan()
         all_payslips = PayslipsTable.scan()
-        today = datetime.date.today()
+        today = get_local_date()
         
         # Filter out Super admin from payroll processing
         active_employees_list = []
@@ -466,7 +466,7 @@ class ManagePayrollView(PayrollRequiredMixin, View):
     def post(self, request):
         from core.utils import apply_pending_hikes
         apply_pending_hikes()
-        today = datetime.date.today()
+        today = get_local_date()
         # Enforce payroll generation only on the 30th of the month
         if today.day != 30:
             messages.error(request, f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the 30th of the month.")
@@ -542,7 +542,7 @@ class ManagePayrollView(PayrollRequiredMixin, View):
             'MonthYear': month_year,
             'Status': 'Pending Super Admin Approval',
             'SubmittedBy': request.user.employee_id,
-            'SubmittedAt': datetime.datetime.now().isoformat(),
+            'SubmittedAt': get_local_now().isoformat(),
             'BatchData': batch_data,
             'TotalNetPay': str(round(sum(float(b['PayslipData']['NetPay']) for b in batch_data), 2)),
             'EmployeeCount': len(batch_data)
@@ -585,21 +585,11 @@ class DownloadPayslipView(LoginRequiredMixin, View):
                 pdfmetrics.registerFont(TTFont('Arial-Italic', arial_italic_path))
         except: pass
 
-        # 1. Logo and Header (Inline & Centered)
-        logo_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'namelesslogolurnexa.png')
+        # 1. Header (Centered without logo)
         header_text = "LURNEXA"
-        logo_w, logo_h = 40, 40
-        spacing = 15
-        text_width = p.stringWidth(header_text, "Arial-Bold", 26)
-        total_header_w = logo_w + spacing + text_width
-        start_x = (width - total_header_w) / 2
-        
-        if os.path.exists(logo_path):
-            p.drawImage(logo_path, start_x, height - 85, width=logo_w, height=logo_h, preserveAspectRatio=True, mask='auto')
-        
         p.setFont("Arial-Bold", 26)
         p.setFillColorRGB(0.07, 0.2, 0.45) # Corporate Blue
-        p.drawString(start_x + logo_w + spacing, height - 75, header_text)
+        p.drawCentredString(width / 2, height - 75, header_text)
         
         p.setStrokeColorRGB(0.07, 0.2, 0.45)
         p.setLineWidth(1.5)
@@ -822,7 +812,7 @@ class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
             ('may', 'May'), ('jun', 'June'), ('jul', 'July'), ('aug', 'August'),
             ('sep', 'September'), ('oct', 'October'), ('nov', 'November'), ('dec', 'December')
         ]
-        context['years'] = list(range(2024, datetime.date.today().year + 1))
+        context['years'] = list(range(2024, get_local_date().year + 1))
         context['filter_month'] = filter_month
         context['filter_year'] = filter_year
         context['is_active'] = False
@@ -862,7 +852,7 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
             
         if action == 'reject':
             approval_request['Status'] = 'Rejected by Super Admin'
-            approval_request['ProcessedAt'] = datetime.datetime.now().isoformat()
+            approval_request['ProcessedAt'] = get_local_now().isoformat()
             approval_request['ProcessedBy'] = request.user.employee_id
             PayrollApprovalsTable.put_item(approval_request)
             messages.warning(request, "Payroll request has been rejected.")
@@ -891,7 +881,7 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                     final_payslip.update({
                         'EmployeeID': emp_id,
                         'MonthYear': month_year,
-                        'GeneratedAt': datetime.datetime.now().isoformat(),
+                        'GeneratedAt': get_local_now().isoformat(),
                         'ApprovedBy': request.user.employee_id
                     })
                     PayslipsTable.put_item(final_payslip)
@@ -924,7 +914,7 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                     error_count += 1
             
             approval_request['Status'] = 'Approved'
-            approval_request['ProcessedAt'] = datetime.datetime.now().isoformat()
+            approval_request['ProcessedAt'] = get_local_now().isoformat()
             approval_request['ProcessedBy'] = request.user.employee_id
             PayrollApprovalsTable.put_item(approval_request)
             
@@ -1034,7 +1024,7 @@ class HistoricalPayrollView(HRRequiredMixin, TemplateView):
                 context['page_obj'] = page_obj
                 context['filter_month'] = filter_month
                 context['filter_year'] = filter_year
-                context['current_year'] = datetime.datetime.now().year
+                context['current_year'] = get_local_now().year
                 
                 context['combined_history'] = combined_history
                 context['total_net_paid'] = total_net_paid
