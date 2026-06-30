@@ -1833,9 +1833,9 @@ class UploadCertificateView(LoginRequiredMixin, View):
             messages.error(request, "Certificate name and file are required.")
             return redirect(f"/employees/profile/{emp_id}/?tab=cert")
 
-        # Enforce 2MB limit
-        if uploaded_file.size > 2 * 1024 * 1024:
-            messages.error(request, "File size exceeds the 2MB limit.")
+        # Enforce 10MB limit
+        if uploaded_file.size > 10 * 1024 * 1024:
+            messages.error(request, "File size exceeds the 10MB limit.")
             return redirect(f"/employees/profile/{emp_id}/?tab=cert")
 
         # Enforce file extension check
