@@ -1,0 +1,23 @@
+name: Deploy Lurnexa HRMS to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Lightsail via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu/lurnexa_hrms
+            git pull origin main
+            ./venv/bin/python manage.py collectstatic --noinput
+            sudo systemctl restart gunicorn
