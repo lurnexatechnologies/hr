@@ -722,8 +722,11 @@
         checkSecurity.addEventListener('change', toggleSubmit);
         checkDeclaration.addEventListener('change', toggleSubmit);
 
-        // Update Hidden Education Field before submit
-        form.addEventListener('submit', function (e) {
+        // Update Hidden Education Field and Verify Files before actual submit
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault(); // Stop normal submission first
+            
+            // 1. Update Hidden Education Field
             const degree = form.degree_name.value;
             const college = form.college_name.value;
             const degreeScore = form.degree_score.value;
@@ -741,44 +744,86 @@
             if (school) eduSummary += ` | 10th: ${schoolBoard} from ${school} (${schoolScore}%)`;
 
             finalEducation.value = eduSummary;
+
+            // 2. Validate Selected Files to prevent ERR_UPLOAD_FILE_CHANGED
+            submitBtn.disabled = true;
+            const originalBtnHtml = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Files...';
+            
+            const fileInputs = form.querySelectorAll('input[type="file"]');
+            const filesToVerify = [];
+            
+            fileInputs.forEach(input => {
+                if (input.files && input.files.length > 0) {
+                    for (let i = 0; i < input.files.length; i++) {
+                        const file = input.files[i];
+                        filesToVerify.push({
+                            file: file,
+                            inputElement: input,
+                            inputLabel: input.previousElementSibling ? input.previousElementSibling.innerText : 'Document'
+                        });
+                    }
+                }
+            });
+            
+            const verifyFile = (file) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(true);
+                    reader.onerror = () => resolve(false);
+                    // Read first 100 bytes to check accessibility
+                    reader.readAsArrayBuffer(file.slice(0, 100));
+                });
+            };
+            
+            for (let item of filesToVerify) {
+                const isReadable = await verifyFile(item.file);
+                if (!isReadable) {
+                    alert(`Your browser has lost access to the file "${item.file.name}" (${item.inputLabel}) because it was minimized or moved. Please click on the file field and re-select this file.`);
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                    
+                    item.inputElement.classList.add('is-invalid');
+                    item.inputElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                } else {
+                    item.inputElement.classList.remove('is-invalid');
+                }
+            }
+            
+            // 3. Save Form Data to session storage
+            const formData = new FormData(form);
+            const data = {};
+            for (const [key, value] of formData.entries()) {
+                const element = form.querySelector(`[name="${key}"]`);
+                if (element && element.type !== 'file') {
+                    data[key] = value;
+                }
+            }
+            sessionStorage.setItem(`selfOnboardingFormData_${form.email.value}`, JSON.stringify(data));
+            
+            // 4. Submit form
+            form.submit();
         });
         
         // Form Data Retention Logic
-        const hasError = document.querySelector('.alert-danger, .alert-error, .alert-warning');
-        const hasSuccess = document.querySelector('.alert-success');
+        const targetEmail = form.email.value;
+        const sessionKey = `selfOnboardingFormData_${targetEmail}`;
+        const savedData = sessionStorage.getItem(sessionKey);
         
-        if (hasError) {
-            const savedData = sessionStorage.getItem('selfOnboardingFormData');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                for (const key in data) {
-                    const element = document.querySelector(`[name="${key}"]`);
-                    // Skip email and empid as they are readonly/prefilled
-                    if (element && element.type !== 'file' && key !== 'email' && key !== 'employee_id') {
-                        if (element.type === 'checkbox') {
-                            element.checked = true;
-                        } else {
-                            element.value = data[key];
-                        }
+        if (savedData) {
+            const data = JSON.parse(savedData);
+            for (const key in data) {
+                const element = document.querySelector(`[name="${key}"]`);
+                if (element && element.type !== 'file' && key !== 'email' && key !== 'employee_id') {
+                    if (element.type === 'checkbox') {
+                        element.checked = data[key] === 'on' || data[key] === true;
+                    } else {
+                        element.value = data[key];
                     }
                 }
             }
-        } else if (hasSuccess || !hasError) {
-            sessionStorage.removeItem('selfOnboardingFormData');
-        }
-
-        if (form) {
-            form.addEventListener('submit', function() {
-                const formData = new FormData(this);
-                const data = {};
-                for (const [key, value] of formData.entries()) {
-                    const element = this.querySelector(`[name="${key}"]`);
-                    if (element && element.type !== 'file') {
-                        data[key] = value;
-                    }
-                }
-                sessionStorage.setItem('selfOnboardingFormData', JSON.stringify(data));
-            });
         }
 
         // Add some interactive color on input focus
@@ -873,6 +918,11 @@
                 this.value = this.value.replace(/[^A-Za-z\s]/g, '');
             });
         });
+
+        // Trigger switch toggle if it was loaded from sessionStorage
+        if (expSwitch && expSwitch.checked) {
+            expSwitch.dispatchEvent(new Event('change'));
+        }
     });
     function toggleAccVisibility(inputId, btn) {
         const input = document.getElementById(inputId);
