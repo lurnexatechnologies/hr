@@ -91,7 +91,6 @@
                                     </td>
                                 </tr>
                                 {% endfor %}
-                                
                                 {% for wf in pending_verification %}
                                 <tr>
                                     <td class="ps-4">
@@ -103,44 +102,10 @@
                                     <td>{{ wf.InitiatedOn|slice:"0:10" }}</td>
                                     <td class="text-end pe-4">
                                         <button class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#verifyModal{{ wf.EmployeeID }}">Verify KYC</button>
-                                        
-                                        <!-- Verify Modal -->
-                                        <div class="modal fade" id="verifyModal{{ wf.EmployeeID }}" tabindex="-1">
-                                            <div class="modal-dialog modal-lg">
-                                                <div class="modal-content border-0 rounded-4 shadow-lg">
-                                                    <div class="modal-header bg-light border-0 px-4 py-3">
-                                                        <h5 class="modal-title fw-bold">Verify PF KYC: {{ wf.EmployeeName }}</h5>
-                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                                    </div>
-                                                    <form action="{% url 'pf_verify' wf.EmployeeID %}" method="POST">
-                                                        {% csrf_token %}
-                                                        <div class="modal-body p-4 text-start">
-                                                            <div class="alert alert-secondary border-0 mb-4">
-                                                                <p class="mb-1 fw-bold">KYC Details Provided:</p>
-                                                                <!-- We would normally fetch the profile here, for now assuming context provides some details or we use JS -->
-                                                                <ul class="mb-0 small">
-                                                                    <li>Aadhaar: Verified Format</li>
-                                                                    <li>PAN: Verified Format</li>
-                                                                    <li>Bank: Details Provided</li>
-                                                                </ul>
-                                                            </div>
-                                                            <div class="mb-3">
-                                                                <label class="form-label fw-bold">Internal Comments</label>
-                                                                <textarea name="comments" class="form-control rounded-3" rows="3" placeholder="Add verification notes..."></textarea>
-                                                            </div>
-                                                            <div class="d-flex gap-2">
-                                                                <button type="submit" name="action" value="approve" class="btn btn-success flex-grow-1 rounded-pill py-2">Approve KYC</button>
-                                                                <button type="submit" name="action" value="reject" class="btn btn-danger flex-grow-1 rounded-pill py-2">Reject & Send Back</button>
-                                                            </div>
-                                                        </div>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
-
+                                
                                 {% for wf in pending_approval %}
                                 <tr>
                                     <td class="ps-4">
@@ -169,6 +134,7 @@
                             </tbody>
                         </table>
                     </div>
+
 
                     <!-- Activated Tab -->
                     <div id="tab-active" class="table-responsive d-none">
@@ -252,5 +218,40 @@
     }
 </script>
 
+
+<!-- Modals rendered at the top-level without fade transition to prevent z-index, stacking context, and blinking glitches -->
+{% for wf in pending_verification %}
+<div class="modal text-start" id="verifyModal{{ wf.EmployeeID }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 rounded-4 shadow-lg">
+            <div class="modal-header bg-light border-0 px-4 py-3">
+                <h5 class="modal-title fw-bold">Verify PF KYC: {{ wf.EmployeeName }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'pf_verify' wf.EmployeeID %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body p-4 text-start">
+                    <div class="alert alert-secondary border-0 mb-4">
+                        <p class="mb-1 fw-bold">KYC Details Provided:</p>
+                        <ul class="mb-0 small">
+                            <li>Aadhaar: Verified Format</li>
+                            <li>PAN: Verified Format</li>
+                            <li>Bank: Details Provided</li>
+                        </ul>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Internal Comments</label>
+                        <textarea name="comments" class="form-control rounded-3" rows="3" placeholder="Add verification notes..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="approve" class="btn btn-success flex-grow-1 rounded-pill py-2">Approve KYC</button>
+                        <button type="submit" name="action" value="reject" class="btn btn-danger flex-grow-1 rounded-pill py-2">Reject & Send Back</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
 
 {% endblock %}

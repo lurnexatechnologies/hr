@@ -232,6 +232,13 @@
                                     name="uan_number" value="{{ employee.UANNumber|default:'' }}" maxlength="12"
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                             </div>
+                            <div class="col-md-4 d-flex align-items-center">
+                                <div class="form-check form-switch p-2 ps-5 mt-4">
+                                    <input type="hidden" name="is_pf_applicable_present" value="1">
+                                    <input class="form-check-input" type="checkbox" name="is_pf_applicable" id="isPFApplicable" {% if employee.is_pf_applicable or employee.is_pf_applicable is not False %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold text-muted" for="isPFApplicable">Is PF Applicable?</label>
+                                </div>
+                            </div>
 
                             <div class="col-12 mt-3">
                                 <div class="row g-3">

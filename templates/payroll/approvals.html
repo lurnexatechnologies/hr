@@ -133,74 +133,20 @@
                                         <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#viewDetails{{ req.RequestID }}">
                                             <i class="fa-solid fa-list-check me-1"></i> Details
                                         </button>
-                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline">
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Authorize Payroll', message: 'Authorize this payroll run? This will initiate the disbursement workflow.', onConfirm: () => form.submit()});">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="approve">
-                                            <button type="submit" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm" onclick="return confirm('Authorize this payroll run? This will initiate the disbursement workflow.')">
+                                            <button type="submit" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm">
                                                 <i class="fa-solid fa-check me-1"></i> Authorize
                                             </button>
                                         </form>
-                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline">
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Reject Payroll', message: 'Reject this payroll run?', onConfirm: () => form.submit()});">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="reject">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger px-3 rounded-pill" onclick="return confirm('Reject this payroll run?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger px-3 rounded-pill">
                                                 <i class="fa-solid fa-xmark me-1"></i> Reject
                                             </button>
                                         </form>
-                                    </div>
-
-                                    <!-- Modal View Details -->
-                                    <div class="modal fade text-start" id="viewDetails{{ req.RequestID }}" tabindex="-1" aria-hidden="true">
-                                        <div class="modal-dialog modal-lg modal-dialog-centered">
-                                            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
-                                                <div class="modal-header border-0 p-4 pb-0">
-                                                    <h5 class="modal-title fw-bold">Payroll Summary: {{ req.MonthYear|upper|replace:"_, " }}</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body p-4">
-                                                    <div class="table-responsive rounded-3 border">
-                                                        <table class="table table-hover align-middle mb-0">
-                                                            <thead class="bg-light">
-                                                                <tr>
-                                                                    <th class="small fw-bold">Employee</th>
-                                                                    <th class="small fw-bold">Gross Salary</th>
-                                                                    <th class="small fw-bold text-danger">PF</th>
-                                                                    <th class="small fw-bold text-danger">ESI</th>
-                                                                    <th class="small fw-bold text-danger">TDS</th>
-                                                                    <th class="small fw-bold text-danger">Deductions</th>
-                                                                    <th class="small fw-bold text-end">Net Payable</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {% for b in req.BatchData %}
-                                                                <tr>
-                                                                    <td>
-                                                                        <div class="fw-bold small">{{ b.EmployeeName }}</div>
-                                                                        <div class="text-muted small">{{ b.EmployeeID }}</div>
-                                                                    </td>
-                                                                    <td class="small">₹ {{ b.PayslipData.GrossSalary|format_currency }}</td>
-                                                                    <td class="small text-danger">₹ {{ b.PayslipData.PF|format_currency }}</td>
-                                                                    <td class="small text-danger">₹ {{ b.PayslipData.ESI|format_currency }}</td>
-                                                                    <td class="small text-danger">₹ {{ b.PayslipData.TDS|format_currency }}</td>
-                                                                    <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
-                                                                    <td class="fw-bold text-end text-primary">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
-                                                                </tr>
-                                                                {% endfor %}
-                                                            </tbody>
-                                                            <tfoot class="bg-light fw-bold">
-                                                                <tr>
-                                                                    <td colspan="6" class="text-end py-3">Total Batch Net Pay:</td>
-                                                                    <td class="text-end py-3 text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay|format_currency }}</td>
-                                                                </tr>
-                                                            </tfoot>
-                                                        </table>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer border-0 p-4 pt-0">
-                                                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -340,6 +286,7 @@
                                 <th class="border-0 py-3 text-danger">PF</th>
                                 <th class="border-0 py-3 text-danger">ESI</th>
                                 <th class="border-0 py-3 text-danger">TDS</th>
+                                <th class="border-0 py-3 text-danger">PT</th>
                                 <th class="border-0 py-3 text-danger">Deductions</th>
                                 <th class="pe-4 border-0 py-3 text-end">Net Payable</th>
                             </tr>
@@ -355,18 +302,19 @@
                                 <td class="small text-danger">₹ {{ b.PayslipData.PF|format_currency }}</td>
                                 <td class="small text-danger">₹ {{ b.PayslipData.ESI|format_currency }}</td>
                                 <td class="small text-danger">₹ {{ b.PayslipData.TDS|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.PT|format_currency }}</td>
                                 <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
                                 <td class="fw-bold text-end text-primary pe-4">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted small">No batch data available.</td>
+                                <td colspan="8" class="text-center py-5 text-muted small">No batch data available.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-light fw-bold">
                             <tr>
-                                <td colspan="6" class="text-end py-3">Total Batch Net Pay:</td>
+                                <td colspan="7" class="text-end py-3">Total Batch Net Pay:</td>
                                 <td class="text-end pe-4 py-3 text-success" style="font-size: 1.1rem;">₹ {{ selected_details.TotalNetPay|format_currency }}</td>
                             </tr>
                         </tfoot>
@@ -408,6 +356,64 @@
         </div>
     </div>
 </div>
+
+<!-- Modals rendered at the top-level without fade transition to prevent z-index, stacking context, and blinking glitches -->
+{% for req in pending_requests %}
+<div class="modal text-start" id="viewDetails{{ req.RequestID }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 p-4 pb-0">
+                <h5 class="modal-title fw-bold">Payroll Summary: {{ req.MonthYear|upper|replace:"_, " }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="table-responsive rounded-3 border">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="small fw-bold">Employee</th>
+                                <th class="small fw-bold">Gross Salary</th>
+                                <th class="small fw-bold text-danger">PF</th>
+                                <th class="small fw-bold text-danger">ESI</th>
+                                <th class="small fw-bold text-danger">TDS</th>
+                                <th class="small fw-bold text-danger">PT</th>
+                                <th class="small fw-bold text-danger">Deductions</th>
+                                <th class="small fw-bold text-end">Net Payable</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in req.BatchData %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold small">{{ b.EmployeeName }}</div>
+                                    <div class="text-muted small">{{ b.EmployeeID }}</div>
+                                </td>
+                                <td class="small">₹ {{ b.PayslipData.GrossSalary|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.PF|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.ESI|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.TDS|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.PT|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
+                                <td class="fw-bold text-end text-primary">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="bg-light fw-bold">
+                            <tr>
+                                <td colspan="7" class="text-end py-3">Total Batch Net Pay:</td>
+                                <td class="text-end py-3 text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay|format_currency }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 
 {% endblock %}
 

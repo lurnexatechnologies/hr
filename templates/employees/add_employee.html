@@ -212,15 +212,22 @@
                                 <label class="form-label fw-semibold small text-uppercase text-muted">Last Working Date <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control form-control-lg bg-light border-0" name="last_working_date">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label fw-semibold small text-uppercase text-muted">PF Account Number</label>
                                 <input type="text" class="form-control form-control-lg bg-light border-0" name="pf_number" placeholder="PF Number"
                                     oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label fw-semibold small text-uppercase text-muted">UAN Number</label>
                                 <input type="text" class="form-control form-control-lg bg-light border-0" name="uan_number" placeholder="UAN"
                                     maxlength="12" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-center">
+                                <div class="form-check form-switch p-2 ps-5 mt-4">
+                                    <input type="hidden" name="is_pf_applicable_present" value="1">
+                                    <input class="form-check-input" type="checkbox" name="is_pf_applicable" id="isPFApplicable" checked>
+                                    <label class="form-check-label fw-bold text-muted" for="isPFApplicable">Is PF Applicable?</label>
+                                </div>
                             </div>
 
                             <div class="col-12 mt-2">

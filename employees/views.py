@@ -450,7 +450,7 @@ class AddEmployeeView(HRRequiredMixin, View):
         fulltime_date = request.POST.get('fulltime_date') or joining_date
         dob = request.POST.get('dob')
         gender = request.POST.get('gender')
-        is_pf_applicable = request.POST.get('is_pf_applicable') == 'on'
+        is_pf_applicable = request.POST.get('is_pf_applicable') == 'on' if 'is_pf_applicable_present' in request.POST or 'is_pf_applicable' in request.POST else True
         employment_type = request.POST.get('employment_type', 'Permanent')
         internship_period = request.POST.get('internship_period', '0') if employment_type == 'Intern' else '0'
         employment_status = request.POST.get('employment_status', 'Full Time')
@@ -636,6 +636,12 @@ class EditEmployeeView(HRRequiredMixin, View):
             messages.error(request, "Employee not found.")
             return redirect('employee_directory')
         
+        # Ensure JoinedDate and FullTimeDate are not missing to prevent template lookup crashes
+        if 'JoinedDate' not in employee:
+            employee['JoinedDate'] = ''
+        if 'FullTimeDate' not in employee:
+            employee['FullTimeDate'] = employee['JoinedDate']
+        
         # Fetch current manager
         current_manager_link = ReportingHierarchyTable.scan(
             FilterExpression="EmployeeID = :eid",
@@ -709,7 +715,7 @@ class EditEmployeeView(HRRequiredMixin, View):
             'FullTimeDate': request.POST.get('fulltime_date') or request.POST.get('joining_date'),
             'DOB': request.POST.get('dob'),
             'Gender': request.POST.get('gender'),
-            'is_pf_applicable': request.POST.get('is_pf_applicable') == 'on',
+            'is_pf_applicable': request.POST.get('is_pf_applicable') == 'on' if 'is_pf_applicable_present' in request.POST or 'is_pf_applicable' in request.POST else employee.get('is_pf_applicable', True),
             'EmploymentType': request.POST.get('employment_type'),
             'InternshipPeriod': request.POST.get('internship_period', '0'),
             'EmploymentStatus': request.POST.get('employment_status', 'Full Time'),
