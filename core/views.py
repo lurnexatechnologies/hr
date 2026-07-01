@@ -109,7 +109,7 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
                     'title': 'Payroll Batch',
                     'subtitle': f"{p.get('MonthYear')} Authorization Required",
                     'badge': 'Payroll',
-                    'url': 'payroll_dashboard'
+                    'url': 'payroll_approval_list'
                 })
         except: pass
 
@@ -892,7 +892,7 @@ class SuperAdminApprovalsView(SuperAdminRequiredMixin, TemplateView):
                     'badge': 'Payroll',
                     'badge_class': 'success',
                     'icon': 'fa-money-bill-transfer',
-                    'url': 'payroll_dashboard',
+                    'url': 'payroll_approval_list',
                     'date': p.get('SubmittedAt', 'Recent')
                 })
         except: pass
