@@ -69,9 +69,9 @@
                     </div>
                     
                     <!-- Document Upload Container -->
-                    <div id="document-upload-container" class="mb-4">
+                    <div id="document-upload-container" class="mb-4" style="display:none;">
                         <label for="leave_document" class="form-label fw-medium">Supporting Document <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="leave_document" name="leave_document" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <input type="file" class="form-control" id="leave_document" name="leave_document" accept=".pdf,.png,.jpg,.jpeg">
                         <div class="form-text text-muted">File size should be less than 2MB. Please upload medical certificates, tickets, or any other proof.</div>
                     </div>
 
@@ -219,8 +219,26 @@
     }
 
     function checkDocUploadRequirement() {
-        // Document upload is now mandatory for ALL leave types per latest business rules.
-        // No dynamic toggling required.
+        const leaveType = leaveTypeSelect.value;
+        const container = document.getElementById('document-upload-container');
+        const fileInput = document.getElementById('leave_document');
+        if (!container || !fileInput) return;
+
+        let days = 0;
+        if (startInput.value && (endInput.value || isHalfDay.checked)) {
+            days = countWorkingDays(startInput.value, endInput.value || startInput.value);
+        }
+
+        const isSickLeaveMoreThanTwo = (leaveType === 'Sick Leave (SL)' && days > 2);
+        const isUnpaidLeave = (leaveType === 'Unpaid Leave');
+
+        if (isSickLeaveMoreThanTwo || isUnpaidLeave) {
+            container.style.display = 'block';
+            fileInput.setAttribute('required', '');
+        } else {
+            container.style.display = 'none';
+            fileInput.removeAttribute('required');
+        }
     }
 
     function updateWorkingDays() {

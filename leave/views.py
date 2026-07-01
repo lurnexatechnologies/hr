@@ -453,11 +453,10 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         uploaded_file = request.FILES.get('leave_document')
         file_path = None
         
-        is_parental = leave_type == 'Maternity Leave' or leave_type == 'Paternity Leave'
-        is_marriage = leave_type == 'Marriage Leave'
         is_sick_over_2 = leave_type == 'Sick Leave (SL)' and working_days > 2
+        is_unpaid = leave_type == 'Unpaid Leave'
         
-        if is_parental or is_marriage or is_sick_over_2:
+        if is_sick_over_2 or is_unpaid:
             if not uploaded_file:
                 messages.error(request, f"A supporting document is required for {leave_type}.")
                 return redirect('apply_leave')

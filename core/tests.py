@@ -292,11 +292,15 @@ class BusinessLogicTestSuite(TestCase):
         messages = self.get_msg_texts(response)
         self.assertTrue(any("only apply for unpaid leave" in m.lower() for m in messages), f"Messages: {messages}")
         
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        dummy_doc = SimpleUploadedFile("test_proof.pdf", b"file_content", content_type="application/pdf")
+        
         response2 = self.client.post('/leave/apply/', {
             'leave_type': 'Unpaid Leave',
             'start_date': '2026-06-01',
             'end_date': '2026-06-02',
-            'reason': 'Personal'
+            'reason': 'Personal',
+            'leave_document': dummy_doc
         }, follow=True)
         self.assertEqual(response2.status_code, 200)
         self.assertIn('history', response2.wsgi_request.path)
