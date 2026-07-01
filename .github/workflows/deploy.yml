@@ -21,4 +21,5 @@ jobs:
             git reset --hard
             git pull origin main
             ./venv/bin/python manage.py collectstatic --noinput
+            ./venv/bin/python fix_prod_db.py
             sudo systemctl restart gunicorn
