@@ -18,6 +18,7 @@ urlpatterns = [
     # Payroll Approval Workflow
     path('approvals/', views.PayrollApprovalView.as_view(), name='payroll_approval_list'),
     path('approvals/process/<str:request_id>/', views.ProcessPayrollApprovalView.as_view(), name='process_payroll_approval'),
+    path('approvals/set-generation-date/', views.SetPayrollGenerationDateView.as_view(), name='set_payroll_generation_date'),
     
     # Historical Payroll
     path('historical/', views.HistoricalPayrollView.as_view(), name='historical_payroll'),

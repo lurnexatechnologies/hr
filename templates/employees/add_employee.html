@@ -79,7 +79,13 @@
                             <label class="form-label fw-semibold small text-uppercase text-muted">Joining Date <span
                                     class="text-danger">*</span></label>
                             <input type="date" class="form-control form-control-lg bg-light border-0" name="joining_date"
-                                required value="{% now 'Y-m-d' %}">
+                                id="add_joining_date" required value="{% now 'Y-m-d' %}" onchange="document.getElementById('add_fulltime_date').value = this.value">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">Full-time Date <span
+                                    class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-lg bg-light border-0" name="fulltime_date"
+                                id="add_fulltime_date" required value="{% now 'Y-m-d' %}">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Date of Birth <span
@@ -606,7 +612,13 @@
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-uppercase text-muted">Joining Date <span
                                 class="text-danger">*</span></label>
-                        <input type="date" name="joining_date" class="form-control form-control-lg bg-white border"
+                        <input type="date" name="joining_date" id="self_joining_date" class="form-control form-control-lg bg-white border"
+                            required value="{% now 'Y-m-d' %}" onchange="document.getElementById('self_fulltime_date').value = this.value">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Full-time Date <span
+                                class="text-danger">*</span></label>
+                        <input type="date" name="fulltime_date" id="self_fulltime_date" class="form-control form-control-lg bg-white border"
                             required value="{% now 'Y-m-d' %}">
                     </div>
                     <div class="mb-3" id="self_manager_div">

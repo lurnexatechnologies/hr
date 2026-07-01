@@ -12,7 +12,7 @@
     <div class="d-flex gap-2">
         <div class="alert alert-info py-2 px-3 mb-0 rounded-pill smaller border-0 shadow-sm" style="background: rgba(13, 202, 240, 0.1); color: #055160;">
             <i class="fa-solid fa-circle-info me-2"></i>
-            <strong>Policy:</strong> LOP Cycle: 27th (Prev) to 26th (Curr) | <strong>Generation Date:</strong> 30th only
+            <strong>Policy:</strong> LOP Cycle: 27th (Prev) to 26th (Curr) | <strong>Generation Date:</strong> {% if generation_date %}{{ generation_date }}{% else %}30th only{% endif %}
         </div>
         <a href="{% url 'payroll_logout' %}" class="btn btn-outline-danger shadow-sm rounded-pill px-4 py-2 fw-bold">
             <i class="fa-solid fa-right-from-bracket me-2"></i> Logout

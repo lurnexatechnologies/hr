@@ -181,6 +181,20 @@
                                     </div>
                                     <div class="col-md-4">
                                         <div class="p-3 bg-light rounded-4 border-0">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">FULL-TIME DATE</small>
+                                            <span class="fw-bold text-dark">
+                                                {% if employee.FullTimeDate %}
+                                                    {{ employee.FullTimeDate }}
+                                                {% elif employee.JoinedDate %}
+                                                    {{ employee.JoinedDate }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0">
                                             <small class="text-muted d-block smaller fw-bold mb-1">EMPLOYMENT TYPE</small>
                                             <span class="fw-bold text-dark">{{ employee.EmploymentType|default:"Permanent" }}</span>
                                         </div>

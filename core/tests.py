@@ -380,6 +380,85 @@ class BusinessLogicTestSuite(TestCase):
         if today.day != 30:
             self.assertTrue(any("failed" in m.lower() or "30th of the month" in m.lower() for m in messages), f"Messages: {messages}")
 
+    def test_09b_payroll_custom_generation_date(self):
+        """Test setting, validating, and clearing the custom payroll generation date."""
+        from core.dynamodb_service import SettingsTable
+        self.track_cleanup(SettingsTable, {'SettingKey': 'Payroll_Generation_Date'})
+
+        # Create fresh Super Admin user
+        super_user = {
+            'UserID': 'mock-super-admin-id-unique',
+            'Email': 'mock-super-unique@lurnexa.com',
+            'Role': 'Super admin',
+            'IsActive': True
+        }
+        UsersTable.put_item(item=super_user)
+        self.track_cleanup(UsersTable, {'UserID': 'mock-super-admin-id-unique'})
+            
+        self.set_session_data({'user_id': 'mock-super-admin-id-unique'})
+        
+        # 1. Super Admin sets custom payroll generation date to today
+        today_str = datetime.date.today().isoformat()
+        response = self.client.post('/payroll/approvals/set-generation-date/', {
+            'generation_date': today_str
+        }, follow=True)
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify it is in the database
+        setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
+        self.assertIsNotNone(setting)
+        self.assertEqual(setting.get('Value'), today_str)
+
+        # Create fresh HR Admin user
+        hr_user = {
+            'UserID': 'mock-hr-admin-id-unique',
+            'Email': 'mock-hr-unique@lurnexa.com',
+            'Role': 'HR ADMIN',
+            'IsActive': True
+        }
+        UsersTable.put_item(item=hr_user)
+        self.track_cleanup(UsersTable, {'UserID': 'mock-hr-admin-id-unique'})
+            
+        self.set_session_data({
+            'user_id': hr_user['UserID'],
+            'payroll_authenticated': True
+        })
+        
+        # Since today is the configured date, payroll generation should bypass the restriction
+        response = self.client.post('/payroll/manage/', {
+            'selected_employees': ['LT-26004']
+        }, follow=True)
+        messages = self.get_msg_texts(response)
+        self.assertFalse(any("date set by Super Admin" in m or "30th of the month" in m for m in messages))
+
+        # 2. Super Admin sets custom payroll generation date to a different date (e.g. tomorrow)
+        self.set_session_data({'user_id': super_user['UserID']})
+        tomorrow_str = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+        self.client.post('/payroll/approvals/set-generation-date/', {
+            'generation_date': tomorrow_str
+        }, follow=True)
+
+        # HR Admin attempts to run payroll on a non-configured date
+        self.set_session_data({
+            'user_id': hr_user['UserID'],
+            'payroll_authenticated': True
+        })
+        response = self.client.post('/payroll/manage/', {
+            'selected_employees': ['LT-26004']
+        }, follow=True)
+        messages = self.get_msg_texts(response)
+        self.assertTrue(any("Payroll Run Failed: Today is" in m and "Payroll can only be executed on the date set by Super Admin" in m for m in messages), f"Messages: {messages}")
+
+        # 3. Super Admin clears the custom payroll generation date
+        self.set_session_data({'user_id': super_user['UserID']})
+        self.client.post('/payroll/approvals/set-generation-date/', {
+            'clear': 'true'
+        }, follow=True)
+        
+        # Verify setting is deleted
+        setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
+        self.assertIsNone(setting)
+
     # --- PHASE 10: PF & STATUTORY ---
     def test_10_pf_details_validation(self):
         """Test PF details validation rules (PF exactly 22 alphanumeric, UAN exactly 12 digits)."""
@@ -421,6 +500,7 @@ class BusinessLogicTestSuite(TestCase):
 
         self.track_cleanup(OnboardingTokensTable, {'Token': token})
         self.track_cleanup(EmployeesTable, {'EmployeeID': temp_emp_id})
+        self.track_cleanup(EmployeesTable, {'EmployeeID': temp_emp_id + '-APP'})
         self.track_cleanup(UsersTable, {'UserID': temp_user_id})
 
         OnboardingTokensTable.put_item(item={
@@ -461,10 +541,12 @@ class BusinessLogicTestSuite(TestCase):
         # HR approves
         self.client.post(f'/employees/approve-onboarding/{temp_emp_id}/', {
             'action': 'approve',
-            'doc_statuses': '{}'
+            'doc_statuses': '{}',
+            'new_employee_id': temp_emp_id + '-APP'
         }, follow=True)
 
-        emp_record_final = EmployeesTable.get_item(key={'EmployeeID': temp_emp_id})
+        emp_record_final = EmployeesTable.get_item(key={'EmployeeID': temp_emp_id + '-APP'})
+        self.assertIsNotNone(emp_record_final)
         self.assertEqual(emp_record_final.get('OnboardingStatus'), 'Approved')
 
     def test_12_onboarding_rejection_workflow(self):

@@ -29,7 +29,19 @@ class PayrollLogicTests(TestCase):
             'lop_days': 0
         }
 
+    def tearDown(self):
+        from core.dynamodb_service import SettingsTable
+        try:
+            SettingsTable.delete_item({'SettingKey': 'Global_ESI_Amount'})
+        except Exception:
+            pass
+
     def test_standard_payroll_calculation(self):
+        from core.dynamodb_service import SettingsTable
+        SettingsTable.put_item({
+            'SettingKey': 'Global_ESI_Amount',
+            'Value': '1250.00'
+        })
         result = process_payroll_logic(self.standard_employee, self.standard_attendance, 5, 2026)
         
         self.assertEqual(result['GrossSalary'], Decimal('100000.00'))
@@ -43,7 +55,7 @@ class PayrollLogicTests(TestCase):
         # Professional Tax > 20k -> 200
         self.assertEqual(result['PT'], Decimal('200.00'))
         
-        # ESI (Gross > 21k -> 1.25% of AdjustedGross)
+        # ESI (Flat configured amount)
         self.assertEqual(result['ESI'], Decimal('1250.00'))
         
         self.assertTrue(result['NetPay'] > 0)

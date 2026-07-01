@@ -1476,8 +1476,8 @@ class ContactUsView(View):
             email_msg = EmailMessage(
                 subject=subject,
                 body=body,
-                from_email='lurnexasolution@gmail.com',
-                to=['lurnexasolution@gmail.com'],
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=['info@lurnexatechnologies.in'],
                 reply_to=[email]
             )
             email_msg.send(fail_silently=False)

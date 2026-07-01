@@ -453,12 +453,23 @@ class ManagePayrollView(PayrollRequiredMixin, View):
         esi_setting = SettingsTable.get_item({'SettingKey': 'Global_ESI_Amount'})
         global_esi = esi_setting.get('Value') if esi_setting else None
 
+        gen_date_setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
+        gen_date_str = gen_date_setting.get('Value') if gen_date_setting else None
+        formatted_gen_date = None
+        if gen_date_str:
+            try:
+                dt_obj = datetime.datetime.strptime(gen_date_str, "%Y-%m-%d")
+                formatted_gen_date = dt_obj.strftime("%d %B, %Y")
+            except:
+                formatted_gen_date = gen_date_str
+
         context = {
             'payroll_data': payroll_data_page,
             'total_run': len(payroll_data),
             'global_history': global_history_page,
             'total_hist': len(global_history),
             'global_esi': global_esi,
+            'generation_date': formatted_gen_date,
             'active_tab': request.GET.get('active_tab', 'generate')
         }
         return render(request, 'payroll/manage.html', context)
@@ -467,10 +478,39 @@ class ManagePayrollView(PayrollRequiredMixin, View):
         from core.utils import apply_pending_hikes
         apply_pending_hikes()
         today = get_local_date()
-        # Enforce payroll generation only on the 30th of the month
-        if today.day != 30:
-            messages.error(request, f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the 30th of the month.")
-            return redirect('manage_payroll')
+        
+        # Enforce payroll generation only on the day/date set by Super Admin
+        from core.dynamodb_service import SettingsTable
+        gen_date_setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
+        gen_date_str = gen_date_setting.get('Value') if gen_date_setting else None
+        
+        if gen_date_str:
+            is_valid_day = False
+            try:
+                configured_day = int(gen_date_str)
+                if today.day == configured_day:
+                    is_valid_day = True
+                else:
+                    error_msg = f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the {configured_day}th of the month."
+            except ValueError:
+                if today.strftime("%Y-%m-%d") == gen_date_str:
+                    is_valid_day = True
+                else:
+                    try:
+                        dt_obj = datetime.datetime.strptime(gen_date_str, "%Y-%m-%d")
+                        formatted_date = dt_obj.strftime("%d %B, %Y")
+                    except:
+                        formatted_date = gen_date_str
+                    error_msg = f"Payroll Run Failed: Today is {today.strftime('%d %B, %Y')}. Payroll can only be executed on the date set by Super Admin ({formatted_date})."
+            
+            if not is_valid_day:
+                messages.error(request, error_msg)
+                return redirect('manage_payroll')
+        else:
+            # Fallback to default (30th of the month)
+            if today.day != 30:
+                messages.error(request, f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the 30th of the month.")
+                return redirect('manage_payroll')
             
         selected_ids = request.POST.getlist('selected_employees')
         if not selected_ids:
@@ -493,6 +533,7 @@ class ManagePayrollView(PayrollRequiredMixin, View):
 
                 # Get bonus amount
                 bonus_amount = float(request.POST.get(f'bonus_{emp_id}', '0'))
+                bonus_percent = 0
 
                 lop_mode = request.POST.get(f'lop_mode_{emp_id}', 'automatic')
                 if lop_mode == 'manual':
@@ -522,8 +563,8 @@ class ManagePayrollView(PayrollRequiredMixin, View):
                     'EmployeeID': emp_id,
                     'EmployeeName': f"{emp.get('FirstName')} {emp.get('LastName')}",
                     'MonthYear': month_year,
-                    'PayslipData': {k: str(v) if isinstance(v, Decimal) else v for k, v in payslip_item.items()},
-                    'Attendance': {k: str(v) if isinstance(v, Decimal) else v for k, v in attendance.items()},
+                    'PayslipData': {k: str(v) if isinstance(v, (Decimal, float)) else v for k, v in payslip_item.items()},
+                    'Attendance': {k: str(v) if isinstance(v, (Decimal, float)) else v for k, v in attendance.items()},
                     'IncrementPercent': str(increment_percent),
                     'BonusPercent': str(bonus_percent)
                 })
@@ -816,7 +857,40 @@ class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
         context['filter_month'] = filter_month
         context['filter_year'] = filter_year
         context['is_active'] = False
+
+        # Get payroll generation date setting
+        from core.dynamodb_service import SettingsTable
+        gen_date_setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
+        context['payroll_generation_date'] = gen_date_setting.get('Value') if gen_date_setting else ''
+
         return context
+
+class SetPayrollGenerationDateView(SuperAdminRequiredMixin, View):
+    def post(self, request):
+        from core.dynamodb_service import SettingsTable
+        
+        # Check if they clicked the clear button
+        if request.POST.get('clear') == 'true':
+            SettingsTable.delete_item({'SettingKey': 'Payroll_Generation_Date'})
+            messages.success(request, 'Payroll generation date cleared. Reverted to default (30th of the month).')
+        else:
+            generation_date = request.POST.get('generation_date', '').strip()
+            if generation_date:
+                try:
+                    # Validate that it is a valid date (YYYY-MM-DD)
+                    datetime.datetime.strptime(generation_date, "%Y-%m-%d")
+                    
+                    SettingsTable.put_item({
+                        'SettingKey': 'Payroll_Generation_Date',
+                        'Value': generation_date
+                    })
+                    messages.success(request, f'Payroll generation date successfully set to {generation_date}.')
+                except ValueError:
+                    messages.error(request, 'Invalid date format. Please select a valid date.')
+            else:
+                messages.error(request, 'Please select a date.')
+                
+        return redirect('payroll_approval_list')
 
 class UpdateESIConfigView(PayrollRequiredMixin, View):
     def post(self, request):
@@ -882,7 +956,9 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                         'EmployeeID': emp_id,
                         'MonthYear': month_year,
                         'GeneratedAt': get_local_now().isoformat(),
-                        'ApprovedBy': request.user.employee_id
+                        'ApprovedBy': request.user.employee_id,
+                        'IncrementPercentage': item.get('IncrementPercent', '0'),
+                        'BonusPercentage': item.get('BonusPercent', '0')
                     })
                     PayslipsTable.put_item(final_payslip)
                     

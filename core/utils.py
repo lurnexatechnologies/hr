@@ -95,8 +95,8 @@ def get_days_count(leave_request):
 def get_initial_leave_balance(employee, leave_type):
     """
     Calculates the initial leave balance for SL and CL.
-    Prorated from joining month to December of the joining year for new employees.
-    If joined in a previous year, gets the full 12.0 days.
+    Prorated from joining/full-time month to December of the joining/full-time year for new employees.
+    If joined/full-time in a previous year, gets the full 12.0 days.
     Interns get 0.0.
     """
     if employee.get('EmploymentType') == 'Intern':
@@ -105,20 +105,20 @@ def get_initial_leave_balance(employee, leave_type):
     if leave_type not in ['SL', 'CL']:
         return 0.0
 
-    joined_date_str = employee.get('JoinedDate')
-    if not joined_date_str:
+    effective_date_str = employee.get('FullTimeDate') or employee.get('JoinedDate')
+    if not effective_date_str:
         return 12.0
 
     try:
-        joined_date = datetime.datetime.strptime(joined_date_str, '%Y-%m-%d').date()
+        effective_date = datetime.datetime.strptime(effective_date_str, '%Y-%m-%d').date()
         today = get_local_date()
         
-        if joined_date.year < today.year:
-            # Joined in a previous year, gets full 12.0 days
+        if effective_date.year < today.year:
+            # Joined/Full-time in a previous year, gets full 12.0 days
             return 12.0
         else:
-            # Joined in the current year (or future), prorate from joining month to December
-            months_count = 12 - joined_date.month + 1
+            # Joined/Full-time in the current year (or future), prorate from joining/full-time month to December
+            months_count = 12 - effective_date.month + 1
             return float(max(1, min(12, months_count)))
     except Exception as e:
         print(f"Error calculating initial leave: {e}")
@@ -141,6 +141,16 @@ def refresh_monthly_leaves(employee):
     # Inactive or resigned (ex-employees) should not have their leaves updated
     if not employee.get('IsActive', True):
         return False
+
+    # Check if today is before the employee's Full-time Date (or JoinedDate)
+    effective_date_str = employee.get('FullTimeDate') or employee.get('JoinedDate')
+    if effective_date_str:
+        try:
+            effective_date = datetime.datetime.strptime(effective_date_str, '%Y-%m-%d').date()
+            if today < effective_date:
+                return False
+        except Exception as e:
+            print(f"Error checking effective date: {e}")
 
     emp_id = employee.get('EmployeeID')
     current_month = today.strftime('%Y-%m')

@@ -447,6 +447,7 @@ class AddEmployeeView(HRRequiredMixin, View):
         emergency_relation = request.POST.get('emergency_relation')
         emergency_phone = request.POST.get('emergency_phone')
         joining_date = request.POST.get('joining_date') or datetime.date.today().isoformat()
+        fulltime_date = request.POST.get('fulltime_date') or joining_date
         dob = request.POST.get('dob')
         gender = request.POST.get('gender')
         is_pf_applicable = request.POST.get('is_pf_applicable') == 'on'
@@ -541,7 +542,8 @@ class AddEmployeeView(HRRequiredMixin, View):
         UsersTable.put_item(user_item)
         
         try:
-            j_month = datetime.datetime.strptime(joining_date, '%Y-%m-%d').month if joining_date else datetime.date.today().month
+            eff_date_str = fulltime_date or joining_date
+            j_month = datetime.datetime.strptime(eff_date_str, '%Y-%m-%d').month if eff_date_str else datetime.date.today().month
             prorated_val = str(float(max(1, 12 - j_month + 1)))
         except Exception:
             prorated_val = '12.0'
@@ -586,6 +588,7 @@ class AddEmployeeView(HRRequiredMixin, View):
             'RelievingLetter': relieving_letter,
             'PFLetter': pf_letter,
             'JoinedDate': joining_date,
+            'FullTimeDate': fulltime_date,
             'DOB': dob,
             'Gender': gender,
             'IsExperienced': request.POST.get('is_experienced') == 'on',
@@ -703,6 +706,7 @@ class EditEmployeeView(HRRequiredMixin, View):
             'AccountNumber': request.POST.get('account_number'),
             'IFSCCode': request.POST.get('ifsc_code'),
             'JoinedDate': request.POST.get('joining_date'),
+            'FullTimeDate': request.POST.get('fulltime_date') or request.POST.get('joining_date'),
             'DOB': request.POST.get('dob'),
             'Gender': request.POST.get('gender'),
             'is_pf_applicable': request.POST.get('is_pf_applicable') == 'on',
@@ -847,7 +851,12 @@ class EditEmployeeView(HRRequiredMixin, View):
             
             if prev_type == 'Intern' and new_type != 'Intern':
                 # Transitioning to Permanent/Probation - Initialize Leaves
-                months_count = 12 - get_local_date().month + 1
+                eff_date_str = update_data.get('FullTimeDate') or update_data.get('JoinedDate') or get_local_date().isoformat()
+                try:
+                    eff_month = datetime.datetime.strptime(eff_date_str, '%Y-%m-%d').month
+                except:
+                    eff_month = get_local_date().month
+                months_count = 12 - eff_month + 1
                 prorated_val = str(float(max(1, months_count)))
                 employee['Balance_SL'] = prorated_val
                 employee['Balance_CL'] = prorated_val
@@ -1057,6 +1066,7 @@ class GenerateOnboardingLinkView(HRRequiredMixin, View):
             'ProbationPeriod': request.POST.get('probation_period', '0'),
             'ManagerID': request.POST.get('manager_id'),
             'JoinedDate': request.POST.get('joining_date'),
+            'FullTimeDate': request.POST.get('fulltime_date') or request.POST.get('joining_date'),
             'Used': False
         })
         
@@ -1103,9 +1113,15 @@ class SelfOnboardingView(View):
         # Check Expiration (24 Hours)
         created_at_str = token_data.get('CreatedAt')
         if created_at_str:
-            created_at = datetime.datetime.fromisoformat(created_at_str)
-            if get_local_now() - created_at > datetime.timedelta(hours=24):
-                return render(request, 'core/error.html', {'message': 'This onboarding link has expired. Please contact HR for a new link.'})
+            try:
+                from django.utils import timezone as django_timezone
+                created_at = datetime.datetime.fromisoformat(created_at_str)
+                if created_at.tzinfo is None:
+                    created_at = django_timezone.make_aware(created_at, django_timezone.get_current_timezone())
+                if get_local_now() - created_at > datetime.timedelta(hours=24):
+                    return render(request, 'core/error.html', {'message': 'This onboarding link has expired. Please contact HR for a new link.'})
+            except Exception as e:
+                print(f"Error checking token expiration: {e}")
 
         return render(request, 'employees/self_onboarding.html', {
             'token': token,
@@ -1122,9 +1138,15 @@ class SelfOnboardingView(View):
         # Check Expiration (24 Hours)
         created_at_str = token_data.get('CreatedAt')
         if created_at_str:
-            created_at = datetime.datetime.fromisoformat(created_at_str)
-            if get_local_now() - created_at > datetime.timedelta(hours=24):
-                return render(request, 'core/error.html', {'message': 'This onboarding link has expired. Please contact HR for a new link.'})
+            try:
+                from django.utils import timezone as django_timezone
+                created_at = datetime.datetime.fromisoformat(created_at_str)
+                if created_at.tzinfo is None:
+                    created_at = django_timezone.make_aware(created_at, django_timezone.get_current_timezone())
+                if get_local_now() - created_at > datetime.timedelta(hours=24):
+                    return render(request, 'core/error.html', {'message': 'This onboarding link has expired. Please contact HR for a new link.'})
+            except Exception as e:
+                print(f"Error checking token expiration: {e}")
 
         email = request.POST.get('email')
         if not email:
@@ -1251,6 +1273,7 @@ class SelfOnboardingView(View):
             'RelievingLetter': save_uploaded_file(request.FILES.get('relieving_letter'), 'employees/docs'),
             'PFLetter': save_uploaded_file(request.FILES.get('pf_letter'), 'employees/docs'),
             'JoinedDate': token_data.get('JoinedDate', get_local_date().isoformat()),
+            'FullTimeDate': token_data.get('FullTimeDate') or token_data.get('JoinedDate') or get_local_date().isoformat(),
             'DOB': request.POST.get('dob') or token_data.get('DOB'),
             'Gender': gender,
             'IsExperienced': request.POST.get('is_experienced') == 'on',
@@ -1273,8 +1296,8 @@ class SelfOnboardingView(View):
                 'PFLetter': 'Pending' if request.FILES.get('pf_letter') else None
             },
             'Balance_PL': '0.0',
-            'Balance_SL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('JoinedDate') or get_local_date().isoformat()).split('-')[1]) + 1))),
-            'Balance_CL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('JoinedDate') or get_local_date().isoformat()).split('-')[1]) + 1))),
+            'Balance_SL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('FullTimeDate') or token_data.get('JoinedDate') or get_local_date().isoformat()).split('-')[1]) + 1))),
+            'Balance_CL': '0.0' if token_data.get('EmploymentType') == 'Intern' else str(float(max(1, 12 - int((token_data.get('FullTimeDate') or token_data.get('JoinedDate') or get_local_date().isoformat()).split('-')[1]) + 1))),
             'Balance_CO': '0.0',
             'LastLeaveRefresh': get_local_date().strftime('%Y-%m')
         }
