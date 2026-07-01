@@ -193,7 +193,7 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
         else:
             pf_employer = pf_employee
             
-    elif not is_intern and (employee.get('pf_enabled', False) or employee.get('is_pf_applicable', False)):
+    elif not is_intern and employee.get('is_pf_applicable', True):
         # Automated fallback if no manual record exists
         emp_pf_pct = float(employee.get('EmployeePFContribution', 12)) / 100
         mgr_pf_pct = float(employee.get('EmployerPFContribution', 12)) / 100
@@ -558,12 +558,16 @@ class ManagePayrollView(PayrollRequiredMixin, View):
 
                 payslip_item = process_payroll_logic(emp, attendance, today.month, today.year, increment=increment_amount, bonus=bonus_amount)
                 
+                # Serialize PayslipData
+                serialized_payslip = {k: str(v) if isinstance(v, (Decimal, float)) else v for k, v in payslip_item.items()}
+                serialized_payslip['PaidDays'] = str(attendance.get('paid_days', 0))
+                
                 # Bundle data
                 batch_data.append({
                     'EmployeeID': emp_id,
                     'EmployeeName': f"{emp.get('FirstName')} {emp.get('LastName')}",
                     'MonthYear': month_year,
-                    'PayslipData': {k: str(v) if isinstance(v, (Decimal, float)) else v for k, v in payslip_item.items()},
+                    'PayslipData': serialized_payslip,
                     'Attendance': {k: str(v) if isinstance(v, (Decimal, float)) else v for k, v in attendance.items()},
                     'IncrementPercent': str(increment_percent),
                     'BonusPercent': str(bonus_percent)
@@ -574,15 +578,22 @@ class ManagePayrollView(PayrollRequiredMixin, View):
         if not batch_data:
             messages.error(request, "Failed to process selected employees.")
             return redirect('manage_payroll')
-
         # Create Payroll Approval Request
         import uuid
         request_id = str(uuid.uuid4())
+        # Resolve submitter name
+        try:
+            submitter_emp = EmployeesTable.get_item({'EmployeeID': request.user.employee_id})
+            submitter_name = f"{submitter_emp.get('FirstName', '')} {submitter_emp.get('LastName', '')}" if submitter_emp else str(request.user.employee_id)
+        except Exception:
+            submitter_name = str(request.user.employee_id or 'HR Admin')
+        
         approval_item = {
             'RequestID': request_id,
             'MonthYear': month_year,
             'Status': 'Pending Super Admin Approval',
-            'SubmittedBy': request.user.employee_id,
+            'SubmittedBy': submitter_name,
+            'SubmittedByID': request.user.employee_id,
             'SubmittedAt': get_local_now().isoformat(),
             'BatchData': batch_data,
             'TotalNetPay': str(round(sum(float(b['PayslipData']['NetPay']) for b in batch_data), 2)),
@@ -968,10 +979,11 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                     # but TableService/Boto3 usually handles strings ok if that's what's expected.
                     # However, process_payroll_logic returns Decimals, so let's stick to that.
                     
-                    final_payslip = {k: Decimal(v) if k in ['NetPay', 'Basic', 'HRA', 'PF', 'ESI', 'PT', 'TDS', 'Bonus', 'GrossSalary', 'TotalDeductions', 'AdjustedGross', 'LOPDeduction'] else v for k, v in payslip_data.items()}
+                    final_payslip = {k: Decimal(v) if k in ['NetPay', 'Basic', 'HRA', 'SpecialAllowance', 'PF', 'EmployerPF', 'EmployerEPS', 'EmployerEDLI', 'ESI', 'PT', 'TDS', 'Bonus', 'GrossSalary', 'TotalDeductions', 'AdjustedGross', 'LOPDeduction', 'IncrementAdded', 'BaseSalaryPA', 'NewSalaryPA'] else v for k, v in payslip_data.items()}
                     final_payslip.update({
                         'EmployeeID': emp_id,
                         'MonthYear': month_year,
+                        'PaidDays': payslip_data.get('PaidDays', str(attendance.get('paid_days', 0))),
                         'GeneratedAt': get_local_now().isoformat(),
                         'ApprovedBy': request.user.employee_id,
                         'IncrementPercentage': item.get('IncrementPercent', '0'),

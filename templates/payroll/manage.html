@@ -70,6 +70,8 @@
                                     <th class="border-0 py-3">Basic</th>
                                     <th class="border-0 py-3">HRA</th>
                                     <th class="border-0 py-3 text-danger">LOP</th>
+                                    <th class="border-0 py-3 text-danger">PF</th>
+                                    <th class="border-0 py-3 text-danger">ESI</th>
                                     <th class="border-0 py-3 text-danger">TDS</th>
                                     <th class="border-0 py-3 text-danger">Total Ded.</th>
                                     <th class="border-0 py-3 text-success">Net Pay</th>
@@ -124,6 +126,8 @@
                                     <td class="text-dark smaller">₹ <span id="basic_{{ item.employee.EmployeeID }}">{{ item.preview.Basic }}</span></td>
                                     <td class="text-dark smaller">₹ <span id="hra_{{ item.employee.EmployeeID }}">{{ item.preview.HRA }}</span></td>
                                     <td class="text-danger smaller">₹ <span id="lop_deduction_{{ item.employee.EmployeeID }}">{{ item.preview.LOPDeduction }}</span> <br><small class="text-muted opacity-75">(<span id="lop_days_text_{{ item.employee.EmployeeID }}">{{ item.attendance.lop_days }}</span>d)</small></td>
+                                    <td class="text-danger smaller">₹ <span id="pf_{{ item.employee.EmployeeID }}">{{ item.preview.PF }}</span></td>
+                                    <td class="text-danger smaller">₹ <span id="esi_{{ item.employee.EmployeeID }}">{{ item.preview.ESI }}</span></td>
                                     <td class="text-danger smaller">₹ <span id="tds_{{ item.employee.EmployeeID }}">{{ item.preview.TDS }}</span></td>
                                     <td class="text-danger smaller">₹ <span id="total_deductions_{{ item.employee.EmployeeID }}">{{ item.preview.TotalDeductions }}</span></td>
                                     <td class="fw-bold text-success smaller">₹ <span id="net_pay_{{ item.employee.EmployeeID }}">{{ item.preview.NetPay }}</span></td>
@@ -459,6 +463,8 @@
             document.getElementById(`hra_${empId}`).innerText = formatCurrency(hra);
             document.getElementById(`lop_deduction_${empId}`).innerText = formatCurrency(lopDeduction);
             document.getElementById(`lop_days_text_${empId}`).innerText = lopDays;
+            document.getElementById(`pf_${empId}`).innerText = formatCurrency(pf);
+            document.getElementById(`esi_${empId}`).innerText = formatCurrency(esi);
             document.getElementById(`tds_${empId}`).innerText = formatCurrency(tds);
             document.getElementById(`total_deductions_${empId}`).innerText = formatCurrency(totalDeductions);
             document.getElementById(`net_pay_${empId}`).innerText = formatCurrency(netPay);

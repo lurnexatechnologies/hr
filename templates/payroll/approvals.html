@@ -164,7 +164,10 @@
                                                                 <tr>
                                                                     <th class="small fw-bold">Employee</th>
                                                                     <th class="small fw-bold">Gross Salary</th>
-                                                                    <th class="small fw-bold">Deductions</th>
+                                                                    <th class="small fw-bold text-danger">PF</th>
+                                                                    <th class="small fw-bold text-danger">ESI</th>
+                                                                    <th class="small fw-bold text-danger">TDS</th>
+                                                                    <th class="small fw-bold text-danger">Deductions</th>
                                                                     <th class="small fw-bold text-end">Net Payable</th>
                                                                 </tr>
                                                             </thead>
@@ -176,6 +179,9 @@
                                                                         <div class="text-muted small">{{ b.EmployeeID }}</div>
                                                                     </td>
                                                                     <td class="small">₹ {{ b.PayslipData.GrossSalary|format_currency }}</td>
+                                                                    <td class="small text-danger">₹ {{ b.PayslipData.PF|format_currency }}</td>
+                                                                    <td class="small text-danger">₹ {{ b.PayslipData.ESI|format_currency }}</td>
+                                                                    <td class="small text-danger">₹ {{ b.PayslipData.TDS|format_currency }}</td>
                                                                     <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
                                                                     <td class="fw-bold text-end text-primary">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
                                                                 </tr>
@@ -183,7 +189,7 @@
                                                             </tbody>
                                                             <tfoot class="bg-light fw-bold">
                                                                 <tr>
-                                                                    <td colspan="3" class="text-end py-3">Total Batch Net Pay:</td>
+                                                                    <td colspan="6" class="text-end py-3">Total Batch Net Pay:</td>
                                                                     <td class="text-end py-3 text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay|format_currency }}</td>
                                                                 </tr>
                                                             </tfoot>
@@ -331,7 +337,10 @@
                             <tr>
                                 <th class="ps-4 border-0 py-3">Employee</th>
                                 <th class="border-0 py-3">Gross Salary</th>
-                                <th class="border-0 py-3">Deductions</th>
+                                <th class="border-0 py-3 text-danger">PF</th>
+                                <th class="border-0 py-3 text-danger">ESI</th>
+                                <th class="border-0 py-3 text-danger">TDS</th>
+                                <th class="border-0 py-3 text-danger">Deductions</th>
                                 <th class="pe-4 border-0 py-3 text-end">Net Payable</th>
                             </tr>
                         </thead>
@@ -343,18 +352,21 @@
                                     <div class="text-muted small">{{ b.EmployeeID }}</div>
                                 </td>
                                 <td class="small">₹ {{ b.PayslipData.GrossSalary|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.PF|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.ESI|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.TDS|format_currency }}</td>
                                 <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
                                 <td class="fw-bold text-end text-primary pe-4">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="4" class="text-center py-5 text-muted small">No batch data available.</td>
+                                <td colspan="7" class="text-center py-5 text-muted small">No batch data available.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-light fw-bold">
                             <tr>
-                                <td colspan="3" class="text-end py-3">Total Batch Net Pay:</td>
+                                <td colspan="6" class="text-end py-3">Total Batch Net Pay:</td>
                                 <td class="text-end pe-4 py-3 text-success" style="font-size: 1.1rem;">₹ {{ selected_details.TotalNetPay|format_currency }}</td>
                             </tr>
                         </tfoot>
