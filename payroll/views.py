@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin
 from core.dynamodb_service import PayslipsTable, EmployeesTable, AttendanceTable, LeaveRequestsTable, HolidaysTable, PayrollApprovalsTable, UsersTable, ExpensesTable
 from core.kotak_service import KotakBankService
-from core.utils import safe_float, get_local_date, get_local_now
+from core.utils import safe_float, get_local_date, get_local_now, send_notification
 from boto3.dynamodb.conditions import Key
 import io
 from reportlab.pdfgen import canvas
@@ -671,20 +671,31 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.drawString(70, height - 205, "Joining Date:")
         p.drawString(70, height - 225, "PF Number:")
         
-        p.drawString(320, height - 165, "Designation:")
-        p.drawString(320, height - 185, "Department:")
-        p.drawString(320, height - 205, "Working Days:")
-        p.drawString(320, height - 225, "UAN Number:")
+        p.drawString(330, height - 165, "Designation:")
+        p.drawString(330, height - 185, "Department:")
+        p.drawString(330, height - 205, "Working Days:")
+        p.drawString(330, height - 225, "UAN Number:")
         
         p.setFont(font_regular, 10)
         p.setFillColorRGB(0, 0, 0)
+        
+        # Calculate dynamic font size for name to prevent overlap
+        name_font_size = 10.0
+        available_width = 330 - 165 - 10 # 155 points
+        while name_font_size > 7.0 and p.stringWidth(emp_name, font_regular, name_font_size) > available_width:
+            name_font_size -= 0.5
+            
+        p.setFont(font_regular, name_font_size)
         p.drawString(165, height - 165, emp_name)
+        
+        # Reset font to regular 10 for other details
+        p.setFont(font_regular, 10)
         p.drawString(165, height - 185, target_emp_id)
         p.drawString(165, height - 205, employee.get('JoinedDate') or 'N/A')
         p.drawString(165, height - 225, employee.get('PFNumber') or 'N/A')
         
-        p.drawString(410, height - 165, employee.get('Designation', 'N/A'))
-        p.drawString(410, height - 185, employee.get('Department', 'Engineering'))
+        p.drawString(420, height - 165, employee.get('Designation', 'N/A'))
+        p.drawString(420, height - 185, employee.get('Department', 'Engineering'))
         
         # Working Days with fallback for old records
         working_days = record.get('PaidDays')
@@ -698,8 +709,8 @@ class DownloadPayslipView(LoginRequiredMixin, View):
             except:
                 working_days = 'N/A'
         
-        p.drawString(410, height - 205, str(working_days))
-        p.drawString(410, height - 225, employee.get('UANNumber') or 'N/A')
+        p.drawString(420, height - 205, str(working_days))
+        p.drawString(420, height - 225, employee.get('UANNumber') or 'N/A')
 
         # 3. Salary Table (Earnings & Deductions)
         y = height - 270
@@ -1004,6 +1015,26 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                             emp['SalaryPA'] = payslip_data['NewSalaryPA']
                             
                         EmployeesTable.put_item(emp)
+                        
+                        # Send notification & email to employee
+                        try:
+                            month_name = month_year.split('_')[0].upper()
+                            year_val = month_year.split('_')[1]
+                            email_subject = f"Payslip for {month_name} {year_val} Generated"
+                            email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nYou can view and download your detailed payslip from the employee portal.\n\nBest regards,\nLurnexa HR Team"
+                            
+                            send_notification(
+                                employee_id=emp_id,
+                                title=f"Payslip Generated - {month_name} {year_val}",
+                                message=f"Your payslip for {month_name} {year_val} has been generated with Net Pay of INR {payslip_data.get('NetPay')}.",
+                                n_type='Payroll',
+                                icon='fa-file-invoice-dollar',
+                                color='success',
+                                email_subject=email_subject,
+                                email_body=email_body
+                            )
+                        except Exception as email_err:
+                            print(f"Error sending payslip notification for {emp_id}: {email_err}")
                     
                     # 3. Trigger Kotak Transfer
                     net_pay = float(payslip_data.get('NetPay', 0))
