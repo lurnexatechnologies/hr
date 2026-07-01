@@ -68,7 +68,7 @@
         <div class="px-4 py-3 bg-light border-bottom">
             <form method="GET" class="row g-2 align-items-center">
                 <input type="hidden" name="tab" id="activeTabInput" value="{{ active_tab }}">
-                <div class="col-md-8 d-flex gap-2 align-items-center" id="historyFilters" {% if active_tab == 'pending' %}style="display: none !important;"{% endif %}>
+                <div class="col-md-8 d-flex gap-2 align-items-center" id="historyFilters" {% if active_tab != 'history' %}style="display: none !important;"{% endif %}>
                     <span class="text-muted small fw-bold me-1">FILTER:</span>
                     <select name="month" class="form-select form-select-sm" style="max-width: 150px;" required>
                         <option value="" disabled {% if not filter_month %}selected{% endif %}>Select Month</option>
@@ -121,7 +121,7 @@
                                     <span class="fw-bold text-dark">{{ req.EmployeeCount }}</span> <span class="text-muted small">Employees</span>
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay }}</div>
+                                    <div class="fw-bold text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay|format_currency }}</div>
                                     <div class="text-muted small">Liability for the month</div>
                                 </td>
                                 <td>
@@ -175,16 +175,16 @@
                                                                         <div class="fw-bold small">{{ b.EmployeeName }}</div>
                                                                         <div class="text-muted small">{{ b.EmployeeID }}</div>
                                                                     </td>
-                                                                    <td class="small">₹ {{ b.PayslipData.GrossSalary }}</td>
-                                                                    <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions }}</td>
-                                                                    <td class="fw-bold text-end text-primary">₹ {{ b.PayslipData.NetPay }}</td>
+                                                                    <td class="small">₹ {{ b.PayslipData.GrossSalary|format_currency }}</td>
+                                                                    <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
+                                                                    <td class="fw-bold text-end text-primary">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
                                                                 </tr>
                                                                 {% endfor %}
                                                             </tbody>
                                                             <tfoot class="bg-light fw-bold">
                                                                 <tr>
                                                                     <td colspan="3" class="text-end py-3">Total Batch Net Pay:</td>
-                                                                    <td class="text-end py-3 text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay }}</td>
+                                                                    <td class="text-end py-3 text-success" style="font-size: 1.1rem;">₹ {{ req.TotalNetPay|format_currency }}</td>
                                                                 </tr>
                                                             </tfoot>
                                                         </table>
@@ -253,7 +253,7 @@
                                 </td>
                                 <td class="text-muted small">{{ req.ProcessorName|default:"System" }}</td>
                                 <td>{{ req.EmployeeCount }} Employees</td>
-                                <td class="fw-bold">₹ {{ req.TotalNetPay }}</td>
+                                <td class="fw-bold">₹ {{ req.TotalNetPay|format_currency }}</td>
                                 <td class="pe-4 text-end">
                                     <div class="d-flex gap-2 justify-content-end align-items-center">
                                         <a href="?tab=details&details={{ req.RequestID }}&month={{ filter_month }}&year={{ filter_year }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3 smaller">
@@ -342,9 +342,9 @@
                                     <div class="fw-bold small">{{ b.EmployeeName }}</div>
                                     <div class="text-muted small">{{ b.EmployeeID }}</div>
                                 </td>
-                                <td class="small">₹ {{ b.PayslipData.GrossSalary }}</td>
-                                <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions }}</td>
-                                <td class="fw-bold text-end text-primary pe-4">₹ {{ b.PayslipData.NetPay }}</td>
+                                <td class="small">₹ {{ b.PayslipData.GrossSalary|format_currency }}</td>
+                                <td class="small text-danger">₹ {{ b.PayslipData.TotalDeductions|format_currency }}</td>
+                                <td class="fw-bold text-end text-primary pe-4">₹ {{ b.PayslipData.NetPay|format_currency }}</td>
                             </tr>
                             {% empty %}
                             <tr>
@@ -355,7 +355,7 @@
                         <tfoot class="bg-light fw-bold">
                             <tr>
                                 <td colspan="3" class="text-end py-3">Total Batch Net Pay:</td>
-                                <td class="text-end pe-4 py-3 text-success" style="font-size: 1.1rem;">₹ {{ selected_details.TotalNetPay }}</td>
+                                <td class="text-end pe-4 py-3 text-success" style="font-size: 1.1rem;">₹ {{ selected_details.TotalNetPay|format_currency }}</td>
                             </tr>
                         </tfoot>
                     </table>

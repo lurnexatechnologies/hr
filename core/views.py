@@ -103,7 +103,7 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
         
         # 0. Payroll (Critical Priority)
         try:
-            payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin']
+            payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin Approval']
             for p in payroll_queue:
                 approvals.append({
                     'title': 'Payroll Batch',
@@ -883,17 +883,17 @@ class SuperAdminApprovalsView(SuperAdminRequiredMixin, TemplateView):
         
         # 1. Payroll Approvals (Most Critical)
         try:
-            payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin']
+            payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin Approval']
             for p in payroll_queue:
                 approvals.append({
                     'title': 'Payroll Batch Authorization',
                     'subtitle': f"{p.get('MonthYear')} Financial Liability",
-                    'detail': f"Total Disbursement: ₹{p.get('TotalGross')}",
+                    'detail': f"Total Disbursement: ₹{p.get('TotalNetPay')}",
                     'badge': 'Payroll',
                     'badge_class': 'success',
                     'icon': 'fa-money-bill-transfer',
                     'url': 'payroll_dashboard',
-                    'date': p.get('SubmissionDate', 'Recent')
+                    'date': p.get('SubmittedAt', 'Recent')
                 })
         except: pass
 

@@ -613,22 +613,31 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         width, height = letter
         
         # Register Fonts (Windows Support for Rupee Symbol)
+        font_regular = "Helvetica"
+        font_bold = "Helvetica-Bold"
+        font_italic = "Helvetica-Oblique"
+        currency_symbol = "Rs."
+        
         try:
             arial_path = "C:/Windows/Fonts/arial.ttf"
             arial_bold_path = "C:/Windows/Fonts/arialbd.ttf"
             if os.path.exists(arial_path):
                 pdfmetrics.registerFont(TTFont('Arial', arial_path))
+                font_regular = "Arial"
+                currency_symbol = "₹"
             if os.path.exists(arial_bold_path):
                 pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
+                font_bold = "Arial-Bold"
             
             arial_italic_path = "C:/Windows/Fonts/ariali.ttf"
             if os.path.exists(arial_italic_path):
                 pdfmetrics.registerFont(TTFont('Arial-Italic', arial_italic_path))
+                font_italic = "Arial-Italic"
         except: pass
 
         # 1. Header (Centered without logo)
         header_text = "LURNEXA"
-        p.setFont("Arial-Bold", 26)
+        p.setFont(font_bold, 26)
         p.setFillColorRGB(0.07, 0.2, 0.45) # Corporate Blue
         p.drawCentredString(width / 2, height - 75, header_text)
         
@@ -636,7 +645,7 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.setLineWidth(1.5)
         p.line(50, height - 100, width - 50, height - 100)
         
-        p.setFont("Arial-Bold", 12)
+        p.setFont(font_bold, 12)
         p.setFillColorRGB(0.3, 0.3, 0.3)
         p.drawCentredString(width / 2, height - 125, f"PAYROLL STATEMENT - {month_year.upper()}")
 
@@ -644,7 +653,7 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.setStrokeColorRGB(0.85, 0.85, 0.85)
         p.roundRect(50, height - 255, width - 100, 115, 5, fill=0, stroke=1)
         
-        p.setFont("Arial-Bold", 10)
+        p.setFont(font_bold, 10)
         p.setFillColorRGB(0, 0, 0)
         p.drawString(70, height - 165, "Employee Name:")
         p.drawString(70, height - 185, "Employee ID:")
@@ -656,7 +665,7 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.drawString(320, height - 205, "Working Days:")
         p.drawString(320, height - 225, "UAN Number:")
         
-        p.setFont("Arial", 10)
+        p.setFont(font_regular, 10)
         p.setFillColorRGB(0, 0, 0)
         p.drawString(165, height - 165, emp_name)
         p.drawString(165, height - 185, target_emp_id)
@@ -689,7 +698,7 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.rect(50, y - 20, 250, 20, fill=0, stroke=1) # Earnings Header
         p.rect(310, y - 20, 250, 20, fill=0, stroke=1) # Deductions Header
         
-        p.setFont("Arial-Bold", 10)
+        p.setFont(font_bold, 10)
         p.setFillColorRGB(0, 0, 0) # Black text for headers
         p.drawString(60, y - 13, "Earnings")
         p.drawRightString(290, y - 13, "Amount")
@@ -697,7 +706,7 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.drawRightString(550, y - 13, "Amount")
         
         y -= 20
-        p.setFont("Arial", 10)
+        p.setFont(font_regular, 10)
         p.setFillColorRGB(0, 0, 0)
 
         # Helper for row drawing
@@ -706,12 +715,12 @@ class DownloadPayslipView(LoginRequiredMixin, View):
             
             p.drawString(60, curr_y - 12, label_e)
             if val_e is not None:
-                p.drawRightString(290, curr_y - 12, f"₹ {float(val_e):,.2f}")
+                p.drawRightString(290, curr_y - 12, f"{currency_symbol} {float(val_e):,.2f}")
             
             if label_d:
                 p.drawString(320, curr_y - 12, label_d)
                 if val_d is not None:
-                    p.drawRightString(550, curr_y - 12, f"₹ {float(val_d):,.2f}")
+                    p.drawRightString(550, curr_y - 12, f"{currency_symbol} {float(val_d):,.2f}")
             return curr_y - 18
 
         y = draw_row(p, "Basic Salary", record.get('Basic', 0), "Income Tax (TDS)", record.get('TDS', 0), y, True)
@@ -726,26 +735,26 @@ class DownloadPayslipView(LoginRequiredMixin, View):
             inc_pct = record.get('IncrementPercentage', 0)
             monthly_inc = float(record.get('IncrementAdded', 0)) / 12
             p.setFillColorRGB(0, 0, 0)
-            p.setFont("Arial-Bold", 9)
+            p.setFont(font_bold, 9)
             p.drawString(60, y - 12, f"Salary Increment ({inc_pct}%)")
-            p.drawRightString(290, y - 12, f"+ ₹ {monthly_inc:,.2f}")
+            p.drawRightString(290, y - 12, f"+ {currency_symbol} {monthly_inc:,.2f}")
             y -= 18
 
         # Bonus Row (Conditional)
         if float(record.get('Bonus', 0)) > 0:
             bonus_pct = record.get('BonusPercentage', 0)
             p.setFillColorRGB(0, 0, 0)
-            p.setFont("Arial-Bold", 9)
+            p.setFont(font_bold, 9)
             p.drawString(60, y - 12, f"Performance Bonus ({bonus_pct}%)")
-            p.drawRightString(290, y - 12, f"+ ₹ {float(record.get('Bonus', 0)):,.2f}")
+            p.drawRightString(290, y - 12, f"+ {currency_symbol} {float(record.get('Bonus', 0)):,.2f}")
             y -= 18
 
         # LOP Row (Deduction on Earnings Side)
         if float(record.get('LOPDeduction', 0)) > 0:
             p.setFillColorRGB(0, 0, 0)
-            p.setFont("Arial-Italic", 9)
+            p.setFont(font_italic, 9)
             p.drawString(60, y - 12, "LOP Deduction")
-            p.drawRightString(290, y - 12, f"- ₹ {float(record.get('LOPDeduction', 0)):,.2f}")
+            p.drawRightString(290, y - 12, f"- {currency_symbol} {float(record.get('LOPDeduction', 0)):,.2f}")
             y -= 18
 
         # Table Totals
@@ -755,26 +764,26 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         p.line(320, y, 550, y)
         
         y -= 15
-        p.setFont("Arial-Bold", 10)
+        p.setFont(font_bold, 10)
         p.setFillColorRGB(0, 0, 0)
         p.drawString(60, y, "Adjusted Gross")
-        p.drawRightString(290, y, f"₹ {float(record.get('AdjustedGross', 0)):,.2f}")
+        p.drawRightString(290, y, f"{currency_symbol} {float(record.get('AdjustedGross', 0)):,.2f}")
         p.drawString(320, y, "Total Deductions")
-        p.drawRightString(550, y, f"₹ {float(record.get('TotalDeductions', 0)):,.2f}")
+        p.drawRightString(550, y, f"{currency_symbol} {float(record.get('TotalDeductions', 0)):,.2f}")
 
         # 4. NET PAYABLE (Highlight Box)
         y -= 70
         p.setStrokeColorRGB(0, 0, 0)
         p.roundRect(50, y - 15, width - 100, 50, 8, fill=0, stroke=1)
         
-        p.setFont("Arial-Bold", 16)
+        p.setFont(font_bold, 16)
         p.setFillColorRGB(0, 0, 0)
         p.drawString(75, y + 5, "NET PAYABLE")
-        p.setFont("Arial-Bold", 20)
-        p.drawRightString(width - 75, y + 5, f"₹ {float(record.get('NetPay', 0)):,.2f}")
+        p.setFont(font_bold, 20)
+        p.drawRightString(width - 75, y + 5, f"{currency_symbol} {float(record.get('NetPay', 0)):,.2f}")
         
         # 5. Footer
-        p.setFont("Arial-Italic", 8)
+        p.setFont(font_italic, 8)
         p.setFillColorRGB(0, 0, 0)
         p.drawCentredString(width / 2, 40, "This is a computer-generated document and does not require a physical signature.")
         
@@ -827,8 +836,8 @@ class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
         context['history_page_obj'] = paginator_hist.get_page(page_hist)
         
         context['pending_count'] = len(pending)
-        context['active_tab'] = self.request.GET.get('tab', 'pending')
         
+        requested_tab = self.request.GET.get('tab', 'pending')
         details_id = self.request.GET.get('details')
         if details_id:
             details_req = next((r for r in all_requests if r.get('RequestID') == details_id), None)
@@ -845,7 +854,15 @@ class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
                 paginator_batch = Paginator(batch_data, 10)
                 page_batch = self.request.GET.get('batch_page')
                 context['batch_page_obj'] = paginator_batch.get_page(page_batch)
-                context['active_tab'] = 'details'
+                requested_tab = 'details'
+            else:
+                if requested_tab == 'details':
+                    requested_tab = 'history'
+        else:
+            if requested_tab == 'details':
+                requested_tab = 'history'
+                
+        context['active_tab'] = requested_tab
         
         # Filters context
         context['months'] = [
