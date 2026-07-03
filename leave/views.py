@@ -454,9 +454,8 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         file_path = None
         
         is_sick_over_2 = leave_type == 'Sick Leave (SL)' and working_days > 2
-        is_unpaid = leave_type == 'Unpaid Leave'
         
-        if is_sick_over_2 or is_unpaid:
+        if is_sick_over_2:
             if not uploaded_file:
                 messages.error(request, f"A supporting document is required for {leave_type}.")
                 return redirect('apply_leave')

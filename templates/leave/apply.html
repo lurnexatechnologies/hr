@@ -230,9 +230,8 @@
         }
 
         const isSickLeaveMoreThanTwo = (leaveType === 'Sick Leave (SL)' && days > 2);
-        const isUnpaidLeave = (leaveType === 'Unpaid Leave');
 
-        if (isSickLeaveMoreThanTwo || isUnpaidLeave) {
+        if (isSickLeaveMoreThanTwo) {
             container.style.display = 'block';
             fileInput.setAttribute('required', '');
         } else {
