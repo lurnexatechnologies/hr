@@ -75,11 +75,11 @@
                             <input type="date" class="form-control form-control-lg bg-light border-0"
                                 name="joining_date" required value="{{ employee.JoinedDate }}">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-4" id="fulltime_date_container">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Full-time Date <span
                                     class="text-danger">*</span></label>
                             <input type="date" class="form-control form-control-lg bg-light border-0"
-                                name="fulltime_date" required value="{{ employee.FullTimeDate|default:employee.JoinedDate }}">
+                                name="fulltime_date" id="fulltime_date" required value="{{ employee.FullTimeDate|default:employee.JoinedDate }}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Date of Birth <span
@@ -188,8 +188,7 @@
                         <label class="form-check-label fw-bold text-muted" for="isExperiencedAdmin">Is Experienced
                             Professional?</label>
                     </div>
-                    <div id="experienceFieldsAdmin"
-                        style="{% if not employee.IsExperienced %}display: none;{% endif %}">
+                    <div id="experienceFieldsAdmin" {% if not employee.IsExperienced %}style="display: none;"{% endif %}>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold small text-uppercase text-muted">Previous Company
@@ -653,6 +652,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         toggleManagerSelect();
+        toggleInternshipField();
 
         // Parse Education Summary if exists
         const eduStr = document.getElementById('finalEducation').value;
@@ -715,14 +715,28 @@
         const internContainer = document.getElementById('internship_period_container');
         const probStatusContainer = document.getElementById('probation_status_container');
         const probPeriodContainer = document.getElementById('probation_period_container');
+        const fullTimeDateContainer = document.getElementById('fulltime_date_container');
+        const fullTimeDateInput = document.getElementById('fulltime_date');
 
         if (type === 'Intern') {
             if (internContainer) internContainer.classList.remove('d-none');
             if (probStatusContainer) probStatusContainer.classList.add('d-none');
             if (probPeriodContainer) probPeriodContainer.classList.add('d-none');
+            if (fullTimeDateContainer) fullTimeDateContainer.classList.add('d-none');
+            if (fullTimeDateInput) {
+                fullTimeDateInput.required = false;
+                fullTimeDateInput.value = '';
+            }
         } else {
             if (internContainer) internContainer.classList.add('d-none');
             if (probStatusContainer) probStatusContainer.classList.remove('d-none');
+            if (fullTimeDateContainer) fullTimeDateContainer.classList.remove('d-none');
+            if (fullTimeDateInput) {
+                fullTimeDateInput.required = true;
+                if (!fullTimeDateInput.value || fullTimeDateInput.value === '') {
+                    fullTimeDateInput.value = document.querySelector('input[name="joining_date"]').value;
+                }
+            }
             toggleProbationField();
         }
     }

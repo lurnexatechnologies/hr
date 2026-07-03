@@ -79,9 +79,9 @@
                             <label class="form-label fw-semibold small text-uppercase text-muted">Joining Date <span
                                     class="text-danger">*</span></label>
                             <input type="date" class="form-control form-control-lg bg-light border-0" name="joining_date"
-                                id="add_joining_date" required value="{% now 'Y-m-d' %}" onchange="document.getElementById('add_fulltime_date').value = this.value">
+                                id="add_joining_date" required value="{% now 'Y-m-d' %}" onchange="if(document.getElementById('employment_type').value !== 'Intern') { document.getElementById('add_fulltime_date').value = this.value; }">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-6" id="add_fulltime_date_container">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Full-time Date <span
                                     class="text-danger">*</span></label>
                             <input type="date" class="form-control form-control-lg bg-light border-0" name="fulltime_date"
@@ -620,9 +620,9 @@
                         <label class="form-label small fw-bold text-uppercase text-muted">Joining Date <span
                                 class="text-danger">*</span></label>
                         <input type="date" name="joining_date" id="self_joining_date" class="form-control form-control-lg bg-white border"
-                            required value="{% now 'Y-m-d' %}" onchange="document.getElementById('self_fulltime_date').value = this.value">
+                            required value="{% now 'Y-m-d' %}" onchange="if(document.getElementById('self_employment_type').value !== 'Intern') { document.getElementById('self_fulltime_date').value = this.value; }">
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3" id="self_fulltime_date_container">
                         <label class="form-label small fw-bold text-uppercase text-muted">Full-time Date <span
                                 class="text-danger">*</span></label>
                         <input type="date" name="fulltime_date" id="self_fulltime_date" class="form-control form-control-lg bg-white border"
@@ -834,6 +834,8 @@
     document.addEventListener('DOMContentLoaded', () => {
         toggleManagerSelect();
         toggleSelfManagerSelect();
+        toggleInternshipField();
+        toggleSelfInternshipField();
 
         // Education Summary Logic
         const addEmpForm = document.getElementById('addEmployeeForm');
@@ -956,14 +958,28 @@
         const internContainer = document.getElementById('internship_period_container');
         const probStatusContainer = document.getElementById('probation_status_container');
         const probPeriodContainer = document.getElementById('probation_period_container');
+        const fullTimeDateContainer = document.getElementById('add_fulltime_date_container');
+        const fullTimeDateInput = document.getElementById('add_fulltime_date');
 
         if (type === 'Intern') {
             if (internContainer) internContainer.classList.remove('d-none');
             if (probStatusContainer) probStatusContainer.classList.add('d-none');
             if (probPeriodContainer) probPeriodContainer.classList.add('d-none');
+            if (fullTimeDateContainer) fullTimeDateContainer.classList.add('d-none');
+            if (fullTimeDateInput) {
+                fullTimeDateInput.required = false;
+                fullTimeDateInput.value = '';
+            }
         } else {
             if (internContainer) internContainer.classList.add('d-none');
             if (probStatusContainer) probStatusContainer.classList.remove('d-none');
+            if (fullTimeDateContainer) fullTimeDateContainer.classList.remove('d-none');
+            if (fullTimeDateInput) {
+                fullTimeDateInput.required = true;
+                if (!fullTimeDateInput.value) {
+                    fullTimeDateInput.value = document.getElementById('add_joining_date').value;
+                }
+            }
             toggleProbationField();
         }
     }
@@ -985,14 +1001,28 @@
         const internContainer = document.getElementById('self_internship_period_container');
         const probStatusContainer = document.getElementById('self_probation_status_container');
         const probPeriodContainer = document.getElementById('self_probation_period_container');
+        const fullTimeDateContainer = document.getElementById('self_fulltime_date_container');
+        const fullTimeDateInput = document.getElementById('self_fulltime_date');
 
         if (type === 'Intern') {
             if (internContainer) internContainer.classList.remove('d-none');
             if (probStatusContainer) probStatusContainer.classList.add('d-none');
             if (probPeriodContainer) probPeriodContainer.classList.add('d-none');
+            if (fullTimeDateContainer) fullTimeDateContainer.classList.add('d-none');
+            if (fullTimeDateInput) {
+                fullTimeDateInput.required = false;
+                fullTimeDateInput.value = '';
+            }
         } else {
             if (internContainer) internContainer.classList.add('d-none');
             if (probStatusContainer) probStatusContainer.classList.remove('d-none');
+            if (fullTimeDateContainer) fullTimeDateContainer.classList.remove('d-none');
+            if (fullTimeDateInput) {
+                fullTimeDateInput.required = true;
+                if (!fullTimeDateInput.value) {
+                    fullTimeDateInput.value = document.getElementById('self_joining_date').value;
+                }
+            }
             toggleSelfProbationField();
         }
     }

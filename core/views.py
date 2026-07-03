@@ -431,29 +431,6 @@ class SettingsView(LoginRequiredMixin, TemplateView):
             )
             context['full_login_history'] = full_history
 
-            # If user is a Manager, they can pick their Reporting HR
-            if user.role == 'Manager':
-                all_users = UsersTable.scan()
-                all_employees = EmployeesTable.scan()
-                hr_list = []
-                for u in all_users:
-                    if u.get('Role') == 'HR ADMIN':
-                        emp = next((e for e in all_employees if e.get('EmployeeID') == u.get('EmployeeID')), None)
-                        if emp:
-                            hr_list.append({
-                                'EmployeeID': emp['EmployeeID'],
-                                'Name': f"{emp.get('FirstName')} {emp.get('LastName')}"
-                            })
-                context['hr_list'] = hr_list
-                
-                # Fetch current selection
-                hierarchy = ReportingHierarchyTable.scan(
-                    FilterExpression="EmployeeID = :eid",
-                    ExpressionAttributeValues={":eid": user.employee_id}
-                )
-                if hierarchy:
-                    context['current_hr_id'] = hierarchy[0].get('ManagerID')
-
         except Exception as e:
             print(f"Error in Settings context: {e}")
             context['login_history'] = []
@@ -463,30 +440,6 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         user = request.user
         action = request.POST.get('action')
         
-        if action == 'update_reporting':
-            if user.role == 'Super admin':
-                messages.error(request, "Super admin cannot have a reporting HR.")
-                return redirect('settings')
-                
-            hr_id = request.POST.get('hr_id')
-            if hr_id:
-                from core.dynamodb_service import ReportingHierarchyTable
-                # Remove existing
-                existing = ReportingHierarchyTable.scan(
-                    FilterExpression="EmployeeID = :eid",
-                    ExpressionAttributeValues={":eid": user.employee_id}
-                )
-                for item in existing:
-                    ReportingHierarchyTable.delete_item({'ManagerID': item['ManagerID'], 'EmployeeID': user.employee_id})
-                
-                # Add new
-                ReportingHierarchyTable.put_item({
-                    'ManagerID': hr_id,
-                    'EmployeeID': user.employee_id
-                })
-                messages.success(request, "Reporting HR updated successfully.")
-            return redirect('settings')
-            
         # Basic Profile Update & Security Settings
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')

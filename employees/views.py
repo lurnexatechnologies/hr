@@ -447,11 +447,11 @@ class AddEmployeeView(HRRequiredMixin, View):
         emergency_relation = request.POST.get('emergency_relation')
         emergency_phone = request.POST.get('emergency_phone')
         joining_date = request.POST.get('joining_date') or datetime.date.today().isoformat()
-        fulltime_date = request.POST.get('fulltime_date') or joining_date
+        employment_type = request.POST.get('employment_type', 'Permanent')
+        fulltime_date = '' if employment_type == 'Intern' else (request.POST.get('fulltime_date') or joining_date)
         dob = request.POST.get('dob')
         gender = request.POST.get('gender')
         is_pf_applicable = request.POST.get('is_pf_applicable') == 'on' if 'is_pf_applicable_present' in request.POST or 'is_pf_applicable' in request.POST else True
-        employment_type = request.POST.get('employment_type', 'Permanent')
         internship_period = request.POST.get('internship_period', '0') if employment_type == 'Intern' else '0'
         employment_status = request.POST.get('employment_status', 'Full Time')
         probation_period = request.POST.get('probation_period', '0') if employment_status == 'Probation' else '0'
@@ -640,7 +640,9 @@ class EditEmployeeView(HRRequiredMixin, View):
         if 'JoinedDate' not in employee:
             employee['JoinedDate'] = ''
         if 'FullTimeDate' not in employee:
-            employee['FullTimeDate'] = employee['JoinedDate']
+            employee['FullTimeDate'] = '' if employee.get('EmploymentType') == 'Intern' else employee['JoinedDate']
+        elif employee.get('EmploymentType') == 'Intern':
+            employee['FullTimeDate'] = ''
         
         # Fetch current manager
         current_manager_link = ReportingHierarchyTable.scan(
@@ -712,7 +714,7 @@ class EditEmployeeView(HRRequiredMixin, View):
             'AccountNumber': request.POST.get('account_number'),
             'IFSCCode': request.POST.get('ifsc_code'),
             'JoinedDate': request.POST.get('joining_date'),
-            'FullTimeDate': request.POST.get('fulltime_date') or request.POST.get('joining_date'),
+            'FullTimeDate': '' if request.POST.get('employment_type') == 'Intern' else (request.POST.get('fulltime_date') or request.POST.get('joining_date')),
             'DOB': request.POST.get('dob'),
             'Gender': request.POST.get('gender'),
             'is_pf_applicable': request.POST.get('is_pf_applicable') == 'on' if 'is_pf_applicable_present' in request.POST or 'is_pf_applicable' in request.POST else employee.get('is_pf_applicable', True),
@@ -1072,7 +1074,7 @@ class GenerateOnboardingLinkView(HRRequiredMixin, View):
             'ProbationPeriod': request.POST.get('probation_period', '0'),
             'ManagerID': request.POST.get('manager_id'),
             'JoinedDate': request.POST.get('joining_date'),
-            'FullTimeDate': request.POST.get('fulltime_date') or request.POST.get('joining_date'),
+            'FullTimeDate': '' if request.POST.get('employment_type') == 'Intern' else (request.POST.get('fulltime_date') or request.POST.get('joining_date')),
             'Used': False
         })
         
@@ -1279,7 +1281,7 @@ class SelfOnboardingView(View):
             'RelievingLetter': save_uploaded_file(request.FILES.get('relieving_letter'), 'employees/docs'),
             'PFLetter': save_uploaded_file(request.FILES.get('pf_letter'), 'employees/docs'),
             'JoinedDate': token_data.get('JoinedDate', get_local_date().isoformat()),
-            'FullTimeDate': token_data.get('FullTimeDate') or token_data.get('JoinedDate') or get_local_date().isoformat(),
+            'FullTimeDate': '' if token_data.get('EmploymentType') == 'Intern' else (token_data.get('FullTimeDate') or token_data.get('JoinedDate') or get_local_date().isoformat()),
             'DOB': request.POST.get('dob') or token_data.get('DOB'),
             'Gender': gender,
             'IsExperienced': request.POST.get('is_experienced') == 'on',
@@ -1819,6 +1821,7 @@ class PrintLetterView(LoginRequiredMixin, View):
 class VerifyPasswordView(LoginRequiredMixin, View):
     def post(self, request):
         from django.http import JsonResponse
+        from django.contrib.auth.hashers import check_password
         import json
         import bcrypt
         
@@ -1835,8 +1838,25 @@ class VerifyPasswordView(LoginRequiredMixin, View):
         if not user_rec:
             return JsonResponse({'valid': False, 'error': 'User not found'}, status=404)
             
-        hashed = user_rec.get('PasswordHash', '').encode('utf-8')
-        if bcrypt.checkpw(password.encode('utf-8')[:72], hashed):
+        hashed = user_rec.get('PasswordHash', '')
+        if not hashed:
+            hashed = user_rec.get('Password', '')
+            
+        is_valid = False
+        # 1. Try Django's check_password first
+        if check_password(password, hashed):
+            is_valid = True
+        else:
+            # 2. Fallback to raw bcrypt for legacy users
+            try:
+                # Ensure we are dealing with strings or bytes correctly
+                hashed_bytes = hashed.encode('utf-8') if isinstance(hashed, str) else hashed
+                if bcrypt.checkpw(password.encode('utf-8')[:72], hashed_bytes):
+                    is_valid = True
+            except Exception:
+                pass
+                
+        if is_valid:
             return JsonResponse({'valid': True})
         else:
             return JsonResponse({'valid': False, 'error': 'Incorrect password'})

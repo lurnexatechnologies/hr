@@ -754,7 +754,7 @@
             const filesToVerify = [];
             
             fileInputs.forEach(input => {
-                if (input.files && input.files.length > 0) {
+                if (!input.disabled && input.files && input.files.length > 0) {
                     for (let i = 0; i < input.files.length; i++) {
                         const file = input.files[i];
                         filesToVerify.push({
@@ -771,15 +771,15 @@
                     const reader = new FileReader();
                     reader.onload = () => resolve(true);
                     reader.onerror = () => resolve(false);
-                    // Read first 100 bytes to check accessibility
-                    reader.readAsArrayBuffer(file.slice(0, 100));
+                    // Read the entire file to ensure the browser verifies all metadata / accessibility
+                    reader.readAsArrayBuffer(file);
                 });
             };
             
             for (let item of filesToVerify) {
                 const isReadable = await verifyFile(item.file);
                 if (!isReadable) {
-                    alert(`Your browser has lost access to the file "${item.file.name}" (${item.inputLabel}) because it was minimized or moved. Please click on the file field and re-select this file.`);
+                    alert(`Your browser has lost access to the file "${item.file.name}" (${item.inputLabel}) because it was modified, minimized, or moved. Please click on the file upload field, re-select this file, and try again.`);
                     
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalBtnHtml;
@@ -803,8 +803,32 @@
             }
             sessionStorage.setItem(`selfOnboardingFormData_${form.email.value}`, JSON.stringify(data));
             
-            // 4. Submit form
-            form.submit();
+            // 4. Submit form via Fetch to intercept any client/browser file-read errors before navigation
+            try {
+                const response = await fetch(form.action || window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Clear the stored form data on successful submission
+                    sessionStorage.removeItem(`selfOnboardingFormData_${form.email.value}`);
+                    
+                    const html = await response.text();
+                    document.open();
+                    document.write(html);
+                    document.close();
+                } else {
+                    alert("A server error occurred while processing your onboarding. Please try again or contact HR.");
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            } catch (err) {
+                console.error("Submission failed with file/network error:", err);
+                alert("File Access Error: One or more selected files could not be read (e.g. they were moved, edited, or deleted). Please click on the file upload fields, re-select the files, and try again.");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
         });
         
         // Form Data Retention Logic
@@ -897,6 +921,7 @@
                     expFields.style.display = 'block';
                     fresherMsg.style.display = 'none';
                     expFields.querySelectorAll('input').forEach(i => {
+                        i.disabled = false;
                         if (['previous_company', 'last_designation', 'experience_years', 'last_working_date'].includes(i.name)) {
                             i.required = true; 
                         }
@@ -904,7 +929,10 @@
                 } else {
                     expFields.style.display = 'none';
                     fresherMsg.style.display = 'block';
-                    expFields.querySelectorAll('input').forEach(i => i.required = false);
+                    expFields.querySelectorAll('input').forEach(i => {
+                        i.required = false;
+                        i.disabled = true;
+                    });
                 }
             };
             

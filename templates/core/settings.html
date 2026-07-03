@@ -7,29 +7,6 @@
 <div class="container-fluid py-4">
     <div class="row">
         <div class="col-12 col-xl-8">
-            {% if request.user.role == 'Manager' %}
-            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px; border-left: 4px solid #1a4f8b !important;">
-                <div class="card-body p-4">
-                    <h5 class="mb-4 fw-bold text-primary"><i class="fa-solid fa-sitemap me-2"></i> Reporting Settings</h5>
-                    <p class="text-muted small mb-4">Select the HR administrator who will process your leave approvals and administrative requests.</p>
-                    
-                    <form method="POST">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="update_reporting">
-                        <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold">Select Reporting HR</label>
-                            <select name="hr_id" class="form-select bg-light border-0 py-2">
-                                <option value="">-- Choose HR Contact --</option>
-                                {% for hr in hr_list %}
-                                <option value="{{ hr.EmployeeID }}" {% if hr.EmployeeID == current_hr_id %}selected{% endif %}>{{ hr.Name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px;">Set Reporting HR</button>
-                    </form>
-                </div>
-            </div>
-            {% endif %}
 
             <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
                 <div class="card-body p-4">
@@ -75,17 +52,41 @@
                         
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">Current Password</label>
-                            <input type="password" name="current_password" class="form-control bg-light border-0 py-2" placeholder="••••••••">
+                            <div class="position-relative">
+                                <input type="password" name="current_password" id="current_password" class="form-control bg-light border-0 py-2" placeholder="••••••••" style="padding-right: 45px;">
+                                <button type="button" class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2" onclick="togglePasswordVisibility('current_password', this)" style="z-index: 10; margin-top: -1px;">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold">New Password</label>
-                                <input type="password" name="new_password" class="form-control bg-light border-0 py-2">
+                                <div class="position-relative">
+                                    <input type="password" name="new_password" id="new_password" class="form-control bg-light border-0 py-2" style="padding-right: 45px;" oninput="validateSettingsPassword()">
+                                    <button type="button" class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2" onclick="togglePasswordVisibility('new_password', this)" style="z-index: 10; margin-top: -1px;">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div id="settingsPasswordRules" class="mt-2 p-3 bg-light rounded border" style="display: none; font-size: 0.75rem; border-color: #e2e8f0 !important;">
+                                    <p class="fw-bold mb-1 text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Password Strength Checklist</p>
+                                    <div id="rule-length" class="text-danger mb-1"><i class="fa-solid fa-circle-xmark me-1"></i> At least 8 characters</div>
+                                    <div id="rule-capital" class="text-danger mb-1"><i class="fa-solid fa-circle-xmark me-1"></i> At least 1 uppercase letter</div>
+                                    <div id="rule-lowercase" class="text-danger mb-1"><i class="fa-solid fa-circle-xmark me-1"></i> At least 1 lowercase letter</div>
+                                    <div id="rule-number" class="text-danger mb-1"><i class="fa-solid fa-circle-xmark me-1"></i> At least 1 number</div>
+                                    <div id="rule-special" class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i> At least 1 special character (@$!%*#?&amp;)</div>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold">Confirm New Password</label>
-                                <input type="password" name="confirm_password" class="form-control bg-light border-0 py-2">
+                                <div class="position-relative">
+                                    <input type="password" name="confirm_password" id="confirm_password" class="form-control bg-light border-0 py-2" style="padding-right: 45px;" oninput="validateSettingsPassword()">
+                                    <button type="button" class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2" onclick="togglePasswordVisibility('confirm_password', this)" style="z-index: 10; margin-top: -1px;">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div id="settingsPasswordMatch" class="small mt-2 fw-semibold"></div>
                             </div>
                         </div>
                         
@@ -207,4 +208,104 @@
         </div>
     </div>
 </div>
+
+<script>
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+function validateSettingsPassword() {
+    const newPass = document.getElementById('new_password').value;
+    const confirmPass = document.getElementById('confirm_password').value;
+    const rulesContainer = document.getElementById('settingsPasswordRules');
+    const matchDiv = document.getElementById('settingsPasswordMatch');
+    const confirmInput = document.getElementById('confirm_password');
+
+    if (!newPass) {
+        rulesContainer.style.display = 'none';
+        matchDiv.innerHTML = '';
+        confirmInput.setCustomValidity('');
+        return;
+    }
+
+    rulesContainer.style.display = 'block';
+
+    // 1. Length rule
+    const ruleLength = document.getElementById('rule-length');
+    if (newPass.length >= 8) {
+        ruleLength.className = 'text-success mb-1';
+        ruleLength.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> At least 8 characters';
+    } else {
+        ruleLength.className = 'text-danger mb-1';
+        ruleLength.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i> At least 8 characters';
+    }
+
+    // 2. Capital letter rule
+    const ruleCapital = document.getElementById('rule-capital');
+    if (/[A-Z]/.test(newPass)) {
+        ruleCapital.className = 'text-success mb-1';
+        ruleCapital.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> At least 1 uppercase letter';
+    } else {
+        ruleCapital.className = 'text-danger mb-1';
+        ruleCapital.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i> At least 1 uppercase letter';
+    }
+
+    // 3. Lowercase letter rule
+    const ruleLowercase = document.getElementById('rule-lowercase');
+    if (/[a-z]/.test(newPass)) {
+        ruleLowercase.className = 'text-success mb-1';
+        ruleLowercase.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> At least 1 lowercase letter';
+    } else {
+        ruleLowercase.className = 'text-danger mb-1';
+        ruleLowercase.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i> At least 1 lowercase letter';
+    }
+
+    // 4. Number rule
+    const ruleNumber = document.getElementById('rule-number');
+    if (/\d/.test(newPass)) {
+        ruleNumber.className = 'text-success mb-1';
+        ruleNumber.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> At least 1 number';
+    } else {
+        ruleNumber.className = 'text-danger mb-1';
+        ruleNumber.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i> At least 1 number';
+    }
+
+    // 5. Special character rule
+    const ruleSpecial = document.getElementById('rule-special');
+    if (/[@$!%*#?&]/.test(newPass)) {
+        ruleSpecial.className = 'text-success';
+        ruleSpecial.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> At least 1 special character (@$!%*#?&amp;)';
+    } else {
+        ruleSpecial.className = 'text-danger';
+        ruleSpecial.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i> At least 1 special character (@$!%*#?&amp;)';
+    }
+
+    // 6. Match check
+    if (!confirmPass) {
+        matchDiv.innerHTML = '';
+        confirmInput.setCustomValidity('');
+        return;
+    }
+
+    if (newPass === confirmPass) {
+        matchDiv.className = 'small mt-2 text-success fw-bold';
+        matchDiv.innerHTML = '<i class="fa-solid fa-check-circle me-1"></i> Passwords Match';
+        confirmInput.setCustomValidity('');
+    } else {
+        matchDiv.className = 'small mt-2 text-danger fw-bold';
+        matchDiv.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i> Passwords do not match';
+        confirmInput.setCustomValidity('Passwords do not match');
+    }
+}
+</script>
 {% endblock %}
