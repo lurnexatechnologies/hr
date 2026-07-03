@@ -487,27 +487,82 @@ class SettingsView(LoginRequiredMixin, TemplateView):
                 messages.success(request, "Reporting HR updated successfully.")
             return redirect('settings')
             
-        # Basic Profile Update
+        # Basic Profile Update & Security Settings
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         passport_photo = request.FILES.get('passport_photo')
         
+        current_password = request.POST.get('current_password', '').strip()
+        new_password = request.POST.get('new_password', '').strip()
+        confirm_password = request.POST.get('confirm_password', '').strip()
+        
         from core.dynamodb_service import UsersTable, EmployeesTable
         from django.core.files.storage import FileSystemStorage
         import os
+        import re
+        from django.contrib.auth.hashers import check_password, make_password
+        import bcrypt
 
         # 1. Update User Record
         user_record = UsersTable.get_item({'UserID': user.user_id})
-        if user_record:
-            user_record['FirstName'] = first_name
-            user_record['LastName'] = last_name
+        if not user_record:
+            messages.error(request, "User not found.")
+            return redirect('settings')
+
+        # Handle password change if requested
+        password_changed = False
+        if current_password or new_password or confirm_password:
+            if not current_password:
+                messages.error(request, "Current password is required to change password.")
+                return redirect('settings')
+            if not new_password:
+                messages.error(request, "New password is required.")
+                return redirect('settings')
+            if new_password != confirm_password:
+                messages.error(request, "New password and confirm password do not match.")
+                return redirect('settings')
+
+            # Password Strength Validation
+            password_regex = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$'
+            if not re.match(password_regex, new_password):
+                messages.error(request, "Password is too weak. It must be at least 8 characters long and include uppercase letters, lowercase letters, numbers, and special characters.")
+                return redirect('settings')
+
+            # Verify current password
+            hashed = user_record.get('PasswordHash', '')
+            if not hashed:
+                hashed = user_record.get('Password', '') # fallback for test users
+
+            is_valid = False
+            if check_password(current_password, hashed):
+                is_valid = True
+            else:
+                try:
+                    if bcrypt.checkpw(current_password.encode('utf-8')[:72], hashed.encode('utf-8')):
+                        is_valid = True
+                except Exception:
+                    pass
+
+            if not is_valid:
+                messages.error(request, "Incorrect current password.")
+                return redirect('settings')
+
+            # Hash and set new password
+            user_record['PasswordHash'] = make_password(new_password)
+            # Remove legacy plaintext password field if it exists to be secure
+            if 'Password' in user_record:
+                del user_record['Password']
+            password_changed = True
+
+        user_record['FirstName'] = first_name
+        user_record['LastName'] = last_name
+        
+        if passport_photo:
+            fs = FileSystemStorage()
+            filename = fs.save(f"profiles/{user.user_id}_{passport_photo.name}", passport_photo)
+            user_record['PassportPhoto'] = filename
             
-            if passport_photo:
-                fs = FileSystemStorage()
-                filename = fs.save(f"profiles/{user.user_id}_{passport_photo.name}", passport_photo)
-                user_record['PassportPhoto'] = filename
-                
-            UsersTable.put_item(user_record)
+        UsersTable.put_item(user_record)
             
         # 2. Update Employee Record if exists
         if user.employee_id:
@@ -519,7 +574,10 @@ class SettingsView(LoginRequiredMixin, TemplateView):
                     emp_record['PassportPhoto'] = user_record['PassportPhoto']
                 EmployeesTable.put_item(emp_record)
                 
-        messages.success(request, "Account settings updated successfully.")
+        if password_changed:
+            messages.success(request, "Account settings and password updated successfully.")
+        else:
+            messages.success(request, "Account settings updated successfully.")
         return redirect('settings')
 
 class NotificationsView(LoginRequiredMixin, TemplateView):
