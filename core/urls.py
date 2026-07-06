@@ -13,6 +13,7 @@ urlpatterns = [
     path('notifications/delete/<path:timestamp>/', views.DeleteNotificationView.as_view(), name='delete_notification'),
     path('notifications/detail/<path:timestamp>/', views.NotificationDetailView.as_view(), name='notification_detail'),
     path('notifications/load-more/', views.LoadMoreNotificationsView.as_view(), name='load_more_notifications'),
+    path('notifications/poll/', views.NotificationPollView.as_view(), name='notification_poll'),
     path('policies/', views.PoliciesView.as_view(), name='policies'),
     path('policies/add/', views.AddPolicyView.as_view(), name='add_policy'),
     path('policies/edit/<str:policy_id>/', views.EditPolicyView.as_view(), name='edit_policy'),

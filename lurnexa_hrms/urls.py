@@ -24,10 +24,15 @@ sitemaps = {
     'static': LurnexaStaticSitemap,
 }
 
+from django.views.generic import TemplateView
+
 urlpatterns = [
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
     path('robots.txt', robots_txt, name='robots_txt'),
     path('favicon.ico', RedirectView.as_view(url='/static/img/namelesslogolurnexa.png?v=2'), name='favicon'),
+    path('manifest.json', TemplateView.as_view(template_name="manifest.json", content_type="application/json"), name='manifest_json'),
+    path('service-worker.js', TemplateView.as_view(template_name="service-worker.js", content_type="application/javascript"), name='service_worker_js'),
+    path('offline/', TemplateView.as_view(template_name="offline.html"), name='offline'),
     path('', index_redirect, name='index'),
     path('dashboard/', index_redirect, name='dashboard_redirect'),
     path('auth/', include('auth_custom.urls')),

@@ -94,7 +94,9 @@ class LoginView(View):
                 if remember_me:
                     request.session.set_expiry(1209600) # 2 weeks
                 else:
-                    request.session.set_expiry(0) # Browser close
+                    # Mobile webviews clear session-only cookies on app close.
+                    # We use a 7-day default to keep mobile app users logged in.
+                    request.session.set_expiry(604800) # 7 days
                 
                 # Record Login History
                 try:

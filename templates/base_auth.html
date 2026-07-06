@@ -9,6 +9,12 @@
     <meta name="robots" content="index, nofollow">
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
     <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <!-- Web App Manifest & iOS App Meta -->
+    <link rel="manifest" href="{% url 'manifest_json' %}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lurnexa">
+    <link rel="apple-touch-icon" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
 
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
@@ -51,5 +57,18 @@
     </div>
     
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('{% url "service_worker_js" %}')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    }, function(err) {
+                        console.error('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

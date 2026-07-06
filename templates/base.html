@@ -7,6 +7,12 @@
     <title>{% block title %}Dashboard - Lurnexa{% endblock %}</title>
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <!-- Web App Manifest & iOS App Meta -->
+    <link rel="manifest" href="{% url 'manifest_json' %}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lurnexa">
+    <link rel="apple-touch-icon" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
     <!-- Bootstrap 5 CSS -->
@@ -321,6 +327,7 @@
                         <li><a class="dropdown-item py-2" href="{% url 'employee_profile' emp_id=request.user.employee_id %}"><i class="fa-regular fa-user me-2 text-muted"></i> Profile</a></li>
                         {% endif %}
                         <li><a class="dropdown-item py-2" href="{% url 'settings' %}"><i class="fa-solid fa-gear me-2 text-muted"></i> Settings</a></li>
+                        <li id="installAppLi" style="display: none;"><a class="dropdown-item py-2 text-primary fw-semibold" href="#" id="installAppBtn"><i class="fa-solid fa-download me-2"></i> Install App</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Log out</a></li>
                     </ul>
@@ -588,6 +595,173 @@
                     document.body.style.overflow = '';
                     document.body.style.paddingRight = '';
                 }, 300);
+            }
+        });
+    </script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('{% url "service_worker_js" %}')
+                     .then(function(registration) {
+                         console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                     }, function(err) {
+                         console.error('ServiceWorker registration failed: ', err);
+                     });
+            });
+        }
+
+        // Request Notification permissions automatically if supported
+        if ('Notification' in window && Notification.permission === 'default') {
+            window.addEventListener('load', function() {
+                setTimeout(() => {
+                    Notification.requestPermission().then(permission => {
+                        console.log('Notification permission state:', permission);
+                    });
+                }, 3000);
+            });
+        }
+
+        {% if request.user.is_authenticated %}
+        function updateNotificationBadge(unreadCount) {
+            let bellBtn = null;
+            document.querySelectorAll('.icon-btn').forEach(btn => {
+                if (btn.querySelector('.fa-bell') || btn.querySelector('.fa-regular.fa-bell')) {
+                    bellBtn = btn;
+                }
+            });
+            if (bellBtn) {
+                let dot = bellBtn.querySelector('.badge-dot');
+                if (unreadCount > 0) {
+                    if (!dot) {
+                        dot = document.createElement('span');
+                        dot.className = 'badge-dot';
+                        bellBtn.appendChild(dot);
+                    }
+                } else {
+                    if (dot) {
+                        dot.remove();
+                    }
+                }
+            }
+        }
+
+        function updateNotificationList(notifications) {
+            const listContainer = document.querySelector('.notification-list');
+            if (listContainer) {
+                if (notifications.length === 0) {
+                    listContainer.innerHTML = '<div class="p-3 text-center text-muted small">No new notifications</div>';
+                    return;
+                }
+                let html = '';
+                notifications.forEach(n => {
+                    html += `
+                        <a href="/notifications/" class="notification-item">
+                            <div class="notification-icon bg-${n.color} bg-opacity-10 text-${n.color}">
+                                <i class="fa-solid ${n.icon}"></i>
+                            </div>
+                            <div class="notification-content">
+                                <div class="notification-title">${n.title}</div>
+                                <div class="notification-desc text-truncate" style="max-width: 250px;">${n.message}</div>
+                                <div class="notification-time small">${n.timestamp.slice(0, 10)} ${n.timestamp.slice(11, 16)}</div>
+                            </div>
+                        </a>
+                    `;
+                });
+                listContainer.innerHTML = html;
+            }
+        }
+
+        function triggerNativeNotification(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification(title, {
+                        body: body,
+                        icon: '/static/img/namelesslogolurnexa.png'
+                    });
+                } catch (e) {
+                    console.error('Failed to trigger Notification:', e);
+                }
+            }
+        }
+
+        function pollNotifications() {
+            fetch('/notifications/poll/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    updateNotificationBadge(data.unread_count);
+                    updateNotificationList(data.notifications);
+                    
+                    let shownNotifications = JSON.parse(localStorage.getItem('shown_notifications') || '[]');
+                    let newShown = [...shownNotifications];
+                    let hasNew = false;
+                    
+                    data.notifications.forEach(n => {
+                        if (!n.is_read && !shownNotifications.includes(n.timestamp)) {
+                            triggerNativeNotification(n.title, n.message);
+                            newShown.push(n.timestamp);
+                            hasNew = true;
+                        }
+                    });
+                    
+                    if (hasNew) {
+                        if (newShown.length > 50) {
+                            newShown = newShown.slice(newShown.length - 50);
+                        }
+                        localStorage.setItem('shown_notifications', JSON.stringify(newShown));
+                    }
+                })
+                .catch(err => console.error('Error polling notifications:', err));
+        }
+
+        window.addEventListener('load', function() {
+            pollNotifications();
+            setInterval(pollNotifications, 15000);
+        });
+        {% endif %}
+
+        // PWA Install Prompt Handler
+        let deferredPrompt;
+        const installAppLi = document.getElementById('installAppLi');
+        const installAppBtn = document.getElementById('installAppBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            deferredPrompt = e;
+            // Update UI to notify the user they can install the PWA
+            if (installAppLi) {
+                installAppLi.style.display = 'block';
+            }
+        });
+
+        if (installAppBtn) {
+            installAppBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!deferredPrompt) return;
+                // Show the prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                    if (installAppLi) {
+                        installAppLi.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('Lurnexa was installed.');
+            if (installAppLi) {
+                installAppLi.style.display = 'none';
             }
         });
     </script>

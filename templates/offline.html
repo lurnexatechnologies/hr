@@ -1,0 +1,252 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - Lurnexa HRMS</title>
+    <!-- Google Fonts: Inter -->
+    <link href="/static/vendor/google-fonts/inter.css" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="/static/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.4);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Subtle animated background shapes */
+        .bg-glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-glow) 0%, rgba(15, 23, 42, 0) 70%);
+            filter: blur(40px);
+            z-index: 1;
+            animation: floatGlow 12s infinite alternate ease-in-out;
+        }
+
+        @keyframes floatGlow {
+            0% { transform: translate(-50px, -50px) scale(1); }
+            100% { transform: translate(50px, 50px) scale(1.2); }
+        }
+
+        .offline-container {
+            position: relative;
+            z-index: 2;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 3rem 2rem;
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .brand-logo img {
+            height: 45px;
+            width: auto;
+            margin-right: 12px;
+        }
+
+        .brand-logo h4 {
+            letter-spacing: 4px;
+            color: var(--accent-color);
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .offline-icon-wrapper {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(99, 102, 241, 0.1);
+            border: 2px dashed var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            position: relative;
+            animation: pulseIcon 2s infinite ease-in-out;
+        }
+
+        @keyframes pulseIcon {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
+            50% { transform: scale(1.05); box-shadow: 0 0 20px 10px rgba(99, 102, 241, 0.1); }
+        }
+
+        .offline-icon-wrapper i {
+            font-size: 2.5rem;
+            color: var(--accent-color);
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: -0.5px;
+        }
+
+        p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .btn-retry {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #4f46e5 100%);
+            border: none;
+            color: white;
+            font-weight: 600;
+            border-radius: 12px;
+            padding: 0.75rem 2.5rem;
+            font-size: 1rem;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .btn-retry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+            color: white;
+        }
+
+        .btn-retry:active {
+            transform: translateY(0);
+        }
+
+        .connection-tips {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .tip-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .tip-item i {
+            color: var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    
+    <div class="offline-container">
+        <!-- Logo -->
+        <div class="brand-logo">
+            <img src="/static/img/namelesslogolurnexa.png?v=2" alt="Lurnexa Logo">
+            <h4>LURNEXA</h4>
+        </div>
+
+        <!-- Animated Connection Icon -->
+        <div class="offline-icon-wrapper">
+            <i class="fa-solid fa-wifi-slash"></i>
+        </div>
+
+        <!-- Content -->
+        <h1>No Connection Detected</h1>
+        <p>Lurnexa HRMS is currently offline. Please check your network connection or server status and try again.</p>
+
+        <!-- Retry Button -->
+        <button class="btn btn-retry px-5 py-2.5" onclick="retryConnection()">
+            <i class="fa-solid fa-rotate-right me-2"></i> Retry Connection
+        </button>
+
+        <!-- Troubleshooting Tips -->
+        <div class="connection-tips">
+            <div class="tip-item">
+                <i class="fa-solid fa-circle-check"></i> Check your local internet connectivity.
+            </div>
+            <div class="tip-item">
+                <i class="fa-solid fa-circle-check"></i> Ensure the backend web server is running.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function retryConnection() {
+            const button = document.querySelector('.btn-retry');
+            const icon = button.querySelector('i');
+            
+            // Add spinning class
+            icon.classList.add('fa-spin');
+            button.disabled = true;
+            button.innerText = ' Checking...';
+            button.prepend(icon);
+            
+            // Attempt to fetch root to see if connection is back
+            fetch('/')
+                .then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        resetButton();
+                    }
+                })
+                .catch(() => {
+                    setTimeout(resetButton, 1000); // Debounce visual state
+                });
+        }
+
+        function resetButton() {
+            const button = document.querySelector('.btn-retry');
+            const icon = button.querySelector('i');
+            icon.classList.remove('fa-spin');
+            button.disabled = false;
+            button.innerHTML = '<i class="fa-solid fa-rotate-right me-2"></i> Retry Connection';
+        }
+
+        // Listen for online event to automatically reload
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+    </script>
+</body>
+</html>

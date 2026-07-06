@@ -407,11 +407,51 @@ body.sidebar-closed .main-wrapper {
         display: none !important;
     }
     .search-bar {
-        width: 100% !important;
-        max-width: 150px !important;
+        display: none !important; /* Hide search bar on mobile to save space */
     }
     .top-header {
-        padding: 0 15px !important;
+        padding: 0 10px !important;
+        height: 60px !important;
+    }
+    .top-header h4 {
+        display: none !important; /* Hide LURNEXA text on mobile header */
+    }
+    .top-header img {
+        margin-right: 0 !important;
+        height: 28px !important;
+    }
+    .header-actions {
+        gap: 8px !important;
+    }
+    .icon-btn {
+        width: 36px !important;
+        height: 36px !important;
+    }
+    .avatar {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 0.85rem !important;
+    }
+    .toggle-btn {
+        width: 36px !important;
+        height: 36px !important;
+        margin-right: 8px !important;
+    }
+    
+    /* Layout and Spacing Optimization */
+    .page-content {
+        padding: 12px !important;
+    }
+    .card-body {
+        padding: 14px !important;
+    }
+    .card {
+        margin-bottom: 16px !important;
+        border-radius: 12px !important;
+    }
+    .page-title {
+        font-size: 1.4rem !important;
+        margin-bottom: 15px !important;
     }
 }
 
@@ -1837,5 +1877,91 @@ body {
     /* Prevent charts or canvas from causing horizontal overflow */
     canvas {
         max-width: 100% !important;
+    }
+}
+
+/* ==========================================
+   MOBILE DESIGN SYSTEM POLISH & OVERRIDES
+   ========================================== */
+
+/* 1. Global Viewport & Scroll Controls */
+html, body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* 2. Responsive Table Wrapper Force */
+@media (max-width: 768px) {
+    .table-responsive, 
+    .table-container, 
+    div:has(> table) {
+        width: 100% !important;
+        overflow-x: auto !important;
+        display: block !important;
+        -webkit-overflow-scrolling: touch !important;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    
+    /* Forces the table columns to be legible instead of squishing */
+    .table-responsive table, 
+    .table-container table, 
+    div:has(> table) > table,
+    table.table {
+        min-width: 600px !important;
+    }
+}
+
+/* 3. Button and Input Normalization */
+@media (max-width: 576px) {
+    .btn, button, input[type="submit"], input[type="button"] {
+        padding: 10px 16px !important;
+        font-size: 0.875rem !important;
+        height: auto !important;
+        line-height: 1.5 !important;
+        border-radius: 8px !important;
+    }
+    
+    .btn-lg, .btn-group-lg > .btn {
+        padding: 12px 20px !important;
+        font-size: 1rem !important;
+    }
+    
+    .btn-sm, .btn-group-sm > .btn {
+        padding: 6px 12px !important;
+        font-size: 0.75rem !important;
+    }
+    
+    .form-control, .form-select, select, input {
+        padding: 10px 12px !important;
+        font-size: 0.875rem !important;
+        height: auto !important;
+    }
+    
+    /* Layout Adjustments for Button Rows */
+    .d-flex:has(.btn) {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .d-flex:has(.btn) > .btn {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+    }
+    
+    /* Grid row & column padding optimizations */
+    .row {
+        margin-left: -5px !important;
+        margin-right: -5px !important;
+        gap: 8px 0 !important;
+    }
+    
+    .col, [class*="col-"] {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
     }
 }

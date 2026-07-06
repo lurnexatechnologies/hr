@@ -714,6 +714,37 @@ class LoadMoreNotificationsView(LoginRequiredMixin, View):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
 
+class NotificationPollView(LoginRequiredMixin, View):
+    def get(self, request):
+        user_emp_id = request.user.employee_id
+        if not user_emp_id:
+            return JsonResponse({'unread_count': 0, 'notifications': []})
+        try:
+            notifications = NotificationsTable.query(
+                KeyConditionExpression=Key('EmployeeID').eq(user_emp_id),
+                ScanIndexForward=False,
+                Limit=10
+            )
+            unread_count = 0
+            new_notifications = []
+            for n in notifications:
+                if not n.get('IsRead'):
+                    unread_count += 1
+                new_notifications.append({
+                    'title': n.get('Title', ''),
+                    'message': n.get('Message', ''),
+                    'timestamp': n.get('Timestamp', ''),
+                    'is_read': n.get('IsRead', False),
+                    'icon': n.get('Icon', 'fa-bell'),
+                    'color': n.get('Color', 'primary')
+                })
+            return JsonResponse({
+                'unread_count': unread_count,
+                'notifications': new_notifications
+            })
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
 import json
 
 class PoliciesView(LoginRequiredMixin, TemplateView):
