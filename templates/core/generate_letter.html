@@ -133,6 +133,29 @@
                                     </div>
                                 </div>
 
+                                <!-- E-Signature Section -->
+                                <div class="mb-4 mt-3 pt-3 border-top" id="signatureSection" style="display: none;">
+                                    <label class="form-label fw-bold d-block mb-1">Signature Authorization</label>
+                                    <div class="form-check form-check-inline mb-2">
+                                        <input class="form-check-input" type="radio" name="sig_type" id="sigDefault" value="default" checked onchange="toggleSignatureSource()">
+                                        <label class="form-check-label small fw-semibold text-muted" for="sigDefault">Use Default Stamp / Signature</label>
+                                    </div>
+                                    <div class="form-check form-check-inline mb-2">
+                                        <input class="form-check-input" type="radio" name="sig_type" id="sigDraw" value="draw" onchange="toggleSignatureSource()">
+                                        <label class="form-check-label small fw-semibold text-muted" for="sigDraw">Draw Custom E-Signature</label>
+                                    </div>
+                                    
+                                    <div id="drawCanvasContainer" style="display: none;">
+                                        <div class="border rounded bg-light p-2 mb-2 position-relative" style="max-width: 400px;">
+                                            <canvas id="signatureCanvas" width="380" height="150" style="border: 2px dashed #cbd5e1; border-radius: 8px; background-color: #ffffff; cursor: crosshair;"></canvas>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary position-absolute" style="bottom: 15px; right: 15px;" onclick="clearSignatureCanvas()">Clear</button>
+                                        </div>
+                                        <div class="small text-muted mb-2">Use mouse or touch screen to draw your official signature inside the box.</div>
+                                    </div>
+                                    
+                                    <input type="hidden" name="signature_data" id="signatureDataInput">
+                                </div>
+
                                 <div class="d-grid mt-4">
                                     <button type="submit" class="btn btn-primary py-2 animate-btn" style="border-radius: 10px;">
                                         <i class="fa-solid fa-file-signature me-2"></i> Generate Document
@@ -404,7 +427,116 @@
             document.querySelector('.promotion-fields').style.display = 'block';
             document.querySelector('input[name="new_designation"]').required = true;
         }
+
+        const sigSection = document.getElementById('signatureSection');
+        if (type && type !== 'Offer Letter') {
+            sigSection.style.display = 'block';
+        } else {
+            sigSection.style.display = 'none';
+        }
     }
+
+    let canvas, ctx, drawing = false;
+
+    function initSignatureCanvas() {
+        canvas = document.getElementById('signatureCanvas');
+        if (!canvas) return;
+        ctx = canvas.getContext('2d');
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+
+        // Mouse events
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        // Touch events
+        canvas.addEventListener('touchstart', startDrawingTouch, { passive: false });
+        canvas.addEventListener('touchmove', drawTouch, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+    }
+
+    function startDrawing(e) {
+        drawing = true;
+        ctx.beginPath();
+        const rect = canvas.getBoundingClientRect();
+        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    }
+
+    function draw(e) {
+        if (!drawing) return;
+        const rect = canvas.getBoundingClientRect();
+        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+        ctx.stroke();
+    }
+
+    function stopDrawing() {
+        drawing = false;
+    }
+
+    function startDrawingTouch(e) {
+        if (e.touches.length === 1) {
+            drawing = true;
+            ctx.beginPath();
+            const rect = canvas.getBoundingClientRect();
+            ctx.moveTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+            e.preventDefault();
+        }
+    }
+
+    function drawTouch(e) {
+        if (drawing && e.touches.length === 1) {
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+            ctx.stroke();
+            e.preventDefault();
+        }
+    }
+
+    function clearSignatureCanvas() {
+        if (!canvas) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('signatureDataInput').value = '';
+    }
+
+    function toggleSignatureSource() {
+        const drawContainer = document.getElementById('drawCanvasContainer');
+        const sigDraw = document.getElementById('sigDraw');
+        if (sigDraw.checked) {
+            drawContainer.style.display = 'block';
+            if (!canvas) {
+                initSignatureCanvas();
+            }
+        } else {
+            drawContainer.style.display = 'none';
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const sigDraw = document.getElementById('sigDraw');
+                const type = document.getElementById('letterTypeSelect').value;
+                if (type && type !== 'Offer Letter' && sigDraw && sigDraw.checked) {
+                    // Check if canvas is empty
+                    const buffer = document.createElement('canvas');
+                    buffer.width = canvas.width;
+                    buffer.height = canvas.height;
+                    const blank = buffer.toDataURL();
+                    const current = canvas.toDataURL();
+                    if (current === blank) {
+                        e.preventDefault();
+                        alert("Please draw your signature or choose default stamp.");
+                        return;
+                    }
+                    document.getElementById('signatureDataInput').value = current;
+                }
+            });
+        }
+    });
 
     function updateFilteredRows() {
         const searchVal = document.getElementById('letterSearchInput').value.toLowerCase();

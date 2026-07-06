@@ -1,0 +1,1122 @@
+{% extends "base.html" %}
+
+{% block title %}Performance & OKRs - Lurnexa{% endblock %}
+{% block nav_okrs %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Performance & OKRs</h2>
+        <p class="text-muted mb-0">Set quarterly objectives, track key results, and receive continuous appraisals.</p>
+    </div>
+    {% if request.user.role == 'Super admin' or request.user.role == 'Manager' %}
+    <button class="btn btn-primary shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#createOkrModal">
+        <i class="fa-solid fa-plus me-2"></i> Assign New Goal
+    </button>
+    {% endif %}
+</div>
+
+<!-- Tabs & Cards -->
+<div class="card border-0 shadow-sm" style="border-radius: 16px;">
+    <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+        <ul class="nav nav-tabs border-bottom-0 scrollable-tabs" id="okrTabs" role="tablist" style="overflow-x: auto; white-space: nowrap; flex-wrap: nowrap;">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold px-4 py-3" id="my-okrs-tab" data-bs-toggle="tab" data-bs-target="#my-okrs" type="button" role="tab">
+                    <i class="fa-solid fa-bullseye me-1"></i> My Objectives <span class="badge bg-primary ms-1">{{ my_okrs|length }}</span>
+                </button>
+            </li>
+            {% if request.user.role != 'Super admin' %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="appraisal-history-tab" data-bs-toggle="tab" data-bs-target="#appraisal-history" type="button" role="tab">
+                    <i class="fa-solid fa-clock-rotate-left me-1"></i> Appraisal History
+                </button>
+            </li>
+            {% endif %}
+            {% if is_manager_or_hr %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="team-okrs-tab" data-bs-toggle="tab" data-bs-target="#team-okrs" type="button" role="tab">
+                    <i class="fa-solid fa-users me-1"></i> Team OKRs <span class="badge bg-secondary ms-1">{{ team_okrs|length }}</span>
+                </button>
+            </li>
+            {% if request.user.role == 'Super admin' or request.user.role == 'Manager' %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="manager-reviews-tab" data-bs-toggle="tab" data-bs-target="#manager-reviews" type="button" role="tab">
+                    <i class="fa-solid fa-clipboard-check me-1"></i> Manager Reviews <span class="badge bg-warning text-dark ms-1">{{ mgr_appraisals|length }}</span>
+                </button>
+            </li>
+            {% endif %}
+            {% endif %}
+            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="hr-reviews-tab" data-bs-toggle="tab" data-bs-target="#hr-reviews" type="button" role="tab">
+                    <i class="fa-solid fa-shield-halved me-1"></i> HR Verification {% if pending_hr_reviews_count %}<span class="badge bg-danger ms-1">{{ pending_hr_reviews_count }}</span>{% endif %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="founder-approvals-tab" data-bs-toggle="tab" data-bs-target="#founder-approvals" type="button" role="tab">
+                    <i class="fa-solid fa-signature me-1"></i> Founder Approvals <span class="badge bg-success ms-1">{{ analytics.pending_approvals|length }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="manage-cycles-tab" data-bs-toggle="tab" data-bs-target="#manage-cycles" type="button" role="tab">
+                    <i class="fa-solid fa-arrows-spin me-1"></i> Cycles
+                </button>
+            </li>
+            {% endif %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold px-4 py-3 text-muted" id="perf-analytics-tab" data-bs-toggle="tab" data-bs-target="#perf-analytics" type="button" role="tab">
+                    <i class="fa-solid fa-chart-pie me-1"></i> Analytics & Trends
+                </button>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="card-body p-4">
+        <div class="tab-content" id="okrTabsContent">
+            <!-- My OKRs Tab -->
+            <div class="tab-pane fade show active" id="my-okrs" role="tabpanel">
+                
+                <!-- Personal Metrics Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card border-0 bg-light p-3 rounded-4 hover-translate">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                                    <i class="fa-solid fa-bullseye fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted smaller mb-1">Total Goals</h6>
+                                    <h4 class="fw-bold mb-0 text-dark">{{ stats_my.total }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-0 bg-light p-3 rounded-4 hover-translate">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                                    <i class="fa-solid fa-circle-check fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted smaller mb-1">Completed</h6>
+                                    <h4 class="fw-bold mb-0 text-dark">{{ stats_my.completed }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-0 bg-light p-3 rounded-4 hover-translate">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-info bg-opacity-10 text-info d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                                    <i class="fa-solid fa-chart-line fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted smaller mb-1">Avg Progress</h6>
+                                    <h4 class="fw-bold mb-0 text-dark">{{ stats_my.avg_progress }}%</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-0 bg-light p-3 rounded-4 hover-translate">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                                    <i class="fa-solid fa-star fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted smaller mb-1">Avg Rating</h6>
+                                    <h4 class="fw-bold mb-0 text-dark">{{ stats_my.avg_rating|default:"0.0" }}/5</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    {% for okr in my_okrs %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border border-light shadow-sm p-4 hover-shadow" style="border-radius: 20px; transition: all 0.3s ease;">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-10 rounded-pill px-3 py-1 fw-bold"><i class="fa-regular fa-calendar me-1"></i>Due: {{ okr.DueDate|default:okr.Quarter }}</span>
+                                {% if okr.Status == 'Completed' %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 rounded-pill px-3 py-1 fw-bold"><i class="fa-solid fa-check me-1"></i> Completed</span>
+                                {% else %}
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-10 rounded-pill px-3 py-1 fw-bold"><i class="fa-solid fa-spinner fa-spin me-1"></i> In Progress</span>
+                                {% endif %}
+                            </div>
+                            
+                            <h5 class="fw-bold text-dark mb-2">{{ okr.GoalName }}</h5>
+                            <p class="text-muted small mb-4" style="min-height: 48px;">{{ okr.Description }}</p>
+                            
+                             <!-- Progress Bar -->
+                             <div class="mb-4">
+                                 <div class="d-flex justify-content-between text-muted small fw-bold mb-1">
+                                     <span>Progress</span>
+                                     <span>
+                                         {{ okr.CurrentValue }} / {{ okr.TargetValue }} ({{ okr.Progress }}%)
+                                         {% if okr.TodayProgress > 0 %}
+                                             <span class="badge bg-success bg-opacity-10 text-success ms-1 small fw-extrabold">+{{ okr.TodayProgress }}% today</span>
+                                         {% endif %}
+                                     </span>
+                                 </div>
+                                 <div class="progress rounded-pill bg-light" style="height: 10px;">
+                                     {% if okr.Progress >= 75 %}
+                                         <div class="progress-bar rounded-pill bg-success" role="progressbar" data-progress="{{ okr.Progress }}"></div>
+                                     {% elif okr.Progress >= 30 %}
+                                         <div class="progress-bar rounded-pill bg-primary" role="progressbar" data-progress="{{ okr.Progress }}"></div>
+                                     {% else %}
+                                         <div class="progress-bar rounded-pill bg-danger" role="progressbar" data-progress="{{ okr.Progress }}"></div>
+                                     {% endif %}
+                                 </div>
+                             </div>
+                            
+                            <!-- Manager Feedback -->
+                            {% if okr.ManagerRating %}
+                            <div class="bg-light rounded-3 p-3 mb-4 mt-auto">
+                                <div class="d-flex align-items-center mb-1">
+                                    <small class="fw-bold text-muted me-2">Appraisal Rating:</small>
+                                    <span class="badge bg-warning bg-opacity-15 text-dark fw-bold px-2.5 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                        <i class="fa-solid fa-star text-warning me-1"></i>{{ okr.ManagerRating|floatformat:1 }} / 5.0
+                                    </span>
+                                </div>
+                                <small class="text-muted d-block italic" style="font-size: 0.8rem;">"{{ okr.ManagerAppraisal|default:'No feedback comments.' }}"</small>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Progress Log Collapse -->
+                            {% if okr.ProgressHistory %}
+                            <div class="mb-3 mt-2">
+                                <a class="text-decoration-none small fw-bold text-primary d-flex align-items-center" data-bs-toggle="collapse" href="#history-{{ okr.GoalID }}" role="button" aria-expanded="false">
+                                    <i class="fa-solid fa-clock-rotate-left me-1"></i> View Progress Log
+                                    <i class="fa-solid fa-chevron-down ms-auto transition-transform small"></i>
+                                </a>
+                                <div class="collapse mt-2" id="history-{{ okr.GoalID }}">
+                                    <div class="bg-light p-2.5 rounded-3" style="max-height: 120px; overflow-y: auto;">
+                                        {% for h in okr.ProgressHistory|dictsortreversed:"Timestamp" %}
+                                            <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1" style="font-size: 0.75rem;">
+                                                <span class="text-muted"><i class="fa-regular fa-calendar-check me-1"></i>{{ h.Date }}</span>
+                                                <span class="fw-bold {% if h.Increment > 0 %}text-success{% else %}text-muted{% endif %}">
+                                                    {% if h.Increment > 0 %}+{% endif %}{{ h.Increment }}%
+                                                </span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if okr.Status != 'Completed' %}
+                            <button class="btn btn-outline-primary btn-sm rounded-pill w-100 mt-auto py-2 fw-bold" 
+                                    data-bs-toggle="modal" data-bs-target="#updateProgressModal"
+                                    data-goal-id="{{ okr.GoalID }}" data-goal-name="{{ okr.GoalName }}" 
+                                    data-current-val="{{ okr.CurrentValue }}" data-target-val="{{ okr.TargetValue }}">
+                                <i class="fa-solid fa-pen-to-square me-1"></i> Update Progress
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center py-5">
+                        <i class="fa-solid fa-bullseye fa-4x text-light mb-3 d-block"></i>
+                        <h5 class="fw-bold text-dark">No Objectives Set</h5>
+                        <p class="text-muted mb-0">You haven't set any Objectives for this quarter yet.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Team OKRs Tab -->
+            {% if is_manager_or_hr %}
+            <div class="tab-pane fade" id="team-okrs" role="tabpanel">
+                
+                <!-- Team Metrics Summary -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-light p-3 rounded-4 hover-translate">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                                    <i class="fa-solid fa-people-group fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted smaller mb-1">Team Goals</h6>
+                                    <h4 class="fw-bold mb-0 text-dark">{{ stats_team.total }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-light p-3 rounded-4 hover-translate">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                                    <i class="fa-solid fa-award fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted smaller mb-1">Pending Appraisal</h6>
+                                    <h4 class="fw-bold mb-0 text-dark">{{ stats_team.pending }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="input-group input-group-sm border rounded-pill overflow-hidden px-2 bg-light ms-auto align-self-center" style="max-width: 250px;">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                            <input type="text" id="teamSearchInput" class="form-control bg-transparent border-0" placeholder="Search team by name..." onkeyup="searchTeamOkrs()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="teamOkrsTable">
+                        <thead class="bg-light text-muted small fw-bold text-uppercase border-bottom">
+                            <tr>
+                                <th class="ps-4 border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Objective</th>
+                                <th class="border-0 py-3">Quarter</th>
+                                <th class="border-0 py-3">Progress</th>
+                                <th class="border-0 py-3">Evaluation</th>
+                                <th class="pe-4 border-0 py-3 text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for okr in team_okrs %}
+                            <tr class="team-okr-row">
+                                <td class="ps-4 py-4">
+                                    <div class="fw-bold text-main search-target">{{ okr.EmployeeName }}</div>
+                                    <div class="text-muted small search-target">ID: {{ okr.EmployeeID }}</div>
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ okr.GoalName }}</div>
+                                    <div class="text-muted small text-truncate" style="max-width: 250px;">{{ okr.Description }}</div>
+                                </td>
+                                <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 rounded-pill px-3 py-1 fw-bold">Due: {{ okr.DueDate|default:okr.Quarter }}</span></td>
+                                <td style="min-width: 180px;">
+                                    <div class="d-flex justify-content-between text-muted small fw-semibold mb-1">
+                                        <span>
+                                            {{ okr.Progress }}%
+                                            {% if okr.TodayProgress > 0 %}
+                                                <span class="badge bg-success bg-opacity-10 text-success ms-1 small fw-extrabold" style="font-size: 0.7rem;">+{{ okr.TodayProgress }}% today</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="progress rounded-pill bg-light mb-1" style="height: 6px; max-width: 150px;">
+                                        {% if okr.Progress >= 75 %}
+                                            <div class="progress-bar rounded-pill bg-success" role="progressbar" data-progress="{{ okr.Progress }}"></div>
+                                        {% elif okr.Progress >= 30 %}
+                                            <div class="progress-bar rounded-pill bg-primary" role="progressbar" data-progress="{{ okr.Progress }}"></div>
+                                        {% else %}
+                                            <div class="progress-bar rounded-pill bg-danger" role="progressbar" data-progress="{{ okr.Progress }}"></div>
+                                        {% endif %}
+                                    </div>
+                                    {% if okr.ProgressHistory %}
+                                    <div class="mt-1">
+                                        <a class="text-decoration-none text-primary" style="font-size: 0.7rem; font-weight: 600;" data-bs-toggle="collapse" href="#team-hist-{{ okr.GoalID }}" role="button">
+                                            <i class="fa-solid fa-clock-rotate-left me-0.5"></i> Progress Log
+                                        </a>
+                                        <div class="collapse mt-1" id="team-hist-{{ okr.GoalID }}">
+                                            <div class="bg-light p-1.5 rounded" style="max-height: 80px; overflow-y: auto; font-size: 0.65rem; max-width: 150px;">
+                                                {% for h in okr.ProgressHistory|dictsortreversed:"Timestamp" %}
+                                                    <div class="d-flex justify-content-between text-muted border-bottom border-light pb-0.5 mb-0.5">
+                                                        <span>{{ h.Date }}</span>
+                                                        <span class="fw-bold {% if h.Increment > 0 %}text-success{% else %}text-muted{% endif %}">{% if h.Increment > 0 %}+{% endif %}{{ h.Increment }}%</span>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if okr.ManagerRating %}
+                                        <span class="badge bg-warning bg-opacity-10 text-dark fw-bold px-2.5 py-1 border border-warning border-opacity-15 rounded-pill">
+                                            <i class="fa-solid fa-star text-warning me-1"></i>{{ okr.ManagerRating|floatformat:1 }} / 5.0
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted small">Not Rated</span>
+                                    {% endif %}
+                                </td>
+                                <td class="pe-4 text-end">
+                                    {% if request.user.role == 'Super admin' and okr.EmployeeRole == 'Manager' or request.user.role == 'Super admin' and okr.EmployeeRole == 'HR ADMIN' or request.user.role == 'Manager' and okr.EmployeeRole == 'Employee' %}
+                                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3" 
+                                            data-bs-toggle="modal" data-bs-target="#evaluateOkrModal"
+                                            data-goal-id="{{ okr.GoalID }}" data-goal-name="{{ okr.GoalName }}"
+                                            data-employee-id="{{ okr.EmployeeID }}" data-employee-name="{{ okr.EmployeeName }}"
+                                            data-description="{{ okr.Description }}" data-progress="{{ okr.Progress }}">
+                                        <i class="fa-solid fa-award me-1"></i> Appraisal
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">No team objectives currently submitted for appraisal.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 1. Appraisal History Tab Pane -->
+            {% if request.user.role != 'Super admin' %}
+            <div class="tab-pane fade" id="appraisal-history" role="tabpanel">
+                <div class="card border-0 bg-light p-4 rounded-4 mb-4">
+                    <h4 class="fw-bold text-dark">My Appraisal History</h4>
+                    <p class="text-muted mb-0">View your performance records, final ratings, salary hike adjustments, and download official letters.</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Cycle</th>
+                                <th>Status</th>
+                                <th>Final Rating</th>
+                                <th>Promotion Approval</th>
+                                <th>Hike Approval</th>
+                                <th>Download Letter</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in appraisal_history %}
+                            <tr>
+                                <td class="fw-bold">{{ a.CycleID }}</td>
+                                <td><span class="badge bg-secondary rounded-pill px-2.5 py-1">{{ a.Status }}</span></td>
+                                <td>
+                                    {% if a.FounderApproval.OverrideRating %}
+                                        <span class="fw-bold text-success">{{ a.FounderApproval.OverrideRating }}/5.0 (Override)</span>
+                                    {% elif a.ManagerReview.Rating %}
+                                        <span class="fw-bold text-dark">{{ a.ManagerReview.Rating }}/5.0</span>
+                                    {% else %}
+                                        <span class="text-muted">Not Rated</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if a.FounderApproval.ApprovePromotion %}
+                                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-0.5">Approved</span>
+                                    {% elif a.ManagerReview.RecommendPromotion %}
+                                        <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill px-2 py-0.5">Recommended</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if a.FounderApproval.ApproveSalaryHike %}
+                                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-0.5">Approved</span>
+                                    {% elif a.ManagerReview.RecommendSalaryHike %}
+                                        <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill px-2 py-0.5">Recommended</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if a.Status == 'Approved' %}
+                                        <div class="btn-group">
+                                            <a href="{% url 'download_appraisal_letter' request.user.employee_id a.CycleID 'appraisal' %}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-pdf"></i> Appraisal</a>
+                                            {% if a.FounderApproval.ApprovePromotion %}
+                                            <a href="{% url 'download_appraisal_letter' request.user.employee_id a.CycleID 'promotion' %}" target="_blank" class="btn btn-sm btn-outline-success"><i class="fa-solid fa-award"></i> Promotion</a>
+                                            {% endif %}
+                                            {% if a.FounderApproval.ApproveSalaryHike %}
+                                            <a href="{% url 'download_appraisal_letter' request.user.employee_id a.CycleID 'salary' %}" target="_blank" class="btn btn-sm btn-outline-info"><i class="fa-solid fa-wallet"></i> Revision</a>
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted small">Not Available</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No previous appraisals found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 2. Manager Reviews Tab Pane -->
+            {% if is_manager_or_hr %}
+            <div class="tab-pane fade" id="manager-reviews" role="tabpanel">
+                <div class="card border-0 bg-light p-4 rounded-4 mb-4">
+                    <h4 class="fw-bold text-dark">Subordinate Appraisal Reviews</h4>
+                    <p class="text-muted mb-0">Evaluate submissions from team members reporting to you. Provide scores and recommend compensation updates.</p>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Cycle</th>
+                                <th>Status</th>
+                                <th>Department</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in mgr_appraisals %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-main">{{ a.EmployeeName }}</div>
+                                    <small class="text-muted">{{ a.Designation }}</small>
+                                </td>
+                                <td>{{ a.CycleID }}</td>
+                                <td>
+                                    <span class="badge bg-warning bg-opacity-10 text-warning px-3 py-1.5 rounded-pill">{{ a.Status }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-truncate d-inline-block" style="max-width: 250px;">{{ a.Department }}</span>
+                                </td>
+                                <td>
+                                    {% if a.Status == 'Pending Manager Review' or a.Status == 'Submitted' or a.Status == 'Returned by HR' or a.Status == 'Returned by Manager' or a.Status == 'Draft' %}
+                                    <button class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="collapse" data-bs-target="#review-form-{{ a.EmployeeID }}">
+                                        <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Evaluate
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small">Reviewed ({{ a.Status }})</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <!-- Collapsible Review Form -->
+                            <tr class="collapse border-0" id="review-form-{{ a.EmployeeID }}">
+                                <td colspan="5" class="bg-light p-4 rounded-3">
+                                    <form action="{% url 'submit_manager_review' %}" method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cycle_id" value="{{ a.CycleID }}">
+                                        <input type="hidden" name="employee_id" value="{{ a.EmployeeID }}">
+                                        
+                                        <h5 class="fw-bold mb-3 text-primary">Performance Evaluation & Recommendations</h5>
+                                        <div class="row g-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label fw-bold">Performance Rating (1.0 - 5.0)</label>
+                                                <input type="number" step="0.1" min="1.0" max="5.0" class="form-control" name="rating" value="4.0" required>
+                                            </div>
+                                            <div class="col-md-9">
+                                                <label class="form-label fw-bold">General Comments / Remarks</label>
+                                                <input type="text" class="form-control" name="comments" placeholder="Appraisal summary..." required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold">Key Strengths</label>
+                                                <textarea class="form-control" name="strengths" rows="2" placeholder="List primary strengths..."></textarea>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold">Areas of Improvement / Weaknesses</label>
+                                                <textarea class="form-control" name="weaknesses" rows="2" placeholder="Development needs..."></textarea>
+                                            </div>
+                                        </div>
+
+                                        <hr class="my-4">
+
+                                        <h5 class="fw-bold mb-3 text-secondary"><i class="fa-solid fa-gift me-1"></i> Enterprise Recommendations</h5>
+                                        <div class="row g-4">
+                                            <!-- Promotion Section -->
+                                            <div class="col-md-4 border-end">
+                                                <div class="form-check form-switch mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="recommend_promotion" id="promo-{{ a.EmployeeID }}">
+                                                    <label class="form-check-label fw-bold" for="promo-{{ a.EmployeeID }}">Recommend Promotion</label>
+                                                </div>
+                                                <input type="text" class="form-control mb-2" name="recommended_designation" placeholder="New Designation">
+                                                <textarea class="form-control" name="promotion_reason" rows="2" placeholder="Reason for promotion..."></textarea>
+                                            </div>
+                                            <!-- Salary Hike Section -->
+                                            <div class="col-md-4 border-end">
+                                                <div class="form-check form-switch mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="recommend_salary_hike" id="hike-{{ a.EmployeeID }}">
+                                                    <label class="form-check-label fw-bold" for="hike-{{ a.EmployeeID }}">Recommend Salary Hike</label>
+                                                </div>
+                                                <input type="number" step="0.01" class="form-control mb-2" name="recommended_salary" placeholder="Recommended Salary (INR)">
+                                                <textarea class="form-control" name="salary_hike_reason" rows="2" placeholder="Reason for salary adjustment..."></textarea>
+                                            </div>
+                                            <!-- Bonus Section -->
+                                            <div class="col-md-4">
+                                                <div class="form-check form-switch mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="recommend_bonus" id="bonus-{{ a.EmployeeID }}">
+                                                    <label class="form-check-label fw-bold" for="bonus-{{ a.EmployeeID }}">Recommend Bonus</label>
+                                                </div>
+                                                <select class="form-select mb-2" name="bonus_type">
+                                                    <option value="Performance">Performance Bonus</option>
+                                                    <option value="Festival">Festival Bonus</option>
+                                                    <option value="Spot">Spot Award</option>
+                                                    <option value="Retention">Retention Bonus</option>
+                                                </select>
+                                                <input type="number" class="form-control" name="bonus_amount" placeholder="Bonus Amount (INR)">
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex justify-content-end gap-3 mt-4">
+                                            <button type="submit" name="action_type" value="Approve" class="btn btn-primary rounded-pill px-4">
+                                                <i class="fa-solid fa-circle-check me-1"></i> Approve & Send to HR
+                                            </button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No subordinate appraisals pending your review.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 3. HR Verification Tab Pane -->
+            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            <div class="tab-pane fade" id="hr-reviews" role="tabpanel">
+                <div class="card border-0 bg-light p-4 rounded-4 mb-4">
+                    <h4 class="fw-bold text-dark">HR Policy Compliance & Budget Check</h4>
+                    <p class="text-muted mb-0">Verify salary hikes, designation revisions, and compliance with company policies before forwarding to the Founder.</p>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Manager Rating</th>
+                                <th>Manager Recommendations</th>
+                                <th>Compliance & Budget</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in all_appraisals %}
+                            {% if a.Status == 'Pending HR Review' %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-main">{{ a.EmployeeName }}</div>
+                                    <small class="text-muted">Salary: {{ a.Salary }}</small>
+                                </td>
+                                <td><span class="badge bg-warning text-dark fw-bold">{{ a.ManagerReview.Rating }}/5.0</span></td>
+                                <td>
+                                    {% if a.ManagerReview.RecommendPromotion %}
+                                        <div><span class="badge bg-success bg-opacity-10 text-success me-1">Designation</span>{{ a.ManagerReview.RecommendedDesignation }}</div>
+                                    {% endif %}
+                                    {% if a.ManagerReview.RecommendSalaryHike %}
+                                        <div><span class="badge bg-primary bg-opacity-10 text-primary me-1">Salary Hike</span>{{ a.ManagerReview.RecommendedSalary }}</div>
+                                    {% endif %}
+                                    {% if a.ManagerReview.RecommendBonus %}
+                                        <div><span class="badge bg-info bg-opacity-10 text-info me-1">Bonus</span>{{ a.ManagerReview.BonusType }} - {{ a.ManagerReview.BonusAmount }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-toggle="collapse" data-bs-target="#hr-form-{{ a.EmployeeID }}">
+                                        <i class="fa-solid fa-gavel"></i> Verify Compliance
+                                    </button>
+                                </td>
+                                <td>
+                                    <form action="{% url 'submit_hr_review' %}" method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cycle_id" value="{{ a.CycleID }}">
+                                        <input type="hidden" name="employee_id" value="{{ a.EmployeeID }}">
+                                        <button type="submit" name="action_type" value="Approve" class="btn btn-sm btn-success rounded-pill px-3">Approve</button>
+                                        <button type="submit" name="action_type" value="Return" class="btn btn-sm btn-outline-danger rounded-pill px-3">Return</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="hr-form-{{ a.EmployeeID }}">
+                                <td colspan="5" class="bg-light p-3">
+                                    <form action="{% url 'submit_hr_review' %}" method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cycle_id" value="{{ a.CycleID }}">
+                                        <input type="hidden" name="employee_id" value="{{ a.EmployeeID }}">
+                                        <input type="hidden" name="action_type" value="Approve">
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <input type="text" class="form-control form-control-sm" name="policy_compliance" placeholder="Policy compliance details..." value="Compliant with HR rules.">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="text" class="form-control form-control-sm" name="budget_remarks" placeholder="Budget allocation remarks..." value="Within department budget.">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button type="submit" class="btn btn-sm btn-primary w-100">Save Checklist & Forward</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 4. Founder Approvals Tab Pane -->
+            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            <div class="tab-pane fade" id="founder-approvals" role="tabpanel">
+                <div class="card border-0 bg-light p-4 rounded-4 mb-4">
+                    <h4 class="fw-bold text-dark">Founder Executive Decision Room</h4>
+                    <p class="text-muted mb-0">Review final ratings, modify salary updates, and sign off on performance letters.</p>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Manager evaluation</th>
+                                <th>Recommendations</th>
+                                <th>Executive Override</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in analytics.pending_approvals %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-main">{{ a.EmployeeName }}</div>
+                                    <small class="text-muted">{{ a.Designation }}</small>
+                                </td>
+                                <td>Rating: {{ a.ManagerReview.Rating }}/5.0</td>
+                                <td>
+                                    {% if a.ManagerReview.RecommendPromotion %}Promotion to {{ a.ManagerReview.RecommendedDesignation }}<br>{% endif %}
+                                    {% if a.ManagerReview.RecommendSalaryHike %}Salary revision to {{ a.ManagerReview.RecommendedSalary }}<br>{% endif %}
+                                    {% if a.ManagerReview.RecommendBonus %}{{ a.ManagerReview.BonusType }} Bonus: {{ a.ManagerReview.BonusAmount }}{% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#founder-override-{{ a.EmployeeID }}">
+                                        Override Recommendations
+                                    </button>
+                                </td>
+                                <td>
+                                    <form action="{% url 'submit_founder_approval' %}" method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cycle_id" value="{{ a.CycleID }}">
+                                        <input type="hidden" name="employee_id" value="{{ a.EmployeeID }}">
+                                        <input type="hidden" name="approve_promotion" value="on">
+                                        <input type="hidden" name="approve_salary_hike" value="on">
+                                        <input type="hidden" name="approve_bonus" value="on">
+                                        <button type="submit" name="action_type" value="Approve" class="btn btn-sm btn-success rounded-pill px-3">Approve All</button>
+                                        <button type="submit" name="action_type" value="Reject" class="btn btn-sm btn-outline-danger rounded-pill px-3">Reject</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="founder-override-{{ a.EmployeeID }}">
+                                <td colspan="5" class="bg-light p-3">
+                                    <form action="{% url 'submit_founder_approval' %}" method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cycle_id" value="{{ a.CycleID }}">
+                                        <input type="hidden" name="employee_id" value="{{ a.EmployeeID }}">
+                                        <input type="hidden" name="action_type" value="Approve">
+                                        <div class="row g-2">
+                                            <div class="col-md-2">
+                                                <input type="number" step="0.1" class="form-control form-control-sm" name="override_rating" placeholder="Override Rating">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <input type="number" step="0.01" class="form-control form-control-sm" name="override_salary" placeholder="Override Salary (INR)">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <input type="number" class="form-control form-control-sm" name="override_bonus_amount" placeholder="Override Bonus (INR)">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button type="submit" class="btn btn-sm btn-primary w-100">Apply Overrides & Approve</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No appraisals waiting for Founder approval.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 5. Manage Cycles Tab Pane -->
+            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            <div class="tab-pane fade" id="manage-cycles" role="tabpanel">
+                <div class="card border-0 bg-light p-4 rounded-4 mb-4">
+                    <h4 class="fw-bold text-dark">Manage Appraisal Cycles</h4>
+                    <p class="text-muted mb-0">Define organizational review timelines, deadlines, and cycle statuses.</p>
+                </div>
+
+                <form action="{% url 'manage_appraisal_cycles' %}" method="post" class="card p-4 border border-light shadow-sm rounded-4 mb-4">
+                    {% csrf_token %}
+                    <h5 class="fw-bold mb-3 text-primary">Create New Appraisal Cycle</h5>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Cycle ID (Unique Code)</label>
+                            <input type="text" class="form-control" name="cycle_id" placeholder="e.g. q4-2026" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Cycle Name</label>
+                            <input type="text" class="form-control" name="name" placeholder="e.g. Q4 2026 Appraisal Cycle" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Cycle Type</label>
+                            <select class="form-select" name="type">
+                                <option value="Monthly">Monthly</option>
+                                <option value="Quarterly" selected>Quarterly</option>
+                                <option value="Half-Yearly">Half-Yearly</option>
+                                <option value="Yearly">Yearly</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Start Date</label>
+                            <input type="date" class="form-control" name="start_date" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">End Date</label>
+                            <input type="date" class="form-control" name="end_date" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Submission Deadline</label>
+                            <input type="date" class="form-control" name="submission_deadline" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Review Deadline</label>
+                            <input type="date" class="form-control" name="review_deadline" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Approval Deadline</label>
+                            <input type="date" class="form-control" name="approval_deadline" required>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="submit" class="btn btn-primary rounded-pill px-4">Create Cycle</button>
+                    </div>
+                </form>
+
+                <h5 class="fw-bold mb-3">Existing Cycles</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Cycle ID</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Period</th>
+                                <th>Deadlines</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in all_cycles %}
+                            <tr>
+                                <td class="fw-bold text-main">{{ c.CycleID }}</td>
+                                <td>{{ c.Name }}</td>
+                                <td>{{ c.Type }}</td>
+                                <td>{{ c.StartDate }} to {{ c.EndDate }}</td>
+                                <td>
+                                    <small class="d-block">Submission: {{ c.SubmissionDeadline }}</small>
+                                    <small class="d-block">Review: {{ c.ReviewDeadline }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success rounded-pill px-2.5 py-1">{{ c.Status }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 6. Analytics & Trends Tab Pane -->
+            <div class="tab-pane fade" id="perf-analytics" role="tabpanel">
+                <div class="card border-0 bg-light p-4 rounded-4 mb-4">
+                    <h4 class="fw-bold text-dark">Performance Analytics & Company Rankings</h4>
+                    <p class="text-muted mb-0">Data-driven performance insights, budget metrics, and department performance rankings.</p>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <div class="card p-3 border-0 bg-white shadow-sm rounded-4 text-center">
+                            <div class="rounded-circle bg-warning bg-opacity-10 text-warning mx-auto d-flex align-items-center justify-content-center mb-2" style="width: 56px; height: 56px;">
+                                <i class="fa-solid fa-award fs-4"></i>
+                            </div>
+                            <h6 class="text-muted mb-1">Company Avg Appraisal Score</h6>
+                            <h3 class="fw-bold text-dark mb-0">{{ analytics.avg_company_rating }}/5.0</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-3 border-0 bg-white shadow-sm rounded-4 text-center">
+                            <div class="rounded-circle bg-success bg-opacity-10 text-success mx-auto d-flex align-items-center justify-content-center mb-2" style="width: 56px; height: 56px;">
+                                <i class="fa-solid fa-money-bill-trend-up fs-4"></i>
+                            </div>
+                            <h6 class="text-muted mb-1">Salary Hike Pipeline Impact</h6>
+                            <h3 class="fw-bold text-dark mb-0">INR +{{ analytics.salary_budget_delta|floatformat:2 }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-3 border-0 bg-white shadow-sm rounded-4 text-center">
+                            <div class="rounded-circle bg-primary bg-opacity-10 text-primary mx-auto d-flex align-items-center justify-content-center mb-2" style="width: 56px; height: 56px;">
+                                <i class="fa-solid fa-user-tie fs-4"></i>
+                            </div>
+                            <h6 class="text-muted mb-1">Promotion Recommendations</h6>
+                            <h3 class="fw-bold text-dark mb-0">{{ analytics.promotion_requests|length }} pending</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Top Performers list -->
+                    <div class="col-md-6">
+                        <div class="card p-4 border-0 shadow-sm rounded-4 h-100">
+                            <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-crown me-2 text-warning"></i> Top Performers</h5>
+                            <div class="list-group list-group-flush">
+                                {% for tp in analytics.top_performers %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 bg-transparent">
+                                    <div>
+                                        <div class="fw-bold text-main">{{ tp.EmployeeName }}</div>
+                                        <small class="text-muted">{{ tp.Department }}</small>
+                                    </div>
+                                    <span class="badge bg-success rounded-pill px-3 py-1.5 fw-bold">{{ tp.Rating }}/5.0</span>
+                                </div>
+                                {% empty %}
+                                <div class="text-muted text-center py-4">No top performer records compiled yet.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Department Rankings -->
+                    <div class="col-md-6">
+                        <div class="card p-4 border-0 shadow-sm rounded-4 h-100">
+                            <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-ranking-star me-2 text-primary"></i> Department Performance Rankings</h5>
+                            <div class="list-group list-group-flush">
+                                {% for dr in analytics.dept_rankings %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 bg-transparent">
+                                    <div class="fw-bold text-main">{{ dr.Department }}</div>
+                                    <span class="badge bg-primary rounded-pill px-3 py-1.5 fw-bold">{{ dr.AvgRating }}/5.0 avg</span>
+                                </div>
+                                {% empty %}
+                                <div class="text-muted text-center py-4">No rankings compiled yet.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Create OKR Modal -->
+<div class="modal fade" id="createOkrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold">Assign Objective to Employee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'create_okr' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body py-4 px-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Select Employee <span class="text-danger">*</span></label>
+                        <select name="assignee_id" class="form-select border-0 bg-light p-3 select-searchable" style="border-radius: 12px;" required>
+                            <option value="" disabled selected>-- Choose Employee --</option>
+                            {% for emp in active_employees %}
+                                <option value="{{ emp.EmployeeID }}">{{ emp.FirstName }} {{ emp.LastName }} (ID: {{ emp.EmployeeID }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Objective Title <span class="text-danger">*</span></label>
+                        <input type="text" name="goal_name" class="form-control form-control-lg border-0 bg-light"
+                            style="border-radius: 12px;" placeholder="e.g. Increase Customer Retention by 10%" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Description & Key Results <span class="text-danger">*</span></label>
+                        <textarea name="description" rows="3" class="form-control border-0 bg-light"
+                            style="border-radius: 12px;" placeholder="Describe what success looks like and how it will be measured..." required></textarea>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Target Date <span class="text-danger">*</span></label>
+                            <input type="date" name="due_date" class="form-control border-0 bg-light p-3" style="border-radius: 12px;" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Target Value (Key Result)</label>
+                            <input type="number" name="target_value" class="form-control border-0 bg-light p-3"
+                                style="border-radius: 12px;" value="100" min="1" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius: 12px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4" style="border-radius: 12px;">Assign Objective</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Update Progress Modal -->
+<div class="modal fade" id="updateProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold" id="updateProgressTitle">Update Objective Progress</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'update_okr_progress' %}" method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="goal_id" id="updateGoalId">
+                <div class="modal-body py-4 px-4">
+                    <p class="text-muted small" id="updateGoalDesc"></p>
+                    <div class="mb-0">
+                        <label class="form-label small fw-bold text-muted">Current Metric Value</label>
+                        <div class="input-group">
+                            <input type="number" name="current_value" id="updateCurrentValue" class="form-control border-0 bg-light p-3"
+                                style="border-radius: 12px 0 0 12px;" min="0" required>
+                            <span class="input-group-text border-0 bg-light p-3" id="updateTargetValue" style="border-radius: 0 12px 12px 0;"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius: 12px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4" style="border-radius: 12px;">Save Progress</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Evaluate OKR Appraisal Modal -->
+<div class="modal fade" id="evaluateOkrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold" id="evalTitle">Appraise Employee Goal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'evaluate_okr' %}" method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="goal_id" id="evalGoalId">
+                <input type="hidden" name="employee_id" id="evalEmployeeId">
+                <div class="modal-body py-4 px-4">
+                    <div class="mb-3 p-3 bg-light rounded-3">
+                        <small class="fw-bold text-muted d-block mb-1">Objective details:</small>
+                        <span id="evalGoalName" class="fw-bold text-dark d-block"></span>
+                        <small id="evalGoalDesc" class="text-muted d-block mt-1"></small>
+                        <div class="progress rounded-pill bg-white mt-2" style="height: 6px;">
+                            <div class="progress-bar rounded-pill bg-primary" id="evalProgressBar" role="progressbar"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Appraisal Rating (1.0 to 5.0) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.1" min="1.0" max="5.0" name="rating" class="form-control border-0 bg-light p-3" style="border-radius: 12px;" placeholder="e.g. 4.2" required>
+                    </div>
+                    
+                    <div class="mb-0">
+                        <label class="form-label small fw-bold text-muted">Feedback Comments</label>
+                        <textarea name="appraisal" rows="3" class="form-control border-0 bg-light"
+                            style="border-radius: 12px;" placeholder="Provide constructive feedback..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius: 12px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4" style="border-radius: 12px;">Submit Appraisal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // JS helpers to populate modal content dynamically
+    document.addEventListener('DOMContentLoaded', function() {
+        const updateProgressModal = document.getElementById('updateProgressModal');
+        if (updateProgressModal) {
+            updateProgressModal.addEventListener('show.bs.modal', function(e) {
+                const btn = e.relatedTarget;
+                const goalId = btn.getAttribute('data-goal-id');
+                const goalName = btn.getAttribute('data-goal-name');
+                const currentVal = btn.getAttribute('data-current-val');
+                const targetVal = btn.getAttribute('data-target-val');
+                
+                document.getElementById('updateGoalId').value = goalId;
+                document.getElementById('updateProgressTitle').innerText = "Update Progress: " + goalName;
+                document.getElementById('updateCurrentValue').value = currentVal;
+                document.getElementById('updateCurrentValue').max = targetVal;
+                document.getElementById('updateTargetValue').innerText = "/ " + targetVal;
+            });
+        }
+        
+        const evaluateOkrModal = document.getElementById('evaluateOkrModal');
+        if (evaluateOkrModal) {
+            evaluateOkrModal.addEventListener('show.bs.modal', function(e) {
+                const btn = e.relatedTarget;
+                const goalId = btn.getAttribute('data-goal-id');
+                const goalName = btn.getAttribute('data-goal-name');
+                const empId = btn.getAttribute('data-employee-id');
+                const empName = btn.getAttribute('data-employee-name');
+                const desc = btn.getAttribute('data-description');
+                const progress = btn.getAttribute('data-progress');
+                
+                document.getElementById('evalGoalId').value = goalId;
+                document.getElementById('evalEmployeeId').value = empId;
+                document.getElementById('evalTitle').innerText = "Appraise Goal: " + empName;
+                document.getElementById('evalGoalName').innerText = goalName;
+                document.getElementById('evalGoalDesc').innerText = desc;
+                document.getElementById('evalProgressBar').style.width = progress + '%';
+            });
+        }
+
+        // Apply progress widths dynamically to avoid inline template validation issues
+        document.querySelectorAll('.progress-bar[data-progress]').forEach(bar => {
+            const progress = bar.getAttribute('data-progress');
+            bar.style.width = progress + '%';
+        });
+    });
+
+    function searchTeamOkrs() {
+        const query = document.getElementById('teamSearchInput').value.toLowerCase();
+        const rows = document.querySelectorAll('#teamOkrsTable tbody tr.team-okr-row');
+        
+        rows.forEach(row => {
+            let match = false;
+            row.querySelectorAll('.search-target').forEach(target => {
+                if (target.textContent.toLowerCase().includes(query)) {
+                    match = true;
+                }
+            });
+            
+            if (match) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+
+<style>
+    .hover-translate {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .hover-translate:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.04) !important;
+    }
+    .hover-shadow:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.08) !important;
+    }
+    .py-1-5 {
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+    .italic {
+        font-style: italic;
+    }
+    .fw-extrabold {
+        font-weight: 800;
+    }
+</style>
+{% endblock %}

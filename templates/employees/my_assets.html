@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}My Assigned Assets - Lurnexa{% endblock %}
+{% block nav_my_assets %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">My Assigned Assets</h2>
+        <p class="text-muted mb-0">Review company assets, devices, and inventory allocated to your custody.</p>
+    </div>
+    <div class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-15 px-3 py-2 rounded-pill fw-bold">
+        <i class="fa-solid fa-shield-halved me-1"></i> Secured Custody
+    </div>
+</div>
+
+<!-- Asset Statistics/Overview Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm p-4 text-center h-100 hover-translate" style="border-radius: 20px; transition: all 0.3s ease;">
+            <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 54px; height: 54px;">
+                <i class="fa-solid fa-boxes-stacked fs-4"></i>
+            </div>
+            <h6 class="text-muted small fw-bold text-uppercase mb-1">Total Assigned</h6>
+            <h3 class="fw-extrabold text-dark mb-0">{{ assets|length }}</h3>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm p-4 text-center h-100 hover-translate" style="border-radius: 20px; transition: all 0.3s ease;">
+            <div class="rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 54px; height: 54px;">
+                <i class="fa-solid fa-laptop fs-4"></i>
+            </div>
+            <h6 class="text-muted small fw-bold text-uppercase mb-1">Laptops & Devices</h6>
+            <h3 class="fw-extrabold text-dark mb-0">
+                {{ laptop_count }}
+            </h3>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(168, 85, 247, 0.05)); border: 1px solid rgba(99, 102, 241, 0.1) !important;">
+            <div class="d-flex align-items-start">
+                <div class="rounded-circle bg-purple bg-opacity-10 text-purple d-flex align-items-center justify-content-center me-3 mt-1" style="width: 48px; height: 48px; flex-shrink: 0;">
+                    <i class="fa-solid fa-circle-info fs-5"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">Asset Custody Agreement</h6>
+                    <p class="text-muted small mb-0">You are responsible for maintaining the physical condition of all allocated equipment. For repairs, security locks, or decommissioning requests, please contact IT Helpdesk.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assets Grid -->
+<div class="row g-4">
+    {% for asset in assets %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm p-4 hover-shadow position-relative overflow-hidden asset-card" style="border-radius: 20px; transition: all 0.3s ease;">
+            <!-- Top Category Badge and Status -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="badge bg-light text-secondary border rounded-pill px-3 py-1-5 fw-bold small">{{ asset.Category }}</span>
+                {% if asset.Condition == 'Excellent' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-15 rounded-pill px-3 py-1 fw-bold"><i class="fa-solid fa-circle-check me-1"></i> Excellent</span>
+                {% elif asset.Condition == 'Good' %}
+                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-15 rounded-pill px-3 py-1 fw-bold"><i class="fa-solid fa-circle-info me-1"></i> Good</span>
+                {% elif asset.Condition == 'Fair' %}
+                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-15 rounded-pill px-3 py-1 fw-bold"><i class="fa-solid fa-triangle-exclamation me-1"></i> Fair</span>
+                {% else %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-15 rounded-pill px-3 py-1 fw-bold"><i class="fa-solid fa-screwdriver-wrench me-1"></i> Repair Needed</span>
+                {% endif %}
+            </div>
+
+            <!-- Asset Visual Icon & Name -->
+            <div class="d-flex align-items-center mb-4">
+                <div class="rounded-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center me-3" style="width: 52px; height: 52px; border-radius: 14px !important;">
+                    {% if asset.Category == 'Laptop' %}
+                    <i class="fa-solid fa-laptop fs-4"></i>
+                    {% elif asset.Category == 'Monitor' %}
+                    <i class="fa-solid fa-desktop fs-4"></i>
+                    {% elif asset.Category == 'Mobile' %}
+                    <i class="fa-solid fa-mobile-screen-button fs-4"></i>
+                    {% elif asset.Category == 'Keycard' %}
+                    <i class="fa-solid fa-key fs-4"></i>
+                    {% else %}
+                    <i class="fa-solid fa-cubes fs-4"></i>
+                    {% endif %}
+                </div>
+                <div>
+                    <h5 class="fw-bold text-dark mb-1">{{ asset.AssetName }}</h5>
+                    <code class="text-secondary small fw-semibold">S/N: {{ asset.SerialNo }}</code>
+                </div>
+            </div>
+
+            <!-- Details Block -->
+            <div class="mt-auto pt-3 border-top border-light">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Asset ID</small>
+                        <span class="fw-bold text-dark small">{{ asset.AssetID }}</span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Allocated On</small>
+                        <span class="fw-bold text-dark small"><i class="fa-regular fa-calendar me-1"></i> {{ asset.AllocationDate|default:"-" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons for Complaint / Exchange -->
+            <div class="mt-3 pt-3 border-top border-light d-flex gap-2">
+                <button type="button" class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-bold flex-fill" onclick="openComplaintModal('{{ asset.AssetID }}', '{{ asset.AssetName|escapejs }}')">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i> Report Issue
+                </button>
+                <button type="button" class="btn btn-outline-purple btn-sm rounded-pill px-3 fw-bold flex-fill" onclick="openExchangeModal('{{ asset.AssetID }}', '{{ asset.AssetName|escapejs }}')">
+                    <i class="fa-solid fa-arrows-rotate me-1"></i> Request Exchange
+                </button>
+            </div>
+            
+            <!-- Soft reflection style -->
+            <div class="position-absolute" style="right: -20px; bottom: -20px; font-size: 8rem; color: rgba(0,0,0,0.015); pointer-events: none; transform: rotate(-15deg);">
+                {% if asset.Category == 'Laptop' %}
+                <i class="fa-solid fa-laptop"></i>
+                {% elif asset.Category == 'Monitor' %}
+                <i class="fa-solid fa-desktop"></i>
+                {% else %}
+                <i class="fa-solid fa-cubes"></i>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <div class="card border-0 shadow-sm py-5" style="border-radius: 20px;">
+            <i class="fa-solid fa-laptop-medical fa-4x text-light mb-3"></i>
+            <h5 class="fw-bold text-dark">No Assets Assigned</h5>
+            <p class="text-muted mb-0">There are no devices or company assets currently assigned to your profile.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Asset Requests Table Section -->
+<div class="card border-0 shadow-sm mt-5" style="border-radius: 20px;">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="fw-bold text-dark mb-1">My Asset Requests & Complaints</h5>
+                <p class="text-muted small mb-0">Track status of repair complaints or exchange/replacement requests you have raised.</p>
+            </div>
+            <span class="badge bg-light text-secondary border px-3 py-1-5 rounded-pill fw-bold">{{ my_requests|length }} Total</span>
+        </div>
+        
+        {% if my_requests %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="small fw-bold text-muted border-0">Request ID</th>
+                        <th class="small fw-bold text-muted border-0">Asset Name</th>
+                        <th class="small fw-bold text-muted border-0">Type</th>
+                        <th class="small fw-bold text-muted border-0">Reason / Description</th>
+                        <th class="small fw-bold text-muted border-0">Raised Date</th>
+                        <th class="small fw-bold text-muted border-0">Status</th>
+                        <th class="small fw-bold text-muted border-0">Resolution / Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in my_requests %}
+                    <tr>
+                        <td><code class="text-secondary fw-semibold">{{ req.RequestID }}</code></td>
+                        <td>
+                            <span class="fw-bold text-dark">{{ req.AssetName }}</span>
+                            <div class="smaller text-muted" style="font-size: 0.75rem;">ID: {{ req.AssetID }}</div>
+                        </td>
+                        <td>
+                            {% if req.RequestType == 'Complaint' %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-15 px-3 py-1 rounded-pill fw-bold"><i class="fa-solid fa-triangle-exclamation me-1"></i> Issue/Complaint</span>
+                            {% else %}
+                            <span class="badge bg-purple bg-opacity-10 text-purple border border-purple border-opacity-15 px-3 py-1 rounded-pill fw-bold"><i class="fa-solid fa-arrows-rotate me-1"></i> Replacement/Exchange</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-dark small text-truncate" style="max-width: 250px;" title="{{ req.IssueDescription }}">
+                                {{ req.IssueDescription }}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="text-muted small"><i class="fa-regular fa-calendar me-1"></i> {{ req.CreatedAt }}</span>
+                        </td>
+                        <td>
+                            {% if req.Status == 'Pending' %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-15 px-3 py-1 rounded-pill fw-bold">Pending</span>
+                            {% elif req.Status == 'In Progress' %}
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-15 px-3 py-1 rounded-pill fw-bold">In Progress</span>
+                            {% elif req.Status == 'Resolved' %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-15 px-3 py-1 rounded-pill fw-bold">Resolved</span>
+                            {% else %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-15 px-3 py-1 rounded-pill fw-bold">Rejected</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if req.ResolutionNotes %}
+                            <span class="text-dark small">{{ req.ResolutionNotes }}</span>
+                            {% else %}
+                            <span class="text-muted small italic">Waiting for review</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="fa-solid fa-circle-check fa-2x text-muted mb-2"></i>
+            <p class="text-muted mb-0 small">No complaints or exchange requests raised yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Report Issue Modal -->
+<div class="modal fade" id="complaintModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Report Asset Issue</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'raise_asset_request' %}">
+                {% csrf_token %}
+                <input type="hidden" name="asset_id" id="complaintAssetID">
+                <input type="hidden" name="request_type" value="Complaint">
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Report a technical defect or physical damage for <strong id="complaintAssetName" class="text-dark"></strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Issue Category</label>
+                        <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="issue_category" required>
+                            <option value="Hardware defect">Hardware defect (e.g. keyboard, screen)</option>
+                            <option value="Software issue">Software issue / OS Crash</option>
+                            <option value="Battery/Charging issue">Battery / Charging issue</option>
+                            <option value="Connectivity issue">Connectivity (Wi-Fi, Bluetooth)</option>
+                            <option value="Other">Other Issues</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Detailed Description</label>
+                        <textarea class="form-control border-0 bg-light py-2-5 px-3" rows="4" style="border-radius: 12px; resize: none;" name="description" placeholder="Please describe the issue in detail..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">Submit Complaint</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Request Exchange Modal -->
+<div class="modal fade" id="exchangeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-arrows-rotate text-purple me-2"></i>Request Device Exchange</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'raise_asset_request' %}">
+                {% csrf_token %}
+                <input type="hidden" name="asset_id" id="exchangeAssetID">
+                <input type="hidden" name="request_type" value="Exchange">
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Submit a replacement/upgrade request for <strong id="exchangeAssetName" class="text-dark"></strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Reason for Exchange</label>
+                        <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="issue_category" required>
+                            <option value="Frequent slowdowns/Performance issues">Frequent slowdowns / Performance issues</option>
+                            <option value="Permanent damage/Hardware failure">Permanent damage / Hardware failure</option>
+                            <option value="Upgradation required">Upgradation required (need higher specs)</option>
+                            <option value="Other replacement reason">Other replacement reasons</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Detailed Explanation</label>
+                        <textarea class="form-control border-0 bg-light py-2-5 px-3" rows="4" style="border-radius: 12px; resize: none;" name="description" placeholder="Please explain why you need an exchange..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-purple text-white rounded-pill px-4 fw-bold shadow-sm">Submit Exchange Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openComplaintModal(assetId, assetName) {
+        document.getElementById('complaintAssetID').value = assetId;
+        document.getElementById('complaintAssetName').innerText = assetName;
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('complaintModal'));
+        modal.show();
+    }
+
+    function openExchangeModal(assetId, assetName) {
+        document.getElementById('exchangeAssetID').value = assetId;
+        document.getElementById('exchangeAssetName').innerText = assetName;
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('exchangeModal'));
+        modal.show();
+    }
+</script>
+
+<style>
+    .hover-translate {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .hover-translate:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important;
+    }
+    .asset-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.08) !important;
+    }
+    .py-1-5 {
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+    .fw-extrabold {
+        font-weight: 800;
+    }
+    .btn-purple {
+        background-color: #8b5cf6;
+        border-color: #8b5cf6;
+        color: white;
+    }
+    .btn-purple:hover {
+        background-color: #7c3aed;
+        border-color: #7c3aed;
+        color: white;
+    }
+    .btn-outline-purple {
+        border-color: #8b5cf6;
+        color: #8b5cf6;
+    }
+    .btn-outline-purple:hover {
+        background-color: #8b5cf6;
+        color: white;
+    }
+</style>
+{% endblock %}

@@ -100,6 +100,12 @@ PFSettingsTable = TableService('Lurnexa_PFSettings')
 PFTransactionsTable = TableService('Lurnexa_PFTransactions')
 PayrollApprovalsTable = TableService('Lurnexa_PayrollApprovals')
 EmployeeLettersTable = TableService('Lurnexa_EmployeeLetters')
+AssetsTable = TableService('Lurnexa_Assets')
+OKRsTable = TableService('Lurnexa_OKRs')
+AssetRequestsTable = TableService('Lurnexa_AssetRequests')
+AppraisalCyclesTable = TableService('Lurnexa_AppraisalCycles')
+AppraisalsTable = TableService('Lurnexa_Appraisals')
+
 def initialize_dynamodb_tables():
     """
     Helper function to create all required DynamoDB tables.
@@ -260,6 +266,42 @@ def initialize_dynamodb_tables():
             'AttributeDefinitions': [
                 {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
                 {'AttributeName': 'LetterID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_Assets',
+            'KeySchema': [{'AttributeName': 'AssetID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'AssetID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_OKRs',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}, {'AttributeName': 'GoalID', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
+                {'AttributeName': 'GoalID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_AssetRequests',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}, {'AttributeName': 'RequestID', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
+                {'AttributeName': 'RequestID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_AppraisalCycles',
+            'KeySchema': [{'AttributeName': 'CycleID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'CycleID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_Appraisals',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}, {'AttributeName': 'CycleID', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
+                {'AttributeName': 'CycleID', 'AttributeType': 'S'}
             ],
         }
     ]

@@ -20,9 +20,11 @@
     {% endif %}
     <div class="d-flex gap-2">
         {% if can_clock_in %}
-        <form method="POST" action="{% url 'clock_in' %}">
+        <form method="POST" action="{% url 'clock_in' %}" id="clockInForm">
             {% csrf_token %}
-            <button type="submit" class="btn btn-primary shadow-sm rounded-3 px-4">
+            <input type="hidden" name="latitude" id="latInput">
+            <input type="hidden" name="longitude" id="lonInput">
+            <button type="button" class="btn btn-primary shadow-sm rounded-3 px-4" id="clockInBtn">
                 <i class="fa-solid fa-right-to-bracket me-2"></i> Clock In
             </button>
         </form>
@@ -209,6 +211,7 @@
                         <thead class="bg-light text-muted" style="font-size: 0.8rem; text-transform: uppercase;">
                             <tr>
                                 <th class="ps-4 border-0 py-3">WFH Period</th>
+                                <th class="border-0 py-3">Duration</th>
                                 <th class="border-0 py-3">Reason</th>
                                 <th class="border-0 py-3">Applied On</th>
                                 <th class="border-0 py-3 text-end pe-4">Status</th>
@@ -220,6 +223,11 @@
                                 <td class="ps-4 fw-medium py-3"><i
                                         class="fa-regular fa-calendar-check me-2 text-primary"></i> 
                                     {{ req.DisplayDate }}{% if req.DisplayEndDate and req.EndDate != req.WFHDate %} to {{ req.DisplayEndDate }}{% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2.5 py-1 rounded-pill small fw-bold">
+                                        {{ req.WFHType|default:"Full Day" }}
+                                    </span>
                                 </td>
                                 <td>{{ req.Reason|truncatechars:50 }}</td>
                                 <td>{{ req.DisplayReqDate }}</td>
@@ -305,16 +313,21 @@
                         </div>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Duration</label>
+                        <select name="wfh_type" class="form-select border-0 bg-light form-control-lg" style="border-radius: 12px;" required>
+                            <option value="Full Day">Full Day</option>
+                            <option value="Half Day">Half Day</option>
+                            <option value="Morning">Morning Session</option>
+                            <option value="Afternoon">Afternoon Session</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">Reason <span class="text-danger">*</span></label>
                         <textarea name="reason" rows="3" class="form-control border-0 bg-light"
                             style="border-radius: 12px;" placeholder="Explain why you need to work from home..."
                             required></textarea>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label small fw-bold text-muted">Supporting Document <span class="text-danger">*</span></label>
-                        <input type="file" name="wfh_document" class="form-control border-0 bg-light"
-                            style="border-radius: 12px;" required>
-                    </div>
+
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal"
@@ -325,7 +338,39 @@
             </form>
         </div>
     </div>
-</div>
-
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const clockInBtn = document.getElementById("clockInBtn");
+        const clockInForm = document.getElementById("clockInForm");
+        
+        if (clockInBtn && clockInForm) {
+            clockInBtn.addEventListener("click", function(e) {
+                e.preventDefault();
+                
+                if (navigator.geolocation) {
+                    clockInBtn.disabled = true;
+                    clockInBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Fetching Location...';
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            document.getElementById("latInput").value = position.coords.latitude;
+                            document.getElementById("lonInput").value = position.coords.longitude;
+                            clockInForm.submit();
+                        },
+                        function(error) {
+                            alert("Location access is required for clock-in. Please enable location services in your browser.");
+                            clockInBtn.disabled = false;
+                            clockInBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket me-2"></i> Clock In';
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                } else {
+                    alert("Geolocation is not supported by your browser.");
+                    clockInForm.submit();
+                }
+            });
+        }
+    });
+</script>
 
 {% endblock %}

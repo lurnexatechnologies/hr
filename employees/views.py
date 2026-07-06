@@ -2066,3 +2066,389 @@ class DeleteCertificateView(LoginRequiredMixin, View):
         return redirect(f"/employees/profile/{emp_id}/?tab=cert")
 
 
+class AssetManagementView(HRRequiredMixin, TemplateView):
+    template_name = 'employees/assets.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from core.dynamodb_service import AssetsTable, EmployeesTable
+        
+        # Get all registered assets
+        assets = AssetsTable.scan()
+        all_employees = EmployeesTable.scan()
+        
+        # Enrich asset data with assignee name
+        import json
+        for asset in assets:
+            assigned_to = asset.get('AssignedTo')
+            if assigned_to:
+                emp = next((e for e in all_employees if e.get('EmployeeID') == assigned_to), None)
+                if emp:
+                    asset['AssigneeName'] = f"{emp.get('FirstName', '')} {emp.get('LastName', '')}"
+                else:
+                    asset['AssigneeName'] = assigned_to
+            else:
+                asset['AssigneeName'] = 'Unassigned'
+                
+            history = asset.get('History', [])
+            if not isinstance(history, list):
+                history = []
+            asset['HistoryJSON'] = json.dumps(history)
+                
+        context['assets'] = assets
+        
+        # Get all asset complaints & exchange requests
+        from core.dynamodb_service import AssetRequestsTable
+        asset_requests = []
+        pending_requests_count = 0
+        try:
+            asset_requests = AssetRequestsTable.scan()
+            asset_requests.sort(key=lambda x: x.get('CreatedAt', ''), reverse=True)
+            pending_requests_count = sum(1 for r in asset_requests if r.get('Status') in ('Pending', 'In Progress'))
+        except Exception as e:
+            print(f"Error loading asset requests: {e}")
+            
+        context['asset_requests'] = asset_requests
+        context['pending_requests_count'] = pending_requests_count
+        
+        # Filter active employees for assignment dropdown (include Approved and seed/None status, exclude Resigned/Pending/Super Admin)
+        from core.dynamodb_service import UsersTable
+        try:
+            all_users = UsersTable.scan()
+            sa_emp_ids = {u.get('EmployeeID') for u in all_users if u.get('Role') == 'Super admin'}
+        except Exception:
+            sa_emp_ids = set()
+
+        context['active_employees'] = [
+            e for e in all_employees
+            if e.get('OnboardingStatus') not in ('Resigned', 'Pending Review', 'Rejected', 'Pending')
+            and e.get('EmployeeID') not in sa_emp_ids
+        ]
+        return context
+
+class AddAssetView(HRRequiredMixin, View):
+    def post(self, request):
+        from core.dynamodb_service import AssetsTable
+        import uuid
+        
+        asset_name = request.POST.get('asset_name', '').strip()
+        serial_no = request.POST.get('serial_no', '').strip()
+        category = request.POST.get('category', '').strip()
+        condition = request.POST.get('condition', 'Excellent').strip()
+        
+        if not asset_name or not serial_no or not category:
+            messages.error(request, "Asset Name, Serial Number, and Category are required.")
+            return redirect('asset_management')
+            
+        asset_id = f"AST-{category[:3].upper()}-{str(uuid.uuid4())[:8].upper()}"
+        
+        asset_item = {
+            'AssetID': asset_id,
+            'AssetName': asset_name,
+            'SerialNo': serial_no,
+            'Category': category,
+            'Status': 'Available',
+            'Condition': condition
+        }
+        
+        try:
+            AssetsTable.put_item(asset_item)
+            messages.success(request, f"Asset '{asset_name}' ({serial_no}) registered successfully.")
+        except Exception as e:
+            messages.error(request, f"Error registering asset: {e}")
+            
+        return redirect('asset_management')
+
+class AllocateAssetView(HRRequiredMixin, View):
+    def post(self, request, asset_id):
+        from core.dynamodb_service import AssetsTable, EmployeesTable
+        from core.utils import get_local_date
+        
+        employee_id = request.POST.get('employee_id', '').strip()
+        if not employee_id:
+            messages.error(request, "Employee selection is required for allocation.")
+            return redirect('asset_management')
+            
+        asset = AssetsTable.get_item({'AssetID': asset_id})
+        if not asset:
+            messages.error(request, "Asset not found.")
+            return redirect('asset_management')
+            
+        employee = EmployeesTable.get_item({'EmployeeID': employee_id})
+        if not employee:
+            messages.error(request, "Employee not found.")
+            return redirect('asset_management')
+            
+        try:
+            alloc_date = get_local_date().strftime('%Y-%m-%d')
+            asset['Status'] = 'Assigned'
+            asset['AssignedTo'] = employee_id
+            asset['AllocationDate'] = alloc_date
+            
+            # Append allocation to history list
+            history = asset.get('History', [])
+            if not isinstance(history, list):
+                history = []
+            history.append({
+                'Action': 'Allocated',
+                'EmployeeID': employee_id,
+                'EmployeeName': f"{employee.get('FirstName', '')} {employee.get('LastName', '')}",
+                'Date': alloc_date,
+                'Condition': asset.get('Condition', 'Excellent')
+            })
+            asset['History'] = history
+            
+            AssetsTable.put_item(asset)
+            messages.success(request, f"Asset allocated to {employee.get('FirstName')} successfully.")
+        except Exception as e:
+            messages.error(request, f"Error allocating asset: {e}")
+            
+        return redirect('asset_management')
+
+class ReturnAssetView(HRRequiredMixin, View):
+    def post(self, request, asset_id):
+        from core.dynamodb_service import AssetsTable
+        
+        asset = AssetsTable.get_item({'AssetID': asset_id})
+        if not asset:
+            messages.error(request, "Asset not found.")
+            return redirect('asset_management')
+            
+        try:
+            condition = request.POST.get('condition')
+            if condition in ('Excellent', 'Good', 'Fair', 'Needs Repair'):
+                asset['Condition'] = condition
+            else:
+                condition = asset.get('Condition', 'Excellent')
+                
+            assigned_to = asset.get('AssignedTo', 'Unknown')
+            assignee_name = 'Unknown'
+            if assigned_to and assigned_to != 'Unknown':
+                from core.dynamodb_service import EmployeesTable
+                emp = EmployeesTable.get_item({'EmployeeID': assigned_to})
+                if emp:
+                    assignee_name = f"{emp.get('FirstName', '')} {emp.get('LastName', '')}"
+            
+            from core.utils import get_local_date
+            ret_date = get_local_date().strftime('%Y-%m-%d')
+            
+            # Append return to history list
+            history = asset.get('History', [])
+            if not isinstance(history, list):
+                history = []
+            history.append({
+                'Action': 'Returned',
+                'EmployeeID': assigned_to,
+                'EmployeeName': assignee_name,
+                'Date': ret_date,
+                'Condition': condition
+            })
+            asset['History'] = history
+            
+            asset['Status'] = 'Available'
+            asset.pop('AssignedTo', None)
+            asset.pop('AllocationDate', None)
+            AssetsTable.put_item(asset)
+            messages.success(request, "Asset marked as returned and is now available.")
+        except Exception as e:
+            messages.error(request, f"Error returning asset: {e}")
+            
+        return redirect('asset_management')
+
+class UpdateAssetConditionView(HRRequiredMixin, View):
+    def post(self, request, asset_id):
+        from core.dynamodb_service import AssetsTable
+        asset = AssetsTable.get_item({'AssetID': asset_id})
+        if not asset:
+            messages.error(request, "Asset not found.")
+            return redirect('asset_management')
+        
+        condition = request.POST.get('condition')
+        if condition in ('Excellent', 'Good', 'Fair', 'Needs Repair'):
+            try:
+                asset['Condition'] = condition
+                AssetsTable.put_item(asset)
+                messages.success(request, f"Asset condition updated to {condition} successfully.")
+            except Exception as e:
+                messages.error(request, f"Error updating condition: {e}")
+        return redirect('asset_management')
+
+class DeleteAssetView(HRRequiredMixin, View):
+    def post(self, request, asset_id):
+        from core.dynamodb_service import AssetsTable
+        asset = AssetsTable.get_item({'AssetID': asset_id})
+        if not asset:
+            messages.error(request, "Asset not found.")
+            return redirect('asset_management')
+            
+        if asset.get('Status') == 'Assigned':
+            messages.error(request, "Cannot delete an asset that is currently assigned to an employee.")
+            return redirect('asset_management')
+            
+        try:
+            AssetsTable.delete_item({'AssetID': asset_id})
+            messages.success(request, f"Asset '{asset.get('AssetName')}' deleted successfully.")
+        except Exception as e:
+            messages.error(request, f"Error deleting asset: {e}")
+        return redirect('asset_management')
+
+class MyAssetsView(LoginRequiredMixin, TemplateView):
+    template_name = 'employees/my_assets.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from core.dynamodb_service import AssetsTable, AssetRequestsTable
+        
+        user_emp_id = self.request.user.employee_id
+        
+        # Scan for assets assigned to this user
+        my_assets = []
+        try:
+            all_assets = AssetsTable.scan()
+            my_assets = [a for a in all_assets if a.get('AssignedTo') == user_emp_id]
+        except Exception as e:
+            print(f"Error loading employee assets: {e}")
+            
+        # Scan for requests raised by this user
+        my_requests = []
+        try:
+            all_requests = AssetRequestsTable.scan()
+            my_requests = [r for r in all_requests if r.get('EmployeeID') == user_emp_id]
+            my_requests.sort(key=lambda x: x.get('CreatedAt', ''), reverse=True)
+        except Exception as e:
+            print(f"Error loading employee requests: {e}")
+            
+        context['assets'] = my_assets
+        context['my_requests'] = my_requests
+        context['laptop_count'] = sum(1 for a in my_assets if a.get('Category') in ('Laptop', 'Mobile'))
+        return context
+
+class RaiseAssetRequestView(LoginRequiredMixin, View):
+    def post(self, request):
+        from core.dynamodb_service import AssetsTable, AssetRequestsTable, EmployeesTable
+        from core.utils import get_local_date
+        import uuid
+        
+        asset_id = request.POST.get('asset_id')
+        request_type = request.POST.get('request_type') # 'Complaint' or 'Exchange'
+        issue_category = request.POST.get('issue_category')
+        description = request.POST.get('description', '').strip()
+        
+        if not asset_id or not request_type or not description:
+            messages.error(request, "Missing required request parameters.")
+            return redirect('my_assets')
+            
+        # Fetch asset to verify ownership
+        asset = AssetsTable.get_item({'AssetID': asset_id})
+        if not asset or asset.get('AssignedTo') != request.user.employee_id:
+            messages.error(request, "Asset is not assigned to you or does not exist.")
+            return redirect('my_assets')
+            
+        # Fetch employee details for recording
+        emp_name = "Unknown"
+        emp = EmployeesTable.get_item({'EmployeeID': request.user.employee_id})
+        if emp:
+            emp_name = f"{emp.get('FirstName', '')} {emp.get('LastName', '')}"
+            
+        try:
+            request_id = f"REQ-AST-{str(uuid.uuid4())[:8].upper()}"
+            request_item = {
+                'RequestID': request_id,
+                'AssetID': asset_id,
+                'AssetName': asset.get('AssetName', 'Unknown Asset'),
+                'EmployeeID': request.user.employee_id,
+                'EmployeeName': emp_name,
+                'RequestType': request_type,
+                'IssueCategory': issue_category,
+                'IssueDescription': description,
+                'Status': 'Pending',
+                'CreatedAt': get_local_date().strftime('%Y-%m-%d'),
+                'ResolutionNotes': ''
+            }
+            AssetRequestsTable.put_item(request_item)
+            messages.success(request, f"Your {request_type.lower()} request has been submitted successfully.")
+        except Exception as e:
+            messages.error(request, f"Error raising request: {e}")
+            
+        return redirect('my_assets')
+
+class HandleAssetRequestView(HRRequiredMixin, View):
+    def post(self, request, request_id):
+        from core.dynamodb_service import AssetRequestsTable, AssetsTable
+        
+        status = request.POST.get('status')
+        resolution_notes = request.POST.get('resolution_notes', '').strip()
+        
+        if not status or not resolution_notes:
+            messages.error(request, "Status and resolution notes are required.")
+            return redirect('asset_management')
+            
+        # Get request
+        employee_id = request.POST.get('employee_id')
+        asset_req = None
+        if employee_id:
+            try:
+                asset_req = AssetRequestsTable.get_item({'EmployeeID': employee_id, 'RequestID': request_id})
+            except Exception:
+                asset_req = None
+        
+        # Fallback to scanning if not found or employee_id was missing
+        if not asset_req:
+            try:
+                all_reqs = AssetRequestsTable.scan()
+                asset_req = next((r for r in all_reqs if r.get('RequestID') == request_id), None)
+            except Exception as e:
+                messages.error(request, f"Error scanning database: {e}")
+                return redirect('asset_management')
+                
+        if not asset_req:
+            messages.error(request, "Request not found.")
+            return redirect('asset_management')
+            
+        try:
+            asset_req['Status'] = status
+            asset_req['ResolutionNotes'] = resolution_notes
+            AssetRequestsTable.put_item(asset_req)
+            
+            # If request is Resolved/Approved AND it is an Exchange request
+            if status == 'Resolved' and asset_req.get('RequestType') == 'Exchange':
+                asset_id = asset_req.get('AssetID')
+                asset = AssetsTable.get_item({'AssetID': asset_id})
+                if asset and asset.get('Status') == 'Assigned':
+                    # Unassign asset and make it Available with Needs Repair condition
+                    from core.utils import get_local_date
+                    ret_date = get_local_date().strftime('%Y-%m-%d')
+                    
+                    assigned_to = asset.get('AssignedTo', 'Unknown')
+                    employee_name = asset_req.get('EmployeeName', 'Unknown')
+                    
+                    # Record return in history
+                    history = asset.get('History', [])
+                    if not isinstance(history, list):
+                        history = []
+                    history.append({
+                        'Action': 'Returned (Exchange Approved)',
+                        'EmployeeID': assigned_to,
+                        'EmployeeName': employee_name,
+                        'Date': ret_date,
+                        'Condition': 'Needs Repair'
+                    })
+                    
+                    asset['History'] = history
+                    asset['Condition'] = 'Needs Repair'
+                    asset['Status'] = 'Available'
+                    asset.pop('AssignedTo', None)
+                    asset.pop('AllocationDate', None)
+                    AssetsTable.put_item(asset)
+                    messages.success(request, f"Request resolved. Asset {asset_id} has been automatically unassigned and marked for repair/exchange.")
+                else:
+                    messages.success(request, "Request resolved successfully.")
+            else:
+                messages.success(request, f"Request status updated to {status} successfully.")
+        except Exception as e:
+            messages.error(request, f"Error processing request: {e}")
+            
+        return redirect('asset_management')
+
+
+

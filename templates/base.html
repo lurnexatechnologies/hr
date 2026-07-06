@@ -150,7 +150,11 @@
                     {% endif %}
                 </a>
             </div>
-
+            <div class="nav-item">
+                <a href="{% url 'asset_management' %}" class="nav-link {% block nav_asset_management %}{% endblock %}">
+                    <i class="fa-solid fa-cubes"></i> Asset Management
+                </a>
+            </div>
             {% endif %}
             {% endif %}
 
@@ -206,6 +210,18 @@
                 </a>
             </div>
             {% endif %}
+            {% if request.user.role != 'Super admin' %}
+            <div class="nav-item">
+                <a href="{% url 'my_assets' %}" class="nav-link {% block nav_my_assets %}{% endblock %}">
+                    <i class="fa-solid fa-laptop"></i> My Assets
+                </a>
+            </div>
+            {% endif %}
+            <div class="nav-item">
+                <a href="{% url 'okrs' %}" class="nav-link {% block nav_okrs %}{% endblock %}">
+                    <i class="fa-solid fa-bullseye"></i> Performance & OKRs
+                </a>
+            </div>
 
             <!-- Documents Section -->
             <div class="nav-item mt-4 mb-2 ps-4">

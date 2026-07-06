@@ -27,5 +27,16 @@ urlpatterns = [
     path('certificates/approvals/', views.CertificateApprovalsView.as_view(), name='certificate_approvals'),
     path('certificates/<str:emp_id>/<str:cert_id>/action/', views.CertificateActionView.as_view(), name='certificate_action'),
     path('certificates/<str:emp_id>/<str:cert_id>/delete/', views.DeleteCertificateView.as_view(), name='delete_certificate'),
+    
+    # Asset Management Module
+    path('assets/', views.AssetManagementView.as_view(), name='asset_management'),
+    path('assets/add/', views.AddAssetView.as_view(), name='add_asset'),
+    path('assets/allocate/<str:asset_id>/', views.AllocateAssetView.as_view(), name='allocate_asset'),
+    path('assets/return/<str:asset_id>/', views.ReturnAssetView.as_view(), name='return_asset'),
+    path('assets/update-condition/<str:asset_id>/', views.UpdateAssetConditionView.as_view(), name='update_asset_condition'),
+    path('assets/delete/<str:asset_id>/', views.DeleteAssetView.as_view(), name='delete_asset'),
+    path('my-assets/', views.MyAssetsView.as_view(), name='my_assets'),
+    path('my-assets/request/', views.RaiseAssetRequestView.as_view(), name='raise_asset_request'),
+    path('assets/requests/handle/<str:request_id>/', views.HandleAssetRequestView.as_view(), name='handle_asset_request'),
 ]
 

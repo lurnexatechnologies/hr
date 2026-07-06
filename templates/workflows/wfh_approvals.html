@@ -89,7 +89,14 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td><span class="fw-medium text-dark">{{ req.WFHDate }}</span></td>
+                                <td>
+                                    <span class="fw-medium text-dark">{{ req.WFHDate }}</span>
+                                    {% if req.WFHType %}
+                                    <div class="small text-muted fw-bold mt-1">
+                                        <i class="fa-solid fa-clock me-1"></i>{{ req.WFHType }}
+                                    </div>
+                                    {% endif %}
+                                </td>
                                 <td class="text-muted small" style="max-width: 250px;">{{ req.Reason }}</td>
                                 <td>
                                     <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 rounded-pill px-3">{{ req.Status }}</span>
@@ -157,7 +164,14 @@
                                     <div class="fw-bold text-main">{{ req.EmployeeName }}</div>
                                     <div class="text-muted small fw-bold">{{ req.EmployeeID }}</div>
                                 </td>
-                                <td><div class="small text-dark fw-medium">{{ req.WFHDate }}</div></td>
+                                <td>
+                                    <div class="small text-dark fw-medium">{{ req.WFHDate }}</div>
+                                    {% if req.WFHType %}
+                                    <div class="small text-muted fw-bold mt-1">
+                                        <i class="fa-solid fa-clock me-1"></i>{{ req.WFHType }}
+                                    </div>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if req.Status == 'Approved' %}
                                         <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> {{ req.Status }}</span>

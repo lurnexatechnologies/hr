@@ -1,0 +1,774 @@
+{% extends "base.html" %}
+
+{% block title %}IT & Company Asset Management - Lurnexa{% endblock %}
+{% block nav_asset_management %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">IT & Company Assets</h2>
+        <p class="text-muted mb-0">Track hardware inventory, manage device allocations, and oversee return clearances.</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-primary shadow-sm rounded-pill px-4 py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#addAssetModal">
+            <i class="fa-solid fa-plus me-2"></i> Register New Asset
+        </button>
+    </div>
+</div>
+
+<!-- Dynamic Counter Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm p-4 h-100 hover-translate" style="border-radius: 20px;">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center me-3" style="width: 52px; height: 52px;">
+                    <i class="fa-solid fa-boxes-stacked fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted small fw-bold text-uppercase mb-1">Total Assets</h6>
+                    <h3 class="fw-extrabold text-dark mb-0">{{ assets|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm p-4 h-100 hover-translate" style="border-radius: 20px;">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center me-3" style="width: 52px; height: 52px;">
+                    <i class="fa-solid fa-circle-check fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted small fw-bold text-uppercase mb-1">Available</h6>
+                    <h3 class="fw-extrabold text-dark mb-0" id="availCount">0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm p-4 h-100 hover-translate" style="border-radius: 20px;">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle bg-info bg-opacity-10 text-info d-flex align-items-center justify-content-center me-3" style="width: 52px; height: 52px;">
+                    <i class="fa-solid fa-user-tag fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted small fw-bold text-uppercase mb-1">Assigned</h6>
+                    <h3 class="fw-extrabold text-dark mb-0" id="assignCount">0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm p-4 h-100 hover-translate" style="border-radius: 20px;">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center me-3" style="width: 52px; height: 52px;">
+                    <i class="fa-solid fa-screwdriver-wrench fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted small fw-bold text-uppercase mb-1">Repairs Needed</h6>
+                    <h3 class="fw-extrabold text-dark mb-0" id="maintCount">0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs for Inventory and Requests -->
+<ul class="nav nav-pills border-0 mb-4 bg-light p-2" id="assetDashboardTabs" role="tablist" style="border-radius: 30px; max-width: fit-content; gap: 5px;">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active rounded-pill px-4 py-2 fw-bold text-dark border-0" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory-pane" type="button" role="tab" aria-controls="inventory-pane" aria-selected="true" style="box-shadow: none;">
+            <i class="fa-solid fa-boxes-stacked me-1"></i> Inventory List
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link rounded-pill px-4 py-2 fw-bold text-dark border-0" id="requests-tab" data-bs-toggle="tab" data-bs-target="#requests-pane" type="button" role="tab" aria-controls="requests-pane" aria-selected="false" style="box-shadow: none;">
+            <i class="fa-solid fa-triangle-exclamation me-1"></i> Complaints & Exchanges
+            {% if pending_requests_count %}
+            <span class="badge bg-danger ms-1" style="font-size: 0.75rem;">{{ pending_requests_count }}</span>
+            {% endif %}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="assetDashboardTabContent">
+    <!-- Inventory Pane -->
+    <div class="tab-pane fade show active" id="inventory-pane" role="tabpanel" aria-labelledby="inventory-tab">
+        <!-- Main Inventory Management Panel -->
+        <div class="card border-0 shadow-sm mb-4" style="border-radius: 20px;">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div class="d-flex gap-2" id="filterPills">
+                        <button class="btn btn-outline-primary btn-sm rounded-pill px-3 active" onclick="filterByStatus('All')">All</button>
+                        <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="filterByStatus('Available')">Available</button>
+                        <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="filterByStatus('Assigned')">Assigned</button>
+                        <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="filterByStatus('Needs Repair')">Repair Required</button>
+                    </div>
+                    <div style="max-width: 300px; width: 100%;">
+                        <div class="input-group input-group-sm border rounded-pill overflow-hidden px-2 bg-light">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                            <input type="text" id="assetSearch" class="form-control bg-transparent border-0" placeholder="Search by name, ID, or S/N..." onkeyup="searchAssets()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-body px-4 py-3">
+                {% if assets %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border-0 mb-0" id="assetsTable">
+                        <thead>
+                            <tr class="text-uppercase text-muted small fw-bold border-bottom">
+                                <th class="border-0 py-3">Asset Details</th>
+                                <th class="border-0 py-3">Serial No</th>
+                                <th class="border-0 py-3">Category</th>
+                                <th class="border-0 py-3">Condition</th>
+                                <th class="border-0 py-3">Status</th>
+                                <th class="border-0 py-3 text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for asset in assets %}
+                            <tr class="asset-row align-middle border-bottom border-light" data-status="{{ asset.Status }}" data-condition="{{ asset.Condition }}">
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="rounded-3 bg-light p-2-5 text-secondary me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; border-radius: 12px !important;">
+                                            {% if asset.Category == 'Laptop' %}
+                                            <i class="fa-solid fa-laptop fs-5 text-primary"></i>
+                                            {% elif asset.Category == 'Monitor' %}
+                                            <i class="fa-solid fa-desktop fs-5 text-success"></i>
+                                            {% elif asset.Category == 'Mobile' %}
+                                            <i class="fa-solid fa-mobile-screen-button fs-5 text-info"></i>
+                                            {% elif asset.Category == 'Keycard' %}
+                                            <i class="fa-solid fa-key fs-5 text-warning"></i>
+                                            {% else %}
+                                            <i class="fa-solid fa-cubes fs-5 text-secondary"></i>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-bold text-dark mb-0 search-target">{{ asset.AssetName }}</h6>
+                                            <code class="smaller text-muted search-target" style="font-size: 0.7rem;">{{ asset.AssetID }}</code>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><code class="text-secondary fw-semibold search-target">{{ asset.SerialNo }}</code></td>
+                                <td><span class="badge bg-light text-dark border px-3 py-1-5 rounded-pill">{{ asset.Category }}</span></td>
+                                <td>
+                                    <div class="d-inline-flex align-items-center gap-1">
+                                        {% if asset.Condition == 'Excellent' %}
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-15 rounded-pill px-3 py-1 fw-bold">Excellent</span>
+                                        {% elif asset.Condition == 'Good' %}
+                                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-15 rounded-pill px-3 py-1 fw-bold">Good</span>
+                                        {% elif asset.Condition == 'Fair' %}
+                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-15 rounded-pill px-3 py-1 fw-bold">Fair</span>
+                                        {% else %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-15 rounded-pill px-3 py-1 fw-bold">Needs Repair</span>
+                                        {% endif %}
+                                        <button type="button" class="btn btn-link btn-sm text-secondary p-0 border-0 ms-1" onclick="openConditionModal('{{ asset.AssetID }}', '{{ asset.AssetName|escapejs }}', '{{ asset.Condition|escapejs }}')" title="Update Condition" style="text-decoration: none; box-shadow: none;">
+                                            <i class="fa-solid fa-pen-to-square text-muted hover-purple"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if asset.Status == 'Available' %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-15 px-3 py-1 rounded-pill fw-bold"><i class="fa-solid fa-circle-check me-1"></i> Available</span>
+                                    {% elif asset.Status == 'Assigned' %}
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-15 px-3 py-1 rounded-pill fw-bold"><i class="fa-solid fa-user-tag me-1"></i> Assigned</span>
+                                    <div class="smaller text-muted mt-1">To: <strong>{{ asset.AssigneeName }}</strong></div>
+                                    <div class="smaller text-muted" style="font-size: 0.7rem;"><i class="fa-regular fa-calendar me-1"></i> {{ asset.AllocationDate }}</div>
+                                    {% else %}
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-15 px-3 py-1 rounded-pill fw-bold">{{ asset.Status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-2">
+                                        {% if asset.Status == 'Available' %}
+                                        <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 fw-bold shadow-sm" onclick="openAllocateModal('{{ asset.AssetID }}', '{{ asset.AssetName|escapejs }}')">
+                                            <i class="fa-solid fa-user-plus me-1"></i> Allocate
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" onclick="openDeleteModal('{{ asset.AssetID }}', '{{ asset.AssetName|escapejs }}')">
+                                            <i class="fa-solid fa-trash me-1"></i> Delete
+                                        </button>
+                                        {% elif asset.Status == 'Assigned' %}
+                                        <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-bold" onclick="openReturnModal('{{ asset.AssetID }}', '{{ asset.AssetName|escapejs }}', '{{ asset.Condition|escapejs }}')">
+                                            <i class="fa-solid fa-rotate-left me-1"></i> Return
+                                        </button>
+                                        {% endif %}
+                                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold" onclick="openHistoryModal('{{ asset.AssetName|escapejs }}', '{{ asset.HistoryJSON|escapejs }}')">
+                                            <i class="fa-solid fa-clock-rotate-left me-1"></i> History
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-cubes fa-4x text-light mb-3"></i>
+                    <h5 class="fw-bold text-dark">No Assets Registered</h5>
+                    <p class="text-muted mb-0">Use the "Register New Asset" button to add inventory.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Requests Pane -->
+    <div class="tab-pane fade" id="requests-pane" role="tabpanel" aria-labelledby="requests-tab">
+        <!-- Complaints & Exchanges Panel -->
+        <div class="card border-0 shadow-sm mb-4" style="border-radius: 20px;">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-1">Employee Complaints & Exchange Requests</h5>
+                        <p class="text-muted small mb-0">Manage support tickets, repair complaints, and replacement requests raised by employees.</p>
+                    </div>
+                    <span class="badge bg-light text-secondary border px-3 py-1-5 rounded-pill fw-bold">{{ asset_requests|length }} Total</span>
+                </div>
+            </div>
+            <div class="card-body px-4 py-3">
+                {% if asset_requests %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border-0 mb-0">
+                        <thead>
+                            <tr class="text-uppercase text-muted small fw-bold border-bottom">
+                                <th class="border-0 py-3">Request ID</th>
+                                <th class="border-0 py-3">Employee</th>
+                                <th class="border-0 py-3">Asset Details</th>
+                                <th class="border-0 py-3">Type</th>
+                                <th class="border-0 py-3">Reason / Description</th>
+                                <th class="border-0 py-3">Date Raised</th>
+                                <th class="border-0 py-3">Status</th>
+                                <th class="border-0 py-3 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in asset_requests %}
+                            <tr class="border-bottom border-light">
+                                <td><code class="text-secondary fw-semibold">{{ req.RequestID }}</code></td>
+                                <td>
+                                    <strong class="text-dark">{{ req.EmployeeName }}</strong>
+                                    <div class="smaller text-muted" style="font-size: 0.75rem;">ID: {{ req.EmployeeID }}</div>
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-dark">{{ req.AssetName }}</span>
+                                    <div class="smaller text-muted" style="font-size: 0.75rem;">ID: {{ req.AssetID }}</div>
+                                </td>
+                                <td>
+                                    {% if req.RequestType == 'Complaint' %}
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-15 px-3 py-1 rounded-pill fw-bold"><i class="fa-solid fa-triangle-exclamation me-1"></i> Issue/Complaint</span>
+                                    {% else %}
+                                    <span class="badge bg-purple-light text-purple border border-purple-light px-3 py-1 rounded-pill fw-bold"><i class="fa-solid fa-arrows-rotate me-1"></i> Replacement/Exchange</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="small text-dark" style="max-width: 250px;" title="{{ req.IssueDescription }}">
+                                        <strong>{{ req.IssueCategory }}:</strong> {{ req.IssueDescription }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="text-muted small"><i class="fa-regular fa-calendar me-1"></i> {{ req.CreatedAt }}</span>
+                                </td>
+                                <td>
+                                    {% if req.Status == 'Pending' %}
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-15 px-3 py-1 rounded-pill fw-bold">Pending</span>
+                                    {% elif req.Status == 'In Progress' %}
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-15 px-3 py-1 rounded-pill fw-bold">In Progress</span>
+                                    {% elif req.Status == 'Resolved' %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-15 px-3 py-1 rounded-pill fw-bold">Resolved</span>
+                                    {% else %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-15 px-3 py-1 rounded-pill fw-bold">Rejected</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if req.Status == 'Pending' or req.Status == 'In Progress' %}
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold" onclick="openResolveRequestModal('{{ req.RequestID }}', '{{ req.EmployeeName|escapejs }}', '{{ req.AssetName|escapejs }}', '{{ req.RequestType|escapejs }}', '{{ req.EmployeeID|escapejs }}')">
+                                        <i class="fa-solid fa-check-double me-1"></i> Take Action
+                                    </button>
+                                    {% else %}
+                                    <div class="smaller text-muted italic">Resolved: {{ req.ResolutionNotes|default:"-" }}</div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-check-to-slot fa-4x text-light mb-3"></i>
+                    <h5 class="fw-bold text-dark">No Complaints or Requests</h5>
+                    <p class="text-muted mb-0">Employees haven't raised any asset complaints or exchange requests.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Asset Modal -->
+<div class="modal fade" id="addAssetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Register New Company Asset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'add_asset' %}">
+                {% csrf_token %}
+                <div class="modal-body px-4 py-3">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Asset Name / Description <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="asset_name" placeholder="e.g. MacBook Pro M3 Max" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Serial Number / Asset Tag <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="serial_no" placeholder="e.g. C02DGXYZQ05D" required>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Category <span class="text-danger">*</span></label>
+                            <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="category" required>
+                                <option value="Laptop" selected>Laptop</option>
+                                <option value="Monitor">Monitor</option>
+                                <option value="Mobile">Mobile Device</option>
+                                <option value="Keycard">Office Keycard</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Condition <span class="text-danger">*</span></label>
+                            <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="condition" required>
+                                <option value="Excellent" selected>Excellent</option>
+                                <option value="Good">Good</option>
+                                <option value="Fair">Fair</option>
+                                <option value="Needs Repair">Needs Repair</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">Register Asset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Allocate Asset Modal -->
+<div class="modal fade" id="allocateAssetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Allocate Asset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="allocateAssetForm" method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Select an employee to allocate <strong id="allocateAssetName" class="text-dark"></strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Select Employee</label>
+                        <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="employee_id" required>
+                            <option value="">-- Choose Employee --</option>
+                            {% for emp in active_employees %}
+                            <option value="{{ emp.EmployeeID }}">{{ emp.FirstName }} {{ emp.LastName }} (ID: {{ emp.EmployeeID }}) - {{ emp.Department }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">Allocate Now</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Return Asset Modal -->
+<div class="modal fade" id="returnAssetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Return Asset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="returnAssetForm" method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Update the condition of <strong id="returnAssetName" class="text-dark"></strong> before placing it back in available inventory.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Asset Condition upon Return</label>
+                        <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="condition" required>
+                            <option value="Excellent">Excellent</option>
+                            <option value="Good">Good</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Needs Repair">Needs Repair</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm">Confirm Return</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Update Condition Modal -->
+<div class="modal fade" id="updateConditionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Update Asset Condition</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="updateConditionForm" method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Update the condition of <strong id="conditionAssetName" class="text-dark"></strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Condition</label>
+                        <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="condition" id="conditionSelect" required>
+                            <option value="Excellent">Excellent</option>
+                            <option value="Good">Good</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Needs Repair">Needs Repair</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Asset Modal -->
+<div class="modal fade" id="deleteAssetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Delete Asset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="deleteAssetForm" method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted mb-0">Are you sure you want to permanently delete <strong id="deleteAssetName" class="text-dark"></strong> from the inventory? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm">Delete Permanently</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Asset History Modal -->
+<div class="modal fade" id="assetHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Asset Allocation History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <p class="text-muted small">Showing the lifecycle and assignment history of <strong id="historyAssetName" class="text-dark"></strong>.</p>
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0" id="historyTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="small fw-bold text-muted border-0">Action</th>
+                                <th class="small fw-bold text-muted border-0">Employee</th>
+                                <th class="small fw-bold text-muted border-0">Date</th>
+                                <th class="small fw-bold text-muted border-0">Condition</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noHistoryMsg" class="text-center py-4 d-none">
+                    <i class="fa-solid fa-clock-rotate-left fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0 small">No history recorded for this asset yet.</p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resolve Request Modal -->
+<div class="modal fade" id="resolveRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold text-dark">Process Asset Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="resolveRequestForm" method="POST" action="">
+                {% csrf_token %}
+                <input type="hidden" name="request_id" id="resolveRequestID">
+                <input type="hidden" name="employee_id" id="resolveEmployeeID">
+                <div class="modal-body px-4 py-3">
+                    <p class="text-muted small">Update status and provide resolution details for <strong id="resolveEmployeeName"></strong>'s request for <strong id="resolveAssetName"></strong>.</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Update Status</label>
+                        <select class="form-select border-0 bg-light py-2-5 px-3" style="border-radius: 12px;" name="status" required>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved / Approve</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Resolution Notes / Comments</label>
+                        <textarea class="form-control border-0 bg-light py-2-5 px-3" rows="4" style="border-radius: 12px; resize: none;" name="resolution_notes" placeholder="Specify steps taken, repair details, or reasons for rejection..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Count statuses on initial load
+        let avail = 0;
+        let assigned = 0;
+        let maint = 0;
+        
+        document.querySelectorAll("tbody tr.asset-row").forEach(tr => {
+            const status = tr.getAttribute("data-status");
+            const condition = tr.getAttribute("data-condition");
+            
+            if (status === "Available") {
+                avail++;
+            } else if (status === "Assigned") {
+                assigned++;
+            }
+            
+            if (condition === "Needs Repair") {
+                maint++;
+            }
+        });
+        
+        document.getElementById("availCount").innerText = avail;
+        document.getElementById("assignCount").innerText = assigned;
+        document.getElementById("maintCount").innerText = maint;
+    });
+
+    function openAllocateModal(assetId, assetName) {
+        const form = document.getElementById('allocateAssetForm');
+        form.action = `/employees/assets/allocate/${assetId}/`;
+        document.getElementById('allocateAssetName').innerText = assetName;
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('allocateAssetModal'));
+        modal.show();
+    }
+
+    function openReturnModal(assetId, assetName, currentCondition) {
+        const form = document.getElementById('returnAssetForm');
+        form.action = `/employees/assets/return/${assetId}/`;
+        document.getElementById('returnAssetName').innerText = assetName;
+        
+        const select = form.querySelector('select[name="condition"]');
+        if (select) {
+            select.value = currentCondition || 'Excellent';
+        }
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('returnAssetModal'));
+        modal.show();
+    }
+
+    function openConditionModal(assetId, assetName, currentCondition) {
+        const form = document.getElementById('updateConditionForm');
+        form.action = `/employees/assets/update-condition/${assetId}/`;
+        document.getElementById('conditionAssetName').innerText = assetName;
+        
+        const select = document.getElementById('conditionSelect');
+        if (select) {
+            select.value = currentCondition || 'Excellent';
+        }
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('updateConditionModal'));
+        modal.show();
+    }
+
+    function openDeleteModal(assetId, assetName) {
+        const form = document.getElementById('deleteAssetForm');
+        form.action = `/employees/assets/delete/${assetId}/`;
+        document.getElementById('deleteAssetName').innerText = assetName;
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteAssetModal'));
+        modal.show();
+    }
+
+    function openHistoryModal(assetName, historyJSON) {
+        document.getElementById('historyAssetName').innerText = assetName;
+        
+        let history = [];
+        try {
+            history = JSON.parse(historyJSON) || [];
+        } catch (e) {
+            console.error("Error parsing history JSON:", e);
+        }
+        
+        const tbody = document.getElementById('historyTableBody');
+        const noHistoryMsg = document.getElementById('noHistoryMsg');
+        const historyTable = document.getElementById('historyTable');
+        
+        tbody.innerHTML = '';
+        
+        if (history.length === 0) {
+            noHistoryMsg.classList.remove('d-none');
+            historyTable.classList.add('d-none');
+        } else {
+            noHistoryMsg.classList.add('d-none');
+            historyTable.classList.remove('d-none');
+            
+            // Show history in reverse chronological order (latest action first)
+            const sortedHistory = [...history].reverse();
+            
+            sortedHistory.forEach(item => {
+                const actionBadge = item.Action === 'Allocated' 
+                    ? '<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-15 rounded-pill px-3 py-1 fw-bold">Allocated</span>'
+                    : '<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-15 rounded-pill px-3 py-1 fw-bold">Returned</span>';
+                
+                const conditionBadge = item.Condition === 'Excellent'
+                    ? '<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-0.5 fw-bold">Excellent</span>'
+                    : item.Condition === 'Good'
+                    ? '<span class="badge bg-info bg-opacity-10 text-info rounded-pill px-2 py-0.5 fw-bold">Good</span>'
+                    : item.Condition === 'Fair'
+                    ? '<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2 py-0.5 fw-bold">Fair</span>'
+                    : '<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2 py-0.5 fw-bold">Needs Repair</span>';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${actionBadge}</td>
+                    <td><strong>${item.EmployeeName}</strong> <span class="text-muted small">(ID: ${item.EmployeeID})</span></td>
+                    <td><span class="text-muted small"><i class="fa-regular fa-calendar me-1"></i> ${item.Date}</span></td>
+                    <td>${conditionBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('assetHistoryModal'));
+        modal.show();
+    }
+
+    function openResolveRequestModal(requestId, employeeName, assetName, requestType, employeeId) {
+        const form = document.getElementById('resolveRequestForm');
+        form.action = `/employees/assets/requests/handle/${requestId}/`;
+        document.getElementById('resolveRequestID').value = requestId;
+        document.getElementById('resolveEmployeeID').value = employeeId;
+        document.getElementById('resolveEmployeeName').innerText = employeeName;
+        document.getElementById('resolveAssetName').innerText = assetName;
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('resolveRequestModal'));
+        modal.show();
+    }
+
+    function filterByStatus(status) {
+        // Set active button pill
+        const pills = document.querySelectorAll('#filterPills button');
+        pills.forEach(pill => {
+            if (pill.innerText.includes(status) || (status === 'All' && pill.innerText === 'All')) {
+                pill.classList.add('active');
+            } else {
+                pill.classList.remove('active');
+            }
+        });
+
+        // Toggle rows
+        const rows = document.querySelectorAll('#assetsTable tbody tr.asset-row');
+        rows.forEach(row => {
+            const rowStatus = row.getAttribute('data-status');
+            const rowCond = row.getAttribute('data-condition');
+
+            if (status === 'All') {
+                row.style.display = '';
+            } else if (status === 'Needs Repair') {
+                if (rowCond === 'Needs Repair') row.style.display = '';
+                else row.style.display = 'none';
+            } else {
+                if (rowStatus === status) row.style.display = '';
+                else row.style.display = 'none';
+            }
+        });
+    }
+
+    function searchAssets() {
+        const query = document.getElementById('assetSearch').value.toLowerCase();
+        const rows = document.querySelectorAll('#assetsTable tbody tr.asset-row');
+        
+        rows.forEach(row => {
+            let match = false;
+            row.querySelectorAll('.search-target').forEach(target => {
+                if (target.textContent.toLowerCase().includes(query)) {
+                    match = true;
+                }
+            });
+            
+            if (match) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+
+<style>
+    .hover-translate {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .hover-translate:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
+    }
+    .fw-extrabold {
+        font-weight: 800;
+    }
+    .py-1-5 {
+        padding-top: 0.3rem;
+        padding-bottom: 0.3rem;
+    }
+    .bg-purple-light {
+        background-color: rgba(139, 92, 246, 0.1) !important;
+    }
+    .text-purple {
+        color: #8b5cf6 !important;
+    }
+    .border-purple-light {
+        border-color: rgba(139, 92, 246, 0.15) !important;
+    }
+    .hover-purple:hover {
+        color: #8b5cf6 !important;
+        cursor: pointer;
+    }
+    .nav-pills .nav-link {
+        color: #4b5563;
+        transition: all 0.2s ease;
+    }
+    .nav-pills .nav-link.active {
+        background-color: #6366f1;
+        color: white !important;
+    }
+</style>
+{% endblock %}

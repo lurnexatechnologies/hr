@@ -60,12 +60,13 @@
         <div class="tab-content" id="resignationTabsContent">
             <!-- Pending Tab -->
             <div class="tab-pane fade {% if active_tab == 'pending' or not active_tab %}show active{% endif %}" id="pending" role="tabpanel">
-                <div class="table-responsive">
+                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light text-muted small fw-bold text-uppercase">
                             <tr>
                                 <th class="ps-4 border-0 py-3">Employee</th>
                                 <th class="border-0 py-3">Phone</th>
+                                <th class="border-0 py-3">Assets Clearance</th>
                                 <th class="border-0 py-3">Reason</th>
                                 <th class="border-0 py-3">Comments</th>
                                 <th class="border-0 py-3">Last Working Day</th>
@@ -81,14 +82,36 @@
                                     <div class="text-muted small">{{ r.EmployeeID }}</div>
                                 </td>
                                 <td class="text-nowrap">{{ r.PhoneNumber }}</td>
-                                <td><div style="min-width: 150px; max-width: 250px; white-space: normal; line-height: 1.4;">{{ r.Reason }}</div></td>
-                                <td><div style="min-width: 150px; max-width: 250px; white-space: normal; line-height: 1.4;">{{ r.Comments|default:"N/A" }}</div></td>
+                                <td>
+                                    {% if r.HasOutstandingAssets %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 py-1 px-2 mb-1" style="font-size: 0.75rem;">
+                                            <i class="fa-solid fa-laptop me-1"></i> {{ r.AssignedAssets|length }} Outstanding
+                                        </span>
+                                        <div class="smaller text-muted" style="font-size: 0.75rem;">
+                                            {% for asset in r.AssignedAssets %}
+                                                • {{ asset.AssetName }}<br>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 py-1 px-2" style="font-size: 0.75rem;">
+                                            <i class="fa-solid fa-circle-check me-1"></i> Cleared
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td><div style="min-width: 150px; max-width: 200px; white-space: normal; line-height: 1.4;">{{ r.Reason }}</div></td>
+                                <td><div style="min-width: 150px; max-width: 200px; white-space: normal; line-height: 1.4;">{{ r.Comments|default:"N/A" }}</div></td>
                                 <td class="fw-medium text-nowrap">{{ r.LastWorkingDay }}</td>
                                 <td class="text-muted small text-nowrap">{{ r.SubmittedOn }}</td>
                                 <td class="pe-4 text-end">
+                                    {% if r.HasOutstandingAssets %}
+                                    <button class="btn btn-sm btn-success rounded-pill px-3 me-1 disabled" title="Please recover assigned assets first" disabled>
+                                        <i class="fa-solid fa-ban me-1"></i> Blocked
+                                    </button>
+                                    {% else %}
                                     <a href="{% url 'process_resignation' r.EmployeeID 'approve' %}" class="btn btn-sm btn-success rounded-pill px-3 me-1">
                                         <i class="fa-solid fa-check me-1"></i> Accept
                                     </a>
+                                    {% endif %}
                                     <a href="{% url 'process_resignation' r.EmployeeID 'reject' %}" class="btn btn-sm btn-outline-danger rounded-pill px-3">
                                         <i class="fa-solid fa-xmark me-1"></i> Reject
                                     </a>
@@ -96,7 +119,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <i class="fa-solid fa-inbox fa-3x text-light mb-3 d-block"></i>
                                     <p class="text-muted">No pending resignation requests.</p>
                                 </td>
@@ -161,7 +184,14 @@
                                     <div class="d-flex align-items-center justify-content-end gap-2">
                                         <div class="text-muted small me-2">{{ r.SubmittedOn }}</div>
                                         {% if r.Status == 'Accepted Resignation' %}
-                                            <!-- Letter generation links removed as requested -->
+                                            <a href="{% url 'generate_experience_letter' r.EmployeeID %}" target="_blank" class="btn btn-xs btn-outline-primary rounded-pill px-2 py-1 fw-bold text-decoration-none" style="font-size: 0.75rem;">
+                                                <i class="fa-solid fa-file-pdf me-1"></i> Exp Letter
+                                            </a>
+                                            {% if r.is_pf_applicable %}
+                                            <a href="{% url 'generate_pf_letter' r.EmployeeID %}" target="_blank" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 fw-bold text-decoration-none" style="font-size: 0.75rem;">
+                                                <i class="fa-solid fa-file-pdf me-1"></i> PF Letter
+                                            </a>
+                                            {% endif %}
                                         {% endif %}
 
                                     </div>

@@ -205,8 +205,8 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
     def get(self, request):
         record = ResignationsTable.get_item({'EmployeeID': request.user.employee_id})
         
-        # Default LWD is 60 days from today (standard notice period)
-        min_lwd_date = get_local_date() + datetime.timedelta(days=60)
+        # Minimum LWD is today (notice period constraint removed)
+        min_lwd_date = get_local_date()
         min_lwd = min_lwd_date.isoformat()
         
         return render(request, 'workflows/resignation.html', {
@@ -228,19 +228,6 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         if not reason or not lwd:
             messages.error(request, "Reason and Last Working Day are required.")
             return redirect('resignation_view')
-
-        # --- TENURE CHECK (Default 60 Days) ---
-        employee = EmployeesTable.get_item({'EmployeeID': emp_id})
-        if employee and employee.get('JoinedDate'):
-            try:
-                joined_date = datetime.datetime.strptime(employee.get('JoinedDate'), '%Y-%m-%d').date()
-                tenure_days = (get_local_date() - joined_date).days
-                if tenure_days < 60:
-                    wait_days = 60 - tenure_days
-                    messages.error(request, f"Resignation can be applied after 60 days of service only. You can apply in {wait_days} day{'s' if wait_days > 1 else ''}.")
-                    return redirect('resignation_view')
-            except Exception:
-                pass
 
         # --- REJECTION COOLING OFF PERIOD CHECK (3 Days) ---
         existing_record = ResignationsTable.get_item({'EmployeeID': emp_id})
@@ -570,6 +557,17 @@ class ResignationApprovalsView(HRRequiredMixin, TemplateView):
         emp_map = {e['EmployeeID']: e for e in all_employees}
         today = get_local_date()
         
+        # Build assets mapping
+        from core.dynamodb_service import AssetsTable
+        try:
+            all_assets = AssetsTable.scan()
+        except Exception:
+            all_assets = []
+        assets_by_employee = {}
+        for asset in all_assets:
+            if asset.get('Status') == 'Assigned' and asset.get('AssignedTo'):
+                assets_by_employee.setdefault(asset['AssignedTo'], []).append(asset)
+        
         # Get Filter Params
         query = self.request.GET.get('q', '').strip().lower()
         dept_filter = self.request.GET.get('dept', '')
@@ -637,6 +635,8 @@ class ResignationApprovalsView(HRRequiredMixin, TemplateView):
             r['EmployeeName'] = f"{employee_data.get('FirstName', '')} {employee_data.get('LastName', '')}" if employee_data else emp_id
             r['PhoneNumber'] = employee_data.get('Phone', 'N/A')
             r['is_pf_applicable'] = employee_data.get('is_pf_applicable', False)
+            r['AssignedAssets'] = assets_by_employee.get(emp_id, [])
+            r['HasOutstandingAssets'] = len(r['AssignedAssets']) > 0
             lwd_str = r.get('LastWorkingDay')
             status = r.get('Status')
             
@@ -701,6 +701,18 @@ class ResignationApprovalsView(HRRequiredMixin, TemplateView):
 
 class ProcessResignationView(HRRequiredMixin, View):
     def get(self, request, emp_id, action):
+        if action == 'approve':
+            from core.dynamodb_service import AssetsTable
+            try:
+                all_assets = AssetsTable.scan()
+                assigned_assets = [a for a in all_assets if a.get('Status') == 'Assigned' and a.get('AssignedTo') == emp_id]
+                if assigned_assets:
+                    asset_names = ", ".join([a.get('AssetName', 'Unknown') for a in assigned_assets])
+                    messages.error(request, f"Cannot approve resignation. Employee has outstanding assigned assets: {asset_names}.")
+                    return redirect('resignation_approvals')
+            except Exception as e:
+                print(f"Error checking assets during resignation approval: {e}")
+                
         status = 'Accepted Resignation' if action == 'approve' else 'Rejected'
         update_expr = "SET #s = :val, ProcessedBy = :pb"
         expr_vals = {':val': status, ':pb': request.user.employee_id}
@@ -996,6 +1008,19 @@ class RejectWFHView(ManagerRequiredMixin, View):
 class GenerateExperienceLetterView(HRRequiredMixin, TemplateView):
     template_name = 'workflows/experience_letter.html'
 
+    def get(self, request, *args, **kwargs):
+        emp_id = self.kwargs.get('emp_id')
+        from core.dynamodb_service import AssetsTable
+        try:
+            all_assets = AssetsTable.scan()
+            assigned_assets = [a for a in all_assets if a.get('Status') == 'Assigned' and a.get('AssignedTo') == emp_id]
+            if assigned_assets:
+                messages.error(request, "Cannot generate Experience Letter. Employee has outstanding assigned assets.")
+                return redirect('resignation_approvals')
+        except Exception:
+            pass
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         emp_id = self.kwargs.get('emp_id')
@@ -1024,6 +1049,19 @@ class GenerateExperienceLetterView(HRRequiredMixin, TemplateView):
 
 class GeneratePFLetterView(HRRequiredMixin, TemplateView):
     template_name = 'workflows/pf_letter.html'
+
+    def get(self, request, *args, **kwargs):
+        emp_id = self.kwargs.get('emp_id')
+        from core.dynamodb_service import AssetsTable
+        try:
+            all_assets = AssetsTable.scan()
+            assigned_assets = [a for a in all_assets if a.get('Status') == 'Assigned' and a.get('AssignedTo') == emp_id]
+            if assigned_assets:
+                messages.error(request, "Cannot generate PF Letter. Employee has outstanding assigned assets.")
+                return redirect('resignation_approvals')
+        except Exception:
+            pass
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

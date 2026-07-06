@@ -12,6 +12,16 @@ from core.utils import send_notification, get_local_now, get_local_date
 import uuid
 from boto3.dynamodb.conditions import Key
 import datetime
+import math
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371.0  # Earth radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+    a = min(1.0, max(0.0, a))
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c * 1000  # distance in meters
 
 class ClockInView(LoginRequiredMixin, View):
     def post(self, request):
@@ -76,12 +86,84 @@ class ClockInView(LoginRequiredMixin, View):
         if record:
             messages.error(request, "Already clocked in today.")
         else:
+            # Geofencing & IP Check
+            wfh_approved = False
+            try:
+                all_wfh = WFHRequestsTable.scan()
+                for w in all_wfh:
+                    if w.get('EmployeeID') == eid and w.get('Status') == 'Approved':
+                        w_start = w.get('WFHDate')
+                        w_end = w.get('EndDate') or w_start
+                        if w_start <= today <= w_end:
+                            wfh_approved = True
+                            break
+            except Exception as e:
+                print(f"Error checking WFH requests: {e}")
+
+            user_ip = request.META.get('HTTP_X_FORWARDED_FOR')
+            if user_ip:
+                user_ip = user_ip.split(',')[0].strip()
+            else:
+                user_ip = request.META.get('REMOTE_ADDR')
+
+            latitude_str = request.POST.get('latitude')
+            longitude_str = request.POST.get('longitude')
+
+            geofence = SettingsTable.get_item({'SettingKey': 'geofencing_settings'})
+            if geofence and geofence.get('Enabled', False) and not wfh_approved:
+                # Check IP restriction
+                ip_whitelist = geofence.get('IPWhitelist', '')
+                if ip_whitelist and ip_whitelist.lower() != 'all' and ip_whitelist.lower() != 'none':
+                    allowed_ips = [ip.strip() for ip in ip_whitelist.split(',') if ip.strip()]
+                    if user_ip not in allowed_ips:
+                        messages.error(request, f"Clock-in restricted: Your IP address ({user_ip}) is not whitelisted for office clock-in.")
+                        return redirect('attendance_history')
+
+                # Check Geofencing coordinates
+                def is_invalid_coord(val):
+                    if not val:
+                        return True
+                    v = str(val).strip().lower()
+                    return v in ('', 'null', 'undefined', 'nan')
+
+                if is_invalid_coord(latitude_str) or is_invalid_coord(longitude_str):
+                    messages.error(request, "Clock-in restricted: Location coordinates are required. Please allow location permissions in your browser.")
+                    return redirect('attendance_history')
+
+                try:
+                    lat1 = float(latitude_str)
+                    lon1 = float(longitude_str)
+                except ValueError:
+                    messages.error(request, "Clock-in restricted: Invalid coordinates format received from browser.")
+                    return redirect('attendance_history')
+
+                try:
+                    lat2 = float(geofence.get('Latitude', '0.0') or '0.0')
+                    lon2 = float(geofence.get('Longitude', '0.0') or '0.0')
+                    radius = float(geofence.get('Radius', '100') or '100')
+                except ValueError:
+                    messages.error(request, "Clock-in restricted: Office geofencing configuration is invalid. Please contact HR.")
+                    return redirect('attendance_history')
+
+                try:
+                    dist = haversine_distance(lat1, lon1, lat2, lon2)
+                    if dist > radius:
+                        messages.error(request, f"Clock-in restricted: You are {round(dist, 1)}m away from the office. Required radius: {radius}m.")
+                        return redirect('attendance_history')
+                except Exception as e:
+                    messages.error(request, f"Clock-in restricted: Location calculation error: {e}")
+                    return redirect('attendance_history')
+
             item = {
                 'EmployeeID': eid,
                 'RecordDate': today,
                 'ClockIn': now_time_str,
                 'ClockOut': None,
-                'Status': 'Present'
+                'Status': 'Present',
+                'Latitude': latitude_str or None,
+                'Longitude': longitude_str or None,
+                'IPAddress': user_ip,
+                'IsGeofenced': not wfh_approved
             }
             AttendanceTable.put_item(item)
             messages.success(request, f"Clocked in successfully at {now_time_str}.")
@@ -301,6 +383,7 @@ class ApplyWFHView(LoginRequiredMixin, View):
     def post(self, request):
         start_date = request.POST.get('start_date')
         end_date = request.POST.get('end_date')
+        wfh_type = request.POST.get('wfh_type', 'Full Day')
         reason = request.POST.get('reason')
         user_emp_id = request.user.employee_id
         
@@ -392,7 +475,8 @@ class ApplyWFHView(LoginRequiredMixin, View):
             'Status': status,
             'ApproverID': approver_id,
             'RequestDate': get_local_date().isoformat(),
-            'OriginalRole': user_role
+            'OriginalRole': user_role,
+            'WFHType': wfh_type
         }
         WFHRequestsTable.put_item(item)
         
@@ -441,6 +525,16 @@ class HRAttendanceView(HRRequiredMixin, TemplateView):
             'EndTime': '18:00',
             'NightStartTime': '22:00',
             'NightEndTime': '06:00'
+        }
+
+        # Geofencing Settings
+        geofence = SettingsTable.get_item({'SettingKey': 'geofencing_settings'})
+        context['geofence_settings'] = geofence or {
+            'Enabled': False,
+            'Latitude': '0.0',
+            'Longitude': '0.0',
+            'Radius': '100',
+            'IPWhitelist': 'all'
         }
         
         # 1. Fetch all employees (Excluding Super admin)
@@ -630,6 +724,27 @@ class OfficeTimingSettingsView(HRRequiredMixin, View):
         })
         
         messages.success(request, "Office timings updated successfully.")
+        return redirect('hr_attendance')
+
+class UpdateGeofencingSettingsView(HRRequiredMixin, View):
+    def post(self, request):
+        enabled = request.POST.get('enabled') == 'on'
+        latitude = request.POST.get('latitude', '0.0').strip()
+        longitude = request.POST.get('longitude', '0.0').strip()
+        radius = request.POST.get('radius', '100').strip()
+        ip_whitelist = request.POST.get('ip_whitelist', 'all').strip()
+
+        SettingsTable.put_item({
+            'SettingKey': 'geofencing_settings',
+            'Enabled': enabled,
+            'Latitude': latitude,
+            'Longitude': longitude,
+            'Radius': radius,
+            'IPWhitelist': ip_whitelist,
+            'UpdatedAt': get_local_now().isoformat()
+        })
+
+        messages.success(request, "Geofencing & IP restrictions updated successfully.")
         return redirect('hr_attendance')
 
 from django.http import HttpResponse

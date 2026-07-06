@@ -12,7 +12,8 @@ from core.dynamodb_service import (
     EmployeesTable, ReportingHierarchyTable, LeaveRequestsTable, 
     ExpensesTable, AttendanceTable, HolidaysTable, PoliciesTable, 
     ResignationsTable, NotificationsTable, WFHRequestsTable,
-    UsersTable, LoginHistoryTable, PayrollApprovalsTable
+    UsersTable, LoginHistoryTable, PayrollApprovalsTable, OKRsTable,
+    AppraisalCyclesTable, AppraisalsTable
 )
 from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now
 
@@ -102,16 +103,17 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
         approvals = []
         
         # 0. Payroll (Critical Priority)
-        try:
-            payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin Approval']
-            for p in payroll_queue:
-                approvals.append({
-                    'title': 'Payroll Batch',
-                    'subtitle': f"{p.get('MonthYear')} Authorization Required",
-                    'badge': 'Payroll',
-                    'url': 'payroll_approval_list'
-                })
-        except: pass
+        if user_role == 'Super admin':
+            try:
+                payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin Approval']
+                for p in payroll_queue:
+                    approvals.append({
+                        'title': 'Payroll Batch',
+                        'subtitle': f"{p.get('MonthYear')} Authorization Required",
+                        'badge': 'Payroll',
+                        'url': 'payroll_approval_list'
+                    })
+            except: pass
 
         for l in pending_leaves[:2]:
             emp = next((e for e in all_employees if e.get('EmployeeID') == l.get('EmployeeID')), None)
@@ -161,6 +163,47 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
             
         context['dept_labels'] = list(dept_counts.keys())
         context['dept_values'] = list(dept_counts.values())
+        
+        # 4. Leave Types Distribution
+        leave_counts = {}
+        for l in all_leaves:
+            if l.get('Status') == 'Approved':
+                ltype = l.get('Type', 'Other')
+                leave_counts[ltype] = leave_counts.get(ltype, 0) + float(l.get('DaysCount', 1.0))
+        context['leave_labels'] = list(leave_counts.keys())
+        context['leave_values'] = list(leave_counts.values())
+
+        # 5. Department-wise Monthly Payroll Distribution
+        dept_payroll = {}
+        for e in active_employees:
+            dept = e.get('Department')
+            if not dept or dept == 'None':
+                dept = 'Other'
+            try:
+                monthly_sal = safe_float(e.get('SalaryPA', 0)) / 12.0
+            except:
+                monthly_sal = 0.0
+            dept_payroll[dept] = dept_payroll.get(dept, 0.0) + monthly_sal
+        context['payroll_labels'] = list(dept_payroll.keys())
+        context['payroll_values'] = [round(val, 2) for val in dept_payroll.values()]
+
+        # 6. Last 7 Days Attendance Trend
+        import datetime
+        seven_days_ago = (today_date - datetime.timedelta(days=7)).strftime('%Y-%m-%d')
+        recent_attendance = AttendanceTable.scan(
+            FilterExpression=Key('RecordDate').gte(seven_days_ago)
+        )
+        attendance_by_date = {}
+        for record in recent_attendance:
+            rdate = record.get('RecordDate')
+            attendance_by_date[rdate] = attendance_by_date.get(rdate, 0) + 1
+
+        dates_range = [(today_date - datetime.timedelta(days=i)) for i in range(6, -1, -1)]
+        attendance_labels = [dt.strftime('%a (%b %d)') for dt in dates_range]
+        attendance_values = [attendance_by_date.get(dt.strftime('%Y-%m-%d'), 0) for dt in dates_range]
+        
+        context['attendance_labels'] = attendance_labels
+        context['attendance_values'] = attendance_values
         
         return context
 
@@ -1005,7 +1048,13 @@ class HRGenerateLetterView(HRRequiredMixin, View):
         from core.utils import apply_pending_hikes, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64
         apply_pending_hikes()
         logo_base64 = get_lurnexa_logo_base64()
-        signature_stamp_base64 = get_authorized_signature_stamp_base64()
+        
+        sig_data = request.POST.get('signature_data')
+        if sig_data and sig_data.startswith('data:image/'):
+            signature_stamp_base64 = sig_data
+        else:
+            signature_stamp_base64 = get_authorized_signature_stamp_base64()
+            
         employee_id = request.POST.get('employee_id')
         letter_type = request.POST.get('letter_type')
         effective_date = request.POST.get('effective_date')
@@ -1497,3 +1546,971 @@ class ContactUsView(View):
             messages.error(request, "There was an error sending your message. Please try again later.")
             
         return redirect('/#contact')
+
+
+class OKRView(LoginRequiredMixin, TemplateView):
+    template_name = 'core/okrs.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        eid = user.employee_id
+        role = user.role
+
+        today_str = get_local_date().isoformat()
+        try:
+            my_okrs = OKRsTable.query(
+                KeyConditionExpression=Key('EmployeeID').eq(eid)
+            )
+            for o in my_okrs:
+                o['Progress'] = int(o.get('Progress', 0))
+                o['TargetValue'] = int(o.get('TargetValue', 100))
+                o['CurrentValue'] = int(o.get('CurrentValue', 0))
+                if o.get('ManagerRating') is not None:
+                    o['ManagerRating'] = float(o.get('ManagerRating'))
+                
+                # Daily update calculations
+                hist = o.get('ProgressHistory', [])
+                o['TodayProgress'] = sum(int(h.get('Increment', 0)) for h in hist if h.get('Date') == today_str)
+                o['ProgressHistory'] = hist
+        except Exception:
+            my_okrs = []
+        
+        context['my_okrs'] = sorted(my_okrs, key=lambda x: x.get('CreatedAt', ''), reverse=True)
+
+        team_okrs = []
+        all_okrs = []
+        try:
+            all_okrs = OKRsTable.scan()
+            for o in all_okrs:
+                o['Progress'] = int(o.get('Progress', 0))
+                o['TargetValue'] = int(o.get('TargetValue', 100))
+                o['CurrentValue'] = int(o.get('CurrentValue', 0))
+                if o.get('ManagerRating') is not None:
+                    o['ManagerRating'] = float(o.get('ManagerRating'))
+                
+                # Daily update calculations
+                hist = o.get('ProgressHistory', [])
+                o['TodayProgress'] = sum(int(h.get('Increment', 0)) for h in hist if h.get('Date') == today_str)
+                o['ProgressHistory'] = hist
+        except Exception:
+            pass
+
+        emp_role_map = {}
+        try:
+            all_emp_raw = EmployeesTable.scan()
+            emp_map = {e['EmployeeID']: f"{e.get('FirstName', '')} {e.get('LastName', '')}" for e in all_emp_raw}
+            
+            # Fetch user roles mapping from UsersTable
+            users_raw = UsersTable.scan()
+            emp_role_map = {u['EmployeeID']: u.get('Role') for u in users_raw if u.get('EmployeeID')}
+            
+            if role == 'Super admin':
+                # Super admin decides goals for Managers and HR.
+                active_subs = [e for e in all_emp_raw if emp_role_map.get(e['EmployeeID']) in ('Manager', 'HR ADMIN')]
+                context['active_employees'] = sorted(active_subs, key=lambda x: x.get('FirstName', ''))
+            elif role == 'Manager':
+                # Manager decides goals for Employees (subordinates).
+                subordinates = ReportingHierarchyTable.scan(
+                    FilterExpression="ManagerID = :mid",
+                    ExpressionAttributeValues={":mid": eid}
+                )
+                sub_ids = {s.get('EmployeeID') for s in subordinates if s.get('EmployeeID')}
+                mgr_subs = [e for e in all_emp_raw if e['EmployeeID'] in sub_ids]
+                context['active_employees'] = sorted(mgr_subs, key=lambda x: x.get('FirstName', ''))
+            else:
+                # HR ADMIN and Employees cannot assign goals.
+                context['active_employees'] = []
+        except Exception:
+            emp_map = {}
+            context['active_employees'] = []
+
+        if role in ('Super admin', 'HR ADMIN'):
+            for o in all_okrs:
+                if o.get('EmployeeID') != eid:
+                    o['EmployeeName'] = emp_map.get(o.get('EmployeeID'), o.get('EmployeeID'))
+                    o['EmployeeRole'] = emp_role_map.get(o.get('EmployeeID'), 'Employee')
+                    team_okrs.append(o)
+        else:
+            try:
+                subordinates = ReportingHierarchyTable.scan(
+                    FilterExpression="ManagerID = :mid",
+                    ExpressionAttributeValues={":mid": eid}
+                )
+                sub_ids = [s.get('EmployeeID') for s in subordinates if s.get('EmployeeID')]
+            except Exception:
+                sub_ids = []
+
+            for o in all_okrs:
+                if o.get('EmployeeID') in sub_ids:
+                    o['EmployeeName'] = emp_map.get(o.get('EmployeeID'), o.get('EmployeeID'))
+                    o['EmployeeRole'] = emp_role_map.get(o.get('EmployeeID'), 'Employee')
+                    team_okrs.append(o)
+
+        context['team_okrs'] = sorted(team_okrs, key=lambda x: x.get('CreatedAt', ''), reverse=True)
+        context['is_manager_or_hr'] = len(team_okrs) > 0 or role in ('Super admin', 'HR ADMIN', 'Manager')
+        
+        # Calculate Stats for my_okrs
+        total_my = len(my_okrs)
+        completed_my = sum(1 for o in my_okrs if o.get('Status') == 'Completed')
+        avg_progress_my = 0
+        if total_my > 0:
+            avg_progress_my = sum(int(o.get('Progress', 0)) for o in my_okrs) // total_my
+            
+        ratings = [float(o.get('ManagerRating')) for o in my_okrs if o.get('ManagerRating')]
+        avg_rating_my = round(sum(ratings) / len(ratings), 1) if ratings else 0.0
+        
+        context['stats_my'] = {
+            'total': total_my,
+            'completed': completed_my,
+            'avg_progress': avg_progress_my,
+            'avg_rating': avg_rating_my
+        }
+        
+        # Calculate Stats for team_okrs
+        total_team = len(team_okrs)
+        pending_appraisal_team = sum(1 for o in team_okrs if not o.get('ManagerRating'))
+        
+        context['stats_team'] = {
+            'total': total_team,
+            'pending': pending_appraisal_team
+        }
+        
+        # 1. Seeding / Fetching Appraisal Cycles
+        try:
+            cycles = AppraisalCyclesTable.scan()
+            if not cycles:
+                default_cycle = {
+                    'CycleID': 'q3-2026',
+                    'Name': 'Q3 2026 Appraisal Cycle',
+                    'Type': 'Quarterly',
+                    'StartDate': '2026-07-01',
+                    'EndDate': '2026-09-30',
+                    'SubmissionDeadline': '2026-08-15',
+                    'ReviewDeadline': '2026-09-01',
+                    'ApprovalDeadline': '2026-09-15',
+                    'Status': 'Active'
+                }
+                AppraisalCyclesTable.put_item(default_cycle)
+                cycles = [default_cycle]
+        except Exception:
+            cycles = []
+            
+        active_cycles = [c for c in cycles if c.get('Status') == 'Active']
+        active_cycle = active_cycles[0] if active_cycles else (cycles[0] if cycles else None)
+        context['active_cycle'] = active_cycle
+        context['all_cycles'] = cycles
+
+        # 2. Self Appraisal details & History
+        my_appraisal = None
+        if active_cycle:
+            try:
+                my_appraisal = AppraisalsTable.get_item({'EmployeeID': eid, 'CycleID': active_cycle['CycleID']})
+            except Exception:
+                pass
+        context['my_appraisal'] = my_appraisal
+
+        try:
+            appraisal_history = AppraisalsTable.query(
+                KeyConditionExpression=Key('EmployeeID').eq(eid)
+            )
+        except Exception:
+            appraisal_history = []
+        context['appraisal_history'] = sorted(appraisal_history, key=lambda x: x.get('CycleID', ''), reverse=True)
+
+        # 3. Employee's own designation, salary history
+        try:
+            all_emp_raw = EmployeesTable.scan()
+        except Exception:
+            all_emp_raw = []
+        current_employee = next((e for e in all_emp_raw if e.get('EmployeeID') == eid), {})
+        context['current_employee'] = current_employee
+        context['promotion_history'] = current_employee.get('PromotionHistory', [])
+        context['salary_history'] = current_employee.get('SalaryHistory', [])
+
+        # 4. Manager subordinates mapping
+        try:
+            subordinates = ReportingHierarchyTable.scan(
+                FilterExpression="ManagerID = :mid",
+                ExpressionAttributeValues={":mid": eid}
+            )
+            sub_ids = [s.get('EmployeeID') for s in subordinates if s.get('EmployeeID')]
+        except Exception:
+            sub_ids = []
+
+        # 5. Load and enrich appraisals
+        all_appraisals = []
+        try:
+            all_appraisals = AppraisalsTable.scan()
+            for app in all_appraisals:
+                emp_details = next((e for e in all_emp_raw if e.get('EmployeeID') == app.get('EmployeeID')), {})
+                app['EmployeeName'] = f"{emp_details.get('FirstName', '')} {emp_details.get('LastName', '')}"
+                app['Designation'] = emp_details.get('Designation', 'Employee')
+                app['Department'] = emp_details.get('Department', 'Operations')
+                app['JoinedDate'] = emp_details.get('JoinedDate', '')
+                app['Salary'] = float(emp_details.get('Salary', 0))
+        except Exception:
+            pass
+
+        # Filter appraisals based on role
+        if role in ('Super admin', 'HR ADMIN'):
+            context['all_appraisals'] = all_appraisals
+        else:
+            context['all_appraisals'] = []
+            
+        # Determine target reviewee IDs based on role
+        reviewee_ids = []
+        try:
+            users_raw = UsersTable.scan()
+            emp_role_map = {u['EmployeeID']: u.get('Role') for u in users_raw if u.get('EmployeeID')}
+        except Exception:
+            emp_role_map = {}
+
+        if role == 'Manager':
+            reviewee_ids = [rid for rid in sub_ids if rid != eid]
+        elif role == 'Super admin':
+            reviewee_ids = [rid for rid, r in emp_role_map.items() if r in ('Manager', 'HR ADMIN') and rid != eid]
+
+        mgr_appraisals = []
+        active_cycle_id = active_cycle['CycleID'] if active_cycle else 'q3-2026'
+        
+        for rid in reviewee_ids:
+            emp_details = next((e for e in all_emp_raw if e.get('EmployeeID') == rid), None)
+            if not emp_details:
+                continue
+            app = next((a for a in all_appraisals if a.get('EmployeeID') == rid and a.get('CycleID') == active_cycle_id), None)
+            if not app:
+                app = {
+                    'EmployeeID': rid,
+                    'CycleID': active_cycle_id,
+                    'Status': 'Pending Manager Review',
+                    'SelfAppraisal': {'Achievements': 'Self Appraisal Disabled'},
+                    'ManagerReview': {},
+                    'HRReview': {},
+                    'FounderApproval': {}
+                }
+            app['EmployeeName'] = f"{emp_details.get('FirstName', '')} {emp_details.get('LastName', '')}"
+            app['Designation'] = emp_details.get('Designation', 'Employee')
+            app['Department'] = emp_details.get('Department', 'Operations')
+            app['JoinedDate'] = emp_details.get('JoinedDate', '')
+            app['Salary'] = float(emp_details.get('Salary', 0))
+            mgr_appraisals.append(app)
+            
+        context['mgr_appraisals'] = mgr_appraisals
+
+        # 6. Performance Analytics
+        # HR/Founder Analytics
+        ratings_list = []
+        dept_performances = {}
+        top_performers = []
+        pending_approvals = []
+        promotion_requests = []
+        salary_hike_requests = []
+        salary_budget_delta = 0.0
+
+        for a in all_appraisals:
+            mgr_rev = a.get('ManagerReview', {})
+            fnd_app = a.get('FounderApproval', {})
+            
+            rating = float(fnd_app.get('OverrideRating') or mgr_rev.get('Rating') or 0.0)
+            if rating > 0:
+                ratings_list.append(rating)
+                
+            # Department averages
+            dept = a.get('Department', 'Operations')
+            if rating > 0:
+                if dept not in dept_performances:
+                    dept_performances[dept] = []
+                dept_performances[dept].append(rating)
+                
+            # Top performers
+            if rating >= 4.0:
+                top_performers.append({
+                    'EmployeeName': a.get('EmployeeName'),
+                    'Rating': rating,
+                    'Department': dept
+                })
+
+            # Pending founder approval / HR review list
+            if a.get('Status') == 'Pending Founder Approval':
+                pending_approvals.append(a)
+            if a.get('Status') == 'Pending HR Review':
+                context['pending_hr_reviews_count'] = context.get('pending_hr_reviews_count', 0) + 1
+
+            # Promotion recommendations
+            if mgr_rev.get('RecommendPromotion'):
+                promotion_requests.append({
+                    'EmployeeName': a.get('EmployeeName'),
+                    'CurrentDesignation': a.get('Designation'),
+                    'RecommendedDesignation': mgr_rev.get('RecommendedDesignation'),
+                    'Status': a.get('Status')
+                })
+
+            # Salary hike recommendations
+            if mgr_rev.get('RecommendSalaryHike'):
+                old_sal = float(a.get('Salary', 0))
+                new_sal = float(mgr_rev.get('RecommendedSalary', old_sal))
+                hike_pct = ((new_sal - old_sal) / old_sal * 100) if old_sal > 0 else 0.0
+                salary_budget_delta += (new_sal - old_sal)
+                salary_hike_requests.append({
+                    'EmployeeName': a.get('EmployeeName'),
+                    'CurrentSalary': old_sal,
+                    'RecommendedSalary': new_sal,
+                    'HikePercentage': round(hike_pct, 1),
+                    'Status': a.get('Status')
+                })
+
+        # Calculate department rankings
+        dept_rankings = []
+        for d, r_list in dept_performances.items():
+            dept_rankings.append({
+                'Department': d,
+                'AvgRating': round(sum(r_list) / len(r_list), 2)
+            })
+        dept_rankings = sorted(dept_rankings, key=lambda x: x['AvgRating'], reverse=True)
+
+        context['analytics'] = {
+            'avg_company_rating': round(sum(ratings_list) / len(ratings_list), 2) if ratings_list else 0.0,
+            'top_performers': sorted(top_performers, key=lambda x: x['Rating'], reverse=True)[:5],
+            'pending_approvals': pending_approvals,
+            'promotion_requests': promotion_requests,
+            'salary_hike_requests': salary_hike_requests,
+            'salary_budget_delta': salary_budget_delta,
+            'dept_rankings': dept_rankings
+        }
+
+        return context
+
+class CreateOKRView(LoginRequiredMixin, View):
+    def post(self, request):
+        user = request.user
+        role = user.role
+        
+        # Only Super Admin or Manager can assign goals
+        if role not in ('Super admin', 'Manager'):
+            messages.error(request, "Permission denied. Only Super Admins and Managers can assign goals.")
+            return redirect('okrs')
+            
+        assignee_id = request.POST.get('assignee_id')
+        eid = user.employee_id
+        
+        # Fetch user roles mapping from UsersTable to validate role restrictions
+        try:
+            users_raw = UsersTable.scan()
+            emp_role_map = {u['EmployeeID']: u.get('Role') for u in users_raw if u.get('EmployeeID')}
+        except Exception:
+            emp_role_map = {}
+            
+        assignee_role = emp_role_map.get(assignee_id)
+        
+        if role == 'Super admin':
+            if assignee_role not in ('Manager', 'HR ADMIN'):
+                messages.error(request, "Permission denied. Super Admins can only assign goals to Managers and HR.")
+                return redirect('okrs')
+        elif role == 'Manager':
+            # Verify that assignee is indeed their subordinate
+            try:
+                subordinates = ReportingHierarchyTable.scan(
+                    FilterExpression="ManagerID = :mid",
+                    ExpressionAttributeValues={":mid": eid}
+                )
+                sub_ids = {s.get('EmployeeID') for s in subordinates if s.get('EmployeeID')}
+                if assignee_id not in sub_ids:
+                    messages.error(request, "Permission denied. You can only assign goals to your subordinates.")
+                    return redirect('okrs')
+            except Exception as e:
+                messages.error(request, f"Error validating reporting hierarchy: {e}")
+                return redirect('okrs')
+        goal_name = request.POST.get('goal_name')
+        description = request.POST.get('description')
+        due_date = request.POST.get('due_date', '').strip()
+        target_val = request.POST.get('target_value', '100')
+
+        if not assignee_id or not goal_name or not description or not due_date:
+            messages.error(request, "Employee Assignee, Goal Name, Description, and Target Date are required.")
+            return redirect('okrs')
+
+        try:
+            goal_id = str(uuid.uuid4())
+            item = {
+                'EmployeeID': assignee_id,
+                'GoalID': goal_id,
+                'GoalName': goal_name,
+                'Description': description,
+                'Quarter': due_date,
+                'DueDate': due_date,
+                'TargetValue': int(target_val) if target_val.isdigit() else 100,
+                'CurrentValue': 0,
+                'Progress': 0,
+                'Status': 'In Progress',
+                'CreatedAt': get_local_now().isoformat(),
+                'UpdatedAt': get_local_now().isoformat()
+            }
+            OKRsTable.put_item(item)
+            messages.success(request, "Goal successfully assigned to the employee.")
+        except Exception as e:
+            messages.error(request, f"Error creating OKR: {e}")
+        return redirect('okrs')
+
+class UpdateOKRProgressView(LoginRequiredMixin, View):
+    def post(self, request):
+        user = request.user
+        eid = user.employee_id
+        goal_id = request.POST.get('goal_id')
+        current_val_str = request.POST.get('current_value')
+
+        if not goal_id or not current_val_str:
+            messages.error(request, "Goal ID and Current Value are required.")
+            return redirect('okrs')
+
+        try:
+            okr = OKRsTable.get_item({'EmployeeID': eid, 'GoalID': goal_id})
+            if not okr:
+                messages.error(request, "OKR not found.")
+                return redirect('okrs')
+
+            old_progress = int(okr.get('Progress', 0))
+            old_value = int(okr.get('CurrentValue', 0))
+
+            current_val = int(current_val_str)
+            target_val = int(okr.get('TargetValue', 100))
+            if target_val <= 0:
+                target_val = 100
+            progress = min(100, max(0, int((current_val / target_val) * 100)))
+
+            status = 'Completed' if progress >= 100 else 'In Progress'
+            increment = progress - old_progress
+
+            history = okr.get('ProgressHistory', [])
+            
+            clean_history = []
+            for h in history:
+                clean_history.append({
+                    'Timestamp': str(h.get('Timestamp', '')),
+                    'Date': str(h.get('Date', '')),
+                    'PreviousValue': int(h.get('PreviousValue', 0)),
+                    'CurrentValue': int(h.get('CurrentValue', 0)),
+                    'PreviousProgress': int(h.get('PreviousProgress', 0)),
+                    'NewProgress': int(h.get('NewProgress', 0)),
+                    'Increment': int(h.get('Increment', 0))
+                })
+
+            new_entry = {
+                'Timestamp': get_local_now().isoformat(),
+                'Date': get_local_date().isoformat(),
+                'PreviousValue': old_value,
+                'CurrentValue': current_val,
+                'PreviousProgress': old_progress,
+                'NewProgress': progress,
+                'Increment': increment
+            }
+            clean_history.append(new_entry)
+
+            OKRsTable.update_item(
+                Key={'EmployeeID': eid, 'GoalID': goal_id},
+                UpdateExpression="SET CurrentValue = :cv, Progress = :p, #s = :s, UpdatedAt = :ua, ProgressHistory = :hist",
+                ExpressionAttributeNames={'#s': 'Status'},
+                ExpressionAttributeValues={
+                    ':cv': current_val,
+                    ':p': progress,
+                    ':s': status,
+                    ':ua': get_local_now().isoformat(),
+                    ':hist': clean_history
+                }
+            )
+            messages.success(request, "OKR progress updated successfully.")
+        except Exception as e:
+            messages.error(request, f"Error updating OKR progress: {e}")
+        return redirect('okrs')
+
+class EvaluateOKRView(LoginRequiredMixin, View):
+    def post(self, request):
+        goal_id = request.POST.get('goal_id')
+        target_emp_id = request.POST.get('employee_id')
+        rating_str = request.POST.get('rating')
+        appraisal = request.POST.get('appraisal', '').strip()
+
+        if not goal_id or not target_emp_id or not rating_str:
+            messages.error(request, "Goal ID, Employee ID, and Rating are required.")
+            return redirect('okrs')
+
+        try:
+            okr = OKRsTable.get_item({'EmployeeID': target_emp_id, 'GoalID': goal_id})
+            if not okr:
+                messages.error(request, "OKR not found.")
+                return redirect('okrs')
+
+            from decimal import Decimal
+            rating = Decimal(rating_str)
+            OKRsTable.update_item(
+                Key={'EmployeeID': target_emp_id, 'GoalID': goal_id},
+                UpdateExpression="SET ManagerRating = :mr, ManagerAppraisal = :ma, UpdatedAt = :ua",
+                ExpressionAttributeValues={
+                    ':mr': rating,
+                    ':ma': appraisal,
+                    ':ua': get_local_now().isoformat()
+                }
+            )
+            messages.success(request, "OKR evaluation submitted successfully.")
+        except Exception as e:
+            messages.error(request, f"Error submitting OKR evaluation: {e}")
+        return redirect('okrs')
+
+class SubmitSelfAppraisalView(LoginRequiredMixin, View):
+    def post(self, request):
+        messages.error(request, "Self Appraisal is disabled.")
+        return redirect('okrs')
+
+class SubmitManagerReviewView(LoginRequiredMixin, View):
+    def post(self, request):
+        user = request.user
+        role = user.role
+        
+        if role not in ('Manager', 'Super admin'):
+            messages.error(request, "Permission denied. Only Managers and Super Admins can perform appraisals.")
+            return redirect('okrs')
+            
+        cycle_id = request.POST.get('cycle_id')
+        employee_id = request.POST.get('employee_id')
+        
+        eid = user.employee_id
+        if role == 'Manager':
+            try:
+                subordinates = ReportingHierarchyTable.scan(
+                    FilterExpression="ManagerID = :mid",
+                    ExpressionAttributeValues={":mid": eid}
+                )
+                sub_ids = {s.get('EmployeeID') for s in subordinates if s.get('EmployeeID')}
+                if employee_id not in sub_ids:
+                    messages.error(request, "Permission denied. You can only evaluate employees under you.")
+                    return redirect('okrs')
+            except Exception as e:
+                messages.error(request, f"Error validating reporting hierarchy: {e}")
+                return redirect('okrs')
+        elif role == 'Super admin':
+            try:
+                users_raw = UsersTable.scan()
+                emp_role_map = {u['EmployeeID']: u.get('Role') for u in users_raw if u.get('EmployeeID')}
+                if emp_role_map.get(employee_id) not in ('Manager', 'HR ADMIN') and employee_id != eid:
+                    messages.error(request, "Permission denied. Super Admins can only evaluate Managers and HR.")
+                    return redirect('okrs')
+            except Exception as e:
+                messages.error(request, f"Error validating user role: {e}")
+                return redirect('okrs')
+
+        action_type = request.POST.get('action_type', 'Approve') # 'Approve' or 'Return'
+        
+        rating_str = request.POST.get('rating', '4.0')
+        comments = request.POST.get('comments', '')
+        strengths = request.POST.get('strengths', '')
+        weaknesses = request.POST.get('weaknesses', '')
+        
+        recommend_promotion = request.POST.get('recommend_promotion') == 'on'
+        recommended_designation = request.POST.get('recommended_designation', '')
+        promotion_reason = request.POST.get('promotion_reason', '')
+        
+        recommend_salary_hike = request.POST.get('recommend_salary_hike') == 'on'
+        recommended_salary_str = request.POST.get('recommended_salary', '0')
+        salary_hike_reason = request.POST.get('salary_hike_reason', '')
+        
+        recommend_bonus = request.POST.get('recommend_bonus') == 'on'
+        bonus_type = request.POST.get('bonus_type', 'None')
+        bonus_amount_str = request.POST.get('bonus_amount', '0')
+        
+        try:
+            rating = float(rating_str)
+            recommended_salary = float(recommended_salary_str)
+            bonus_amount = float(bonus_amount_str)
+        except ValueError:
+            rating = 4.0
+            recommended_salary = 0.0
+            bonus_amount = 0.0
+
+        if not cycle_id or not employee_id:
+            messages.error(request, "Cycle ID and Employee ID are required.")
+            return redirect('okrs')
+            
+        try:
+            appraisal = AppraisalsTable.get_item({'EmployeeID': employee_id, 'CycleID': cycle_id})
+            if not appraisal:
+                appraisal = {
+                    'EmployeeID': employee_id,
+                    'CycleID': cycle_id,
+                    'SelfAppraisal': {'Achievements': 'Self Appraisal Disabled'},
+                    'ManagerReview': {},
+                    'HRReview': {},
+                    'FounderApproval': {},
+                    'AuditLog': [],
+                    'CreatedAt': get_local_now().isoformat()
+                }
+                
+            current_status = appraisal.get('Status', 'Pending Manager Review')
+            if current_status not in ('Pending Manager Review', 'Submitted', 'Returned by HR', 'Returned by Manager', 'Draft'):
+                messages.error(request, f"Appraisal is in state '{current_status}' and cannot be reviewed.")
+                return redirect('okrs')
+                
+            if action_type == 'Return':
+                status = 'Returned by Manager'
+                remarks = "Manager returned appraisal to employee."
+            else:
+                status = 'Pending HR Review'
+                remarks = "Manager completed review & recommendations."
+                
+            from decimal import Decimal
+            manager_review_data = {
+                'Rating': Decimal(str(rating)),
+                'Comments': comments,
+                'Strengths': strengths,
+                'Weaknesses': weaknesses,
+                'RecommendPromotion': recommend_promotion,
+                'RecommendedDesignation': recommended_designation,
+                'PromotionReason': promotion_reason,
+                'RecommendSalaryHike': recommend_salary_hike,
+                'RecommendedSalary': Decimal(str(recommended_salary)),
+                'SalaryHikeReason': salary_hike_reason,
+                'RecommendBonus': recommend_bonus,
+                'BonusType': bonus_type,
+                'BonusAmount': Decimal(str(bonus_amount)),
+                'ReviewedAt': get_local_now().isoformat()
+            }
+            
+            audit_log = appraisal.get('AuditLog', [])
+            audit_log.append({
+                'Action': f"Manager Review: {status}",
+                'User': f"{user.first_name} {user.last_name}",
+                'Timestamp': get_local_now().isoformat(),
+                'PrevStatus': current_status,
+                'NewStatus': status,
+                'Remarks': remarks
+            })
+            
+            appraisal.update({
+                'Status': status,
+                'ManagerReview': manager_review_data,
+                'AuditLog': audit_log,
+                'UpdatedAt': get_local_now().isoformat()
+            })
+            AppraisalsTable.put_item(appraisal)
+            messages.success(request, f"Manager review successfully updated status to {status}.")
+        except Exception as e:
+            messages.error(request, f"Error saving manager review: {e}")
+        return redirect('okrs')
+
+class SubmitHRReviewView(LoginRequiredMixin, View):
+    def post(self, request):
+        user = request.user
+        role = user.role
+        
+        if role not in ('HR ADMIN', 'Super admin'):
+            messages.error(request, "Permission denied.")
+            return redirect('okrs')
+            
+        cycle_id = request.POST.get('cycle_id')
+        employee_id = request.POST.get('employee_id')
+        action_type = request.POST.get('action_type', 'Approve') # 'Approve' or 'Return'
+        
+        policy_compliance = request.POST.get('policy_compliance', '')
+        budget_remarks = request.POST.get('budget_remarks', '')
+        remarks = request.POST.get('remarks', '')
+        
+        if not cycle_id or not employee_id:
+            messages.error(request, "Cycle ID and Employee ID are required.")
+            return redirect('okrs')
+            
+        try:
+            appraisal = AppraisalsTable.get_item({'EmployeeID': employee_id, 'CycleID': cycle_id})
+            if not appraisal:
+                messages.error(request, "Appraisal not found.")
+                return redirect('okrs')
+                
+            current_status = appraisal.get('Status')
+            if current_status != 'Pending HR Review':
+                messages.error(request, "Appraisal is not pending HR review.")
+                return redirect('okrs')
+                
+            if action_type == 'Return':
+                status = 'Returned by HR'
+                audit_remarks = f"HR returned appraisal. Remarks: {remarks}"
+            else:
+                status = 'Pending Founder Approval'
+                audit_remarks = f"HR approved appraisal. Remarks: {remarks}"
+                
+            hr_review_data = {
+                'PolicyCompliance': policy_compliance,
+                'BudgetRemarks': budget_remarks,
+                'Remarks': remarks,
+                'ReviewedAt': get_local_now().isoformat()
+            }
+            
+            audit_log = appraisal.get('AuditLog', [])
+            audit_log.append({
+                'Action': f"HR Review: {status}",
+                'User': f"{user.first_name} {user.last_name}",
+                'Timestamp': get_local_now().isoformat(),
+                'PrevStatus': current_status,
+                'NewStatus': status,
+                'Remarks': audit_remarks
+            })
+            
+            appraisal.update({
+                'Status': status,
+                'HRReview': hr_review_data,
+                'AuditLog': audit_log,
+                'UpdatedAt': get_local_now().isoformat()
+            })
+            AppraisalsTable.put_item(appraisal)
+            messages.success(request, f"HR review successfully updated status to {status}.")
+        except Exception as e:
+            messages.error(request, f"Error saving HR review: {e}")
+        return redirect('okrs')
+
+class SubmitFounderApprovalView(LoginRequiredMixin, View):
+    def post(self, request):
+        user = request.user
+        role = user.role
+        
+        if role not in ('Super admin', 'HR ADMIN'):
+            messages.error(request, "Permission denied.")
+            return redirect('okrs')
+            
+        cycle_id = request.POST.get('cycle_id')
+        employee_id = request.POST.get('employee_id')
+        action_type = request.POST.get('action_type', 'Approve') # 'Approve', 'Reject', 'Return', 'Override'
+        
+        override_rating_str = request.POST.get('override_rating', '')
+        override_salary_str = request.POST.get('override_salary', '')
+        override_bonus_str = request.POST.get('override_bonus_amount', '')
+        approve_promotion = request.POST.get('approve_promotion') == 'on'
+        approve_salary_hike = request.POST.get('approve_salary_hike') == 'on'
+        approve_bonus = request.POST.get('approve_bonus') == 'on'
+        remarks = request.POST.get('remarks', '')
+        
+        if not cycle_id or not employee_id:
+            messages.error(request, "Cycle ID and Employee ID are required.")
+            return redirect('okrs')
+            
+        try:
+            appraisal = AppraisalsTable.get_item({'EmployeeID': employee_id, 'CycleID': cycle_id})
+            if not appraisal:
+                messages.error(request, "Appraisal not found.")
+                return redirect('okrs')
+                
+            current_status = appraisal.get('Status')
+            if current_status != 'Pending Founder Approval':
+                messages.error(request, "Appraisal is not pending Founder approval.")
+                return redirect('okrs')
+                
+            if action_type == 'Return':
+                status = 'Draft'
+                audit_remarks = f"Founder returned appraisal. Remarks: {remarks}"
+            elif action_type == 'Reject':
+                status = 'Rejected'
+                audit_remarks = f"Founder rejected appraisal. Remarks: {remarks}"
+            else:
+                status = 'Approved'
+                audit_remarks = f"Founder approved appraisal. Remarks: {remarks}"
+                
+            from decimal import Decimal
+            override_rating = Decimal(override_rating_str) if override_rating_str else None
+            override_salary = Decimal(override_salary_str) if override_salary_str else None
+            override_bonus = Decimal(override_bonus_str) if override_bonus_str else None
+            
+            founder_approval_data = {
+                'OverrideRating': override_rating,
+                'OverrideSalary': override_salary,
+                'OverrideBonusAmount': override_bonus,
+                'ApprovePromotion': approve_promotion,
+                'ApproveSalaryHike': approve_salary_hike,
+                'ApproveBonus': approve_bonus,
+                'Remarks': remarks,
+                'ApprovedAt': get_local_now().isoformat()
+            }
+            
+            audit_log = appraisal.get('AuditLog', [])
+            audit_log.append({
+                'Action': f"Founder Approval: {status}",
+                'User': f"{user.first_name} {user.last_name}",
+                'Timestamp': get_local_now().isoformat(),
+                'PrevStatus': current_status,
+                'NewStatus': status,
+                'Remarks': audit_remarks
+            })
+            
+            appraisal.update({
+                'Status': status,
+                'FounderApproval': founder_approval_data,
+                'AuditLog': audit_log,
+                'UpdatedAt': get_local_now().isoformat()
+            })
+            
+            AppraisalsTable.put_item(appraisal)
+            
+            # Apply changes to employee profile if approved
+            if status == 'Approved':
+                emp = EmployeesTable.get_item({'EmployeeID': employee_id})
+                if emp:
+                    mgr_rev = appraisal.get('ManagerReview', {})
+                    
+                    # Update designation
+                    if approve_promotion:
+                        old_desig = emp.get('Designation', 'Employee')
+                        new_desig = mgr_rev.get('RecommendedDesignation', old_desig)
+                        
+                        promo_history = emp.get('PromotionHistory', [])
+                        promo_history.append({
+                            'Date': get_local_date().isoformat(),
+                            'CycleID': cycle_id,
+                            'PreviousDesignation': old_desig,
+                            'NewDesignation': new_desig,
+                            'Reason': mgr_rev.get('PromotionReason', 'Performance appraisal recommendation')
+                        })
+                        emp['Designation'] = new_desig
+                        emp['PromotionHistory'] = promo_history
+                        
+                    # Update salary
+                    if approve_salary_hike:
+                        old_sal = float(emp.get('Salary', 0))
+                        new_sal = float(override_salary or mgr_rev.get('RecommendedSalary', old_sal))
+                        hike_pct = ((new_sal - old_sal) / old_sal * 100) if old_sal > 0 else 0.0
+                        
+                        salary_history = emp.get('SalaryHistory', [])
+                        salary_history.append({
+                            'Date': get_local_date().isoformat(),
+                            'CycleID': cycle_id,
+                            'PreviousSalary': Decimal(str(old_sal)),
+                            'NewSalary': Decimal(str(new_sal)),
+                            'HikePercentage': Decimal(str(round(hike_pct, 2))),
+                            'Reason': mgr_rev.get('SalaryHikeReason', 'Performance appraisal salary revision')
+                        })
+                        emp['Salary'] = Decimal(str(new_sal))
+                        emp['SalaryHistory'] = salary_history
+                        
+                    # Add bonus to letter/records if approved
+                    if approve_bonus:
+                        # Bonus logic, can trigger spot awards, festivals, spots, retentions
+                        pass
+                        
+                    EmployeesTable.put_item(emp)
+                    
+            messages.success(request, f"Founder decision '{status}' submitted successfully.")
+        except Exception as e:
+            messages.error(request, f"Error saving Founder decision: {e}")
+        return redirect('okrs')
+
+class ManageAppraisalCyclesView(LoginRequiredMixin, View):
+    def post(self, request):
+        user = request.user
+        role = user.role
+        
+        if role not in ('HR ADMIN', 'Super admin'):
+            messages.error(request, "Permission denied.")
+            return redirect('okrs')
+            
+        cycle_id = request.POST.get('cycle_id')
+        name = request.POST.get('name')
+        cycle_type = request.POST.get('type', 'Quarterly')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        sub_deadline = request.POST.get('submission_deadline')
+        rev_deadline = request.POST.get('review_deadline')
+        app_deadline = request.POST.get('approval_deadline')
+        status = request.POST.get('status', 'Active')
+        
+        if not cycle_id or not name:
+            messages.error(request, "Cycle ID and Name are required.")
+            return redirect('okrs')
+            
+        try:
+            item = {
+                'CycleID': cycle_id,
+                'Name': name,
+                'Type': cycle_type,
+                'StartDate': start_date,
+                'EndDate': end_date,
+                'SubmissionDeadline': sub_deadline,
+                'ReviewDeadline': rev_deadline,
+                'ApprovalDeadline': app_deadline,
+                'Status': status
+            }
+            AppraisalCyclesTable.put_item(item)
+            messages.success(request, f"Appraisal cycle '{name}' saved successfully.")
+        except Exception as e:
+            messages.error(request, f"Error saving appraisal cycle: {e}")
+        return redirect('okrs')
+
+class DownloadAppraisalLetterView(LoginRequiredMixin, View):
+    def get(self, request, employee_id, cycle_id, type):
+        user = request.user
+        role = user.role
+        
+        if role not in ('Super admin', 'HR ADMIN') and user.employee_id != employee_id:
+            return HttpResponse("Unauthorized", status=401)
+            
+        try:
+            emp_details = EmployeesTable.get_item({'EmployeeID': employee_id})
+            appraisal = AppraisalsTable.get_item({'EmployeeID': employee_id, 'CycleID': cycle_id})
+            
+            if not emp_details or not appraisal:
+                return HttpResponse("Not Found", status=404)
+                
+            name = f"{emp_details.get('FirstName', '')} {emp_details.get('LastName', '')}"
+            date_str = get_local_date().strftime('%d %B %Y')
+            
+            if type == 'promotion':
+                title = "PROMOTION LETTER"
+                body = f"""
+                <p>Dear {name},</p>
+                <p>Based on your exceptional performance appraisal for cycle {cycle_id}, we are pleased to promote you to the designation of <strong>{emp_details.get('Designation')}</strong> effective immediately.</p>
+                <p>We appreciate your dedication, commitment, and achievements in Completed Projects, and hope you continue to excel in your new role.</p>
+                """
+            elif type == 'salary':
+                title = "SALARY REVISION LETTER"
+                body = f"""
+                <p>Dear {name},</p>
+                <p>We are pleased to inform you that your compensation structure has been revised following your performance appraisal for cycle {cycle_id}.</p>
+                <p>Your new annual CTC will be INR <strong>{emp_details.get('Salary')}</strong>.</p>
+                <p>All other terms and conditions of your employment contract remain unchanged.</p>
+                """
+            else:
+                title = "PERFORMANCE APPRAISAL LETTER"
+                mgr_rev = appraisal.get('ManagerReview', {})
+                body = f"""
+                <p>Dear {name},</p>
+                <p>This letter is in reference to your performance appraisal review for the cycle {cycle_id}.</p>
+                <p>We are happy to share that you achieved a score of <strong>{mgr_rev.get('Rating', appraisal.get('FounderApproval', {}).get('OverrideRating', '4.0'))} / 5.0</strong>.</p>
+                <p>Manager Remarks: "{mgr_rev.get('Comments', '')}"</p>
+                """
+                
+            html_content = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; }}
+                    .letterhead {{ border-bottom: 2px solid #0056b3; padding-bottom: 20px; margin-bottom: 40px; }}
+                    .logo {{ font-size: 24px; font-weight: bold; color: #0056b3; }}
+                    .date {{ text-align: right; margin-bottom: 20px; }}
+                    .title {{ text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; text-decoration: underline; }}
+                    .content {{ line-height: 1.6; margin-bottom: 40px; }}
+                    .signature {{ margin-top: 50px; }}
+                    @media print {{ body {{ padding: 0; }} }}
+                </style>
+            </head>
+            <body onload="window.print()">
+                <div class="letterhead">
+                    <div class="logo">Lurnexa Technologies</div>
+                    <div>HR Department</div>
+                </div>
+                <div class="date">Date: {date_str}</div>
+                <div class="title">{title}</div>
+                <div class="content">{body}</div>
+                <div class="signature">
+                    <p>Sincerely,</p>
+                    <p><strong>HR Department</strong><br>Lurnexa Technologies</p>
+                </div>
+            </body>
+            </html>
+            """
+            return HttpResponse(html_content)
+        except Exception as e:
+            return HttpResponse(f"Error: {e}", status=500)
+

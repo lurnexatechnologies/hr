@@ -30,6 +30,9 @@
             <button class="btn btn-outline-primary shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#timingModal">
                 <i class="fa-solid fa-clock me-2"></i> Set Office Timings
             </button>
+            <button class="btn btn-outline-primary shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#geofencingModal">
+                <i class="fa-solid fa-location-crosshairs me-2"></i> Geofencing
+            </button>
             <button class="btn btn-outline-primary shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="fa-solid fa-file-import me-2"></i> Import Data
             </button>
@@ -446,6 +449,56 @@
                     <button type="submit" class="btn btn-primary rounded-pill w-100 py-3 fw-bold shadow-sm">
                         <i class="fa-solid fa-cloud-arrow-up me-2"></i> Start Import
                     </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Set Geofencing Settings Modal -->
+<div class="modal fade" id="geofencingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 24px;">
+            <div class="modal-header border-bottom-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold">Geofencing & IP Restrictions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'update_geofencing' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body px-4">
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" name="enabled" id="geoEnabled" {% if geofence_settings.Enabled %}checked{% endif %}>
+                        <label class="form-check-label fw-bold text-primary" for="geoEnabled">Enable Clock-In Restrictions</label>
+                        <div class="small text-muted">Restrict employee clock-in based on office coordinates and whitelisted IP addresses. Approved WFH requests bypass these restrictions.</div>
+                    </div>
+                    
+                    <h6 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-map-location-dot me-2"></i> Office Coordinates</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Latitude</label>
+                            <input type="text" name="latitude" class="form-control border-0 bg-light rounded-3 p-3" value="{{ geofence_settings.Latitude }}" placeholder="e.g. 12.9716" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Longitude</label>
+                            <input type="text" name="longitude" class="form-control border-0 bg-light rounded-3 p-3" value="{{ geofence_settings.Longitude }}" placeholder="e.g. 77.5946" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">Allowed Radius (meters)</label>
+                        <input type="number" name="radius" class="form-control border-0 bg-light rounded-3 p-3" value="{{ geofence_settings.Radius }}" placeholder="e.g. 100" required min="10">
+                        <div class="small text-muted mt-1">Maximum allowed distance from coordinates for valid clock-in.</div>
+                    </div>
+
+                    <h6 class="fw-bold mb-3 text-indigo"><i class="fa-solid fa-network-wired me-2"></i> IP Whitelist</h6>
+                    <div class="mb-0">
+                        <label class="form-label small fw-bold text-muted">IP Addresses (comma-separated)</label>
+                        <textarea name="ip_whitelist" class="form-control border-0 bg-light rounded-3 p-3" rows="2" placeholder="e.g. 127.0.0.1, 192.168.1.1 or 'all'">{{ geofence_settings.IPWhitelist }}</textarea>
+                        <div class="small text-muted mt-1">Enter comma-separated public IPs or "all" to allow clock-ins from any IP.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pb-4 px-4">
+                    <button type="submit" class="btn btn-primary rounded-pill w-100 py-3 fw-bold shadow-sm">Save Geofencing Settings</button>
                 </div>
             </form>
         </div>
