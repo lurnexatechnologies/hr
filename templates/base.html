@@ -614,29 +614,61 @@
 
         // Request Notification permissions automatically if supported
         window.addEventListener('load', function() {
-            // 1. If running inside Capacitor mobile app, request native notification permissions
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
-                const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
-                LocalNotifications.checkPermissions().then(permissionStatus => {
-                    if (permissionStatus.display !== 'granted' && !localStorage.getItem('mobileNotificationPrompted')) {
-                        setTimeout(() => {
-                            LocalNotifications.requestPermissions().then(requestStatus => {
-                                console.log('LocalNotifications permission request:', requestStatus.display);
-                                localStorage.setItem('mobileNotificationPrompted', 'true');
-                            });
-                        }, 2000);
-                    }
-                }).catch(err => console.error('Error checking LocalNotifications permissions:', err));
-            } 
-            // 2. Otherwise, request standard Web Notification permissions for browsers (only once)
-            else if ('Notification' in window && Notification.permission === 'default' && !localStorage.getItem('webNotificationPrompted')) {
-                setTimeout(() => {
-                    Notification.requestPermission().then(permission => {
-                        console.log('Notification permission state:', permission);
-                        localStorage.setItem('webNotificationPrompted', 'true');
-                    });
-                }, 3000);
+            let checks = 0;
+            const maxChecks = 50; // 5 seconds of polling
+
+            function initializeNotifications() {
+                // 1. If running inside Capacitor mobile app, request native notification permissions & setup channel
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+                    const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+                    
+                    // Create high importance notification channel for Android
+                    LocalNotifications.createChannel({
+                        id: 'lurnexa-alerts',
+                        name: 'Lurnexa Alerts',
+                        description: 'Real-time HRMS notifications and updates',
+                        importance: 5, // IMPORTANCE_HIGH (heads-up banner)
+                        visibility: 1, // VISIBILITY_PUBLIC
+                        sound: 'default',
+                        vibration: true
+                    }).then(() => {
+                        console.log('LocalNotifications channel initialized');
+                    }).catch(err => console.error('Failed to create notification channel:', err));
+
+                    // Check and request permissions
+                    LocalNotifications.checkPermissions().then(permissionStatus => {
+                        if (permissionStatus.display !== 'granted' && !localStorage.getItem('mobileNotificationPrompted')) {
+                            setTimeout(() => {
+                                LocalNotifications.requestPermissions().then(requestStatus => {
+                                    console.log('LocalNotifications permission request:', requestStatus.display);
+                                    localStorage.setItem('mobileNotificationPrompted', 'true');
+                                });
+                            }, 2000);
+                        }
+                    }).catch(err => console.error('Error checking LocalNotifications permissions:', err));
+                } 
+                // 2. Otherwise, request standard Web Notification permissions for browsers (only once)
+                else if ('Notification' in window && Notification.permission === 'default' && !localStorage.getItem('webNotificationPrompted')) {
+                    setTimeout(() => {
+                        Notification.requestPermission().then(permission => {
+                            console.log('Notification permission state:', permission);
+                            localStorage.setItem('webNotificationPrompted', 'true');
+                        });
+                    }, 3000);
+                }
             }
+
+            function checkCapacitor() {
+                if (window.Capacitor) {
+                    initializeNotifications();
+                } else if (checks < maxChecks) {
+                    checks++;
+                    setTimeout(checkCapacitor, 100);
+                } else {
+                    initializeNotifications();
+                }
+            }
+            checkCapacitor();
         });
     </script>
 
@@ -691,7 +723,55 @@
             }
         }
 
+        function showBootstrapToast(title, body) {
+            let toastContainer = document.getElementById('lurnexaToastContainer');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'lurnexaToastContainer';
+                toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+                toastContainer.style.zIndex = '9999';
+                document.body.appendChild(toastContainer);
+            }
+
+            const toastId = 'toast-' + Math.floor(Math.random() * 1000000);
+            const toastDiv = document.createElement('div');
+            toastDiv.className = 'toast border-0 shadow-lg';
+            toastDiv.id = toastId;
+            toastDiv.setAttribute('role', 'alert');
+            toastDiv.setAttribute('aria-live', 'assertive');
+            toastDiv.setAttribute('aria-atomic', 'true');
+            toastDiv.style.borderRadius = '12px';
+            toastDiv.style.backgroundColor = '#1e293b';
+            toastDiv.style.color = '#ffffff';
+
+            toastDiv.innerHTML = `
+                <div class="toast-header border-0 text-white bg-transparent pt-3 pb-0 px-3 d-flex justify-content-between align-items-center">
+                    <strong class="me-auto d-flex align-items-center">
+                        <i class="fa-solid fa-circle-info text-primary me-2 fs-5"></i> ${title}
+                    </strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body px-3 pb-3 pt-2 text-white-50">
+                    ${body}
+                </div>
+            `;
+            
+            toastContainer.appendChild(toastDiv);
+            const toast = new bootstrap.Toast(toastDiv, {
+                autohide: true,
+                delay: 6000
+            });
+            toast.show();
+            
+            toastDiv.addEventListener('hidden.bs.toast', () => {
+                toastDiv.remove();
+            });
+        }
+
         function triggerNativeNotification(title, body) {
+            // Trigger in-app UI toast
+            showBootstrapToast(title, body);
+
             // 1. If running inside Capacitor mobile app, use native local notifications
             if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
                 const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
@@ -700,7 +780,8 @@
                         {
                             title: title,
                             body: body,
-                            id: Math.floor(Math.random() * 1000000)
+                            id: Math.floor(Math.random() * 1000000),
+                            channelId: 'lurnexa-alerts'
                         }
                     ]
                 }).catch(err => console.error('Failed to schedule native notification:', err));
