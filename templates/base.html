@@ -32,9 +32,11 @@
 </head>
 <body class="{% block body_class %}{% endblock %} {% if is_birthday_today and 'resignation' not in request.path %}birthday-mode-{{ user_gender|default:'Other' }}{% endif %}"
       data-is-birthday="{% if is_birthday_today and 'resignation' not in request.path %}true{% else %}false{% endif %}"
-      data-user-gender="{{ user_gender|default:'Other' }}">
+      data-user-gender="{{ user_gender|default:'Other' }}"
+      data-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}">
     <script>
         window.CSRF_TOKEN = "{{ csrf_token }}";
+        window.USER_IS_AUTHENTICATED = document.body.dataset.authenticated === 'true';
         if (localStorage.getItem('sidebarStatus') === 'closed') {
             document.body.classList.add('sidebar-closed');
         }
@@ -618,36 +620,110 @@
             const maxChecks = 50; // 5 seconds of polling
 
             function initializeNotifications() {
-                // 1. If running inside Capacitor mobile app, request native notification permissions & setup channel
-                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+                // 1. If running inside Capacitor mobile app, request native notification permissions & setup channels
+                if (window.Capacitor && window.Capacitor.Plugins) {
                     const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+                    const PushNotifications = window.Capacitor.Plugins.PushNotifications;
                     
-                    // Create high importance notification channel for Android
-                    LocalNotifications.createChannel({
-                        id: 'lurnexa-alerts',
-                        name: 'Lurnexa Alerts',
-                        description: 'Real-time HRMS notifications and updates',
-                        importance: 5, // IMPORTANCE_HIGH (heads-up banner)
-                        visibility: 1, // VISIBILITY_PUBLIC
-                        sound: 'default',
-                        vibration: true
-                    }).then(() => {
-                        console.log('LocalNotifications channel initialized');
-                    }).catch(err => console.error('Failed to create notification channel:', err));
+                    if (LocalNotifications) {
+                        // Create high importance notification channel for Android
+                        LocalNotifications.createChannel({
+                            id: 'lurnexa-alerts',
+                            name: 'Lurnexa Alerts',
+                            description: 'Real-time HRMS notifications and updates',
+                            importance: 5, // IMPORTANCE_HIGH (heads-up banner)
+                            visibility: 1, // VISIBILITY_PUBLIC
+                            sound: 'default',
+                            vibration: true
+                        }).then(() => {
+                            console.log('LocalNotifications channel initialized');
+                        }).catch(err => console.error('Failed to create notification channel:', err));
 
-                    // Check and request permissions
-                    LocalNotifications.checkPermissions().then(permissionStatus => {
-                        if (permissionStatus.display !== 'granted' && !localStorage.getItem('mobileNotificationPrompted')) {
-                            setTimeout(() => {
-                                LocalNotifications.requestPermissions().then(requestStatus => {
-                                    console.log('LocalNotifications permission request:', requestStatus.display);
-                                    localStorage.setItem('mobileNotificationPrompted', 'true');
+                        // Check and request permissions
+                        LocalNotifications.checkPermissions().then(permissionStatus => {
+                            if (permissionStatus.display !== 'granted' && !localStorage.getItem('mobileNotificationPrompted')) {
+                                setTimeout(() => {
+                                    LocalNotifications.requestPermissions().then(requestStatus => {
+                                        console.log('LocalNotifications permission request:', requestStatus.display);
+                                        localStorage.setItem('mobileNotificationPrompted', 'true');
+                                    });
+                                }, 2000);
+                            }
+                        }).catch(err => console.error('Error checking LocalNotifications permissions:', err));
+                    }
+
+                    // 2. Set up FCM Native Push Notifications
+                    if (PushNotifications) {
+                        // Check / Request Push permissions
+                        PushNotifications.checkPermissions().then(permissionStatus => {
+                            if (permissionStatus.receive !== 'granted') {
+                                PushNotifications.requestPermissions().then(requestStatus => {
+                                    if (requestStatus.receive === 'granted') {
+                                        PushNotifications.register();
+                                    }
                                 });
-                            }, 2000);
-                        }
-                    }).catch(err => console.error('Error checking LocalNotifications permissions:', err));
+                            } else {
+                                PushNotifications.register();
+                            }
+                        }).catch(err => console.error('Error checking Push permissions:', err));
+
+                        // On registration success, register device token
+                        PushNotifications.addListener('registration', token => {
+                            console.log('FCM registration success. Token:', token.value);
+                            localStorage.setItem('fcm_token', token.value);
+                            
+                            if (window.USER_IS_AUTHENTICATED) {
+                                fetch('/core/api/register-device/', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': window.CSRF_TOKEN || ''
+                                    },
+                                    body: JSON.stringify({
+                                        token: token.value,
+                                        platform: 'android'
+                                    })
+                                })
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        console.log('Device token successfully registered on backend.');
+                                    } else {
+                                        console.error('Failed to register device token on backend:', data.error);
+                                    }
+                                })
+                                .catch(err => console.error('Error registering device token:', err));
+                            }
+                        });
+
+                        PushNotifications.addListener('registrationError', err => {
+                            console.error('Push registration error:', err);
+                        });
+
+                        // Foreground Notification Received
+                        PushNotifications.addListener('pushNotificationReceived', notification => {
+                            console.log('Foreground FCM notification received:', notification);
+                            // Show bootstrap toast overlay
+                            if (typeof showBootstrapToast === 'function') {
+                                showBootstrapToast(notification.title, notification.body);
+                            }
+                            // Refresh badge and list if pollNotifications is available
+                            if (typeof pollNotifications === 'function') {
+                                pollNotifications();
+                            }
+                        });
+
+                        // Action/Click Performed
+                        PushNotifications.addListener('pushNotificationActionPerformed', action => {
+                            console.log('FCM notification action performed:', action);
+                            const data = action.notification.data;
+                            if (data && data.route) {
+                                window.location.href = data.route;
+                            }
+                        });
+                    }
                 } 
-                // 2. Otherwise, request standard Web Notification permissions for browsers (only once)
+                // 3. Otherwise, request standard Web Notification permissions for browsers (only once)
                 else if ('Notification' in window && Notification.permission === 'default' && !localStorage.getItem('webNotificationPrompted')) {
                     setTimeout(() => {
                         Notification.requestPermission().then(permission => {
@@ -858,7 +934,37 @@
 
         window.addEventListener('load', function() {
             pollNotifications();
-            setInterval(pollNotifications, 15000);
+            // Disable background polling on mobile to conserve resources (FCM handles real-time delivery)
+            if (!(window.Capacitor && window.Capacitor.Plugins)) {
+                setInterval(pollNotifications, 15000);
+            }
+        });
+
+        // Intercept logout to unregister device token on mobile
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('a[href*="/auth/logout/"], a[href*="logout"]').forEach(logoutLink => {
+                logoutLink.addEventListener('click', function(e) {
+                    const token = localStorage.getItem('fcm_token');
+                    if (token && window.Capacitor && window.Capacitor.Plugins) {
+                        e.preventDefault();
+                        fetch('/core/api/unregister-device/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': window.CSRF_TOKEN || ''
+                            },
+                            body: JSON.stringify({ token: token })
+                        })
+                        .then(() => {
+                            localStorage.removeItem('fcm_token');
+                            window.location.href = logoutLink.href + '?device_token=' + encodeURIComponent(token);
+                        })
+                        .catch(() => {
+                            window.location.href = logoutLink.href;
+                        });
+                    }
+                });
+            });
         });
     </script>
     {% endif %}

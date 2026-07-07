@@ -159,6 +159,25 @@ class LoginView(View):
 
 class LogoutView(View):
     def get(self, request):
+        user_emp_id = None
+        uid = request.session.get('user_id')
+        if uid:
+            user = UsersTable.get_item({'UserID': uid})
+            if user:
+                user_emp_id = user.get('EmployeeID')
+                
+        device_token = request.GET.get('device_token')
+        if device_token and user_emp_id:
+            try:
+                from core.dynamodb_service import DeviceTokensTable
+                DeviceTokensTable.delete_item({
+                    'EmployeeID': user_emp_id,
+                    'DeviceToken': device_token
+                })
+                print(f"DEBUG: Unregistered token {device_token} for employee {user_emp_id} on logout.")
+            except Exception as e:
+                print(f"ERROR: Failed to unregister token on logout: {e}")
+
         if 'user_id' in request.session:
             del request.session['user_id']
         messages.success(request, "You have been logged out.")

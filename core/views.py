@@ -2569,3 +2569,55 @@ class DownloadAppraisalLetterView(LoginRequiredMixin, View):
         except Exception as e:
             return HttpResponse(f"Error: {e}", status=500)
 
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+import json
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterDeviceView(LoginRequiredMixin, View):
+    def post(self, request):
+        user_emp_id = request.user.employee_id
+        if not user_emp_id:
+            return JsonResponse({'success': False, 'error': 'No employee profile associated.'}, status=400)
+        try:
+            data = json.loads(request.body)
+            token = data.get('token')
+            platform = data.get('platform', 'android')
+            if not token:
+                return JsonResponse({'success': False, 'error': 'Token is required.'}, status=400)
+            
+            from core.dynamodb_service import DeviceTokensTable
+            from core.utils import get_local_now
+            
+            DeviceTokensTable.put_item({
+                'EmployeeID': user_emp_id,
+                'DeviceToken': token,
+                'Platform': platform,
+                'LastUpdated': get_local_now().isoformat()
+            })
+            return JsonResponse({'success': True, 'message': 'Device registered successfully.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class UnregisterDeviceView(LoginRequiredMixin, View):
+    def post(self, request):
+        user_emp_id = request.user.employee_id
+        if not user_emp_id:
+            return JsonResponse({'success': False, 'error': 'No employee profile associated.'}, status=400)
+        try:
+            data = json.loads(request.body)
+            token = data.get('token')
+            if not token:
+                return JsonResponse({'success': False, 'error': 'Token is required.'}, status=400)
+                
+            from core.dynamodb_service import DeviceTokensTable
+            DeviceTokensTable.delete_item({
+                'EmployeeID': user_emp_id,
+                'DeviceToken': token
+            })
+            return JsonResponse({'success': True, 'message': 'Device unregistered successfully.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+

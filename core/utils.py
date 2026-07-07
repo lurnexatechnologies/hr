@@ -30,6 +30,101 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
     except Exception as e:
         print(f"Error saving notification: {e}")
 
+    # 1.5 Send Firebase Push Notification asynchronously in a background thread
+    def _send_fcm_thread(emp_id, n_title, n_message, notification_type):
+        try:
+            import firebase_admin
+            from firebase_admin import messaging
+            from core.dynamodb_service import DeviceTokensTable
+            from boto3.dynamodb.conditions import Key
+            
+            # Skip if firebase is not initialized
+            if not firebase_admin._apps:
+                print("DEBUG: Firebase Admin SDK not initialized, skipping push notification.")
+                return
+                
+            clean_eid = str(emp_id).strip()
+            # Query all device tokens for this employee
+            tokens_data = DeviceTokensTable.query(
+                KeyConditionExpression=Key('EmployeeID').eq(clean_eid)
+            )
+            if not tokens_data:
+                print(f"DEBUG: No device tokens found for employee {clean_eid}, skipping push.")
+                return
+                
+            tokens = [t.get('DeviceToken') for t in tokens_data if t.get('DeviceToken')]
+            if not tokens:
+                return
+
+            print(f"DEBUG: [FCM] Sending push to employee {clean_eid} | Title: {n_title} | Tokens count: {len(tokens)}")
+            
+            route_map = {
+                'Leave': '/leave/history/',
+                'Attendance': '/attendance/my_records/',
+                'WFH': '/workflows/wfh/',
+                'Expense': '/workflows/expenses/',
+                'Payroll': '/payroll/payslips/',
+                'Payslip': '/payroll/payslips/',
+                'Announcement': '/core/notifications/',
+                'Policy': '/core/policies/',
+                'Resignation': '/workflows/resignation/',
+                'Onboarding': '/employees/directory/',
+                'Offboarding': '/employees/directory/',
+                'Promotion': '/employees/profile/',
+                'Salary Revision': '/employees/profile/',
+                'Appraisal': '/core/okrs/',
+                'Performance': '/core/okrs/',
+                'OKRs': '/core/okrs/',
+                'Task': '/core/okrs/',
+                'Task Assignment': '/core/okrs/',
+                'Birthday': '/core/notifications/',
+                'Work Anniversary': '/core/notifications/',
+                'Asset': '/employees/profile/',
+                'Assets': '/employees/profile/',
+                'Certificate': '/employees/profile/',
+                'Certificates': '/employees/profile/'
+            }
+            target_route = route_map.get(notification_type, '/core/notifications/')
+
+            # Create message payload for each device token
+            for token in tokens:
+                try:
+                    # Construct message
+                    message_payload = messaging.Message(
+                        notification=messaging.Notification(
+                            title=n_title,
+                            body=n_message,
+                        ),
+                        data={
+                            'title': str(n_title),
+                            'body': str(n_message),
+                            'type': str(notification_type),
+                            'route': str(target_route)
+                        },
+                        token=token
+                    )
+                    messaging.send(message_payload)
+                    print(f"DEBUG: [FCM] Push sent successfully to device token: {token[:15]}...")
+                except messaging.UnregisteredError:
+                    # Token is invalid or expired, delete it from DynamoDB
+                    print(f"DEBUG: [FCM] Token {token[:15]}... is unregistered. Deleting from DB.")
+                    try:
+                        DeviceTokensTable.delete_item({'EmployeeID': clean_eid, 'DeviceToken': token})
+                    except Exception as e:
+                        print(f"ERROR: Failed to delete invalid token from DB: {e}")
+                except Exception as e:
+                    print(f"ERROR: Failed sending FCM message to token: {e}")
+        except Exception as e:
+            print(f"ERROR in _send_fcm_thread: {e}")
+
+    # Start the FCM push asynchronously
+    fcm_thread = threading.Thread(
+        target=_send_fcm_thread,
+        args=(employee_id, title, message, n_type)
+    )
+    fcm_thread.daemon = True
+    fcm_thread.start()
+
     # 2. Send Email if requested
     if email_subject and email_body:
         # Fetch employee email

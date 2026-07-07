@@ -105,6 +105,7 @@ OKRsTable = TableService('Lurnexa_OKRs')
 AssetRequestsTable = TableService('Lurnexa_AssetRequests')
 AppraisalCyclesTable = TableService('Lurnexa_AppraisalCycles')
 AppraisalsTable = TableService('Lurnexa_Appraisals')
+DeviceTokensTable = TableService('Lurnexa_DeviceTokens')
 
 def initialize_dynamodb_tables():
     """
@@ -302,6 +303,14 @@ def initialize_dynamodb_tables():
             'AttributeDefinitions': [
                 {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
                 {'AttributeName': 'CycleID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_DeviceTokens',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}, {'AttributeName': 'DeviceToken', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
+                {'AttributeName': 'DeviceToken', 'AttributeType': 'S'}
             ],
         }
     ]

@@ -34,4 +34,6 @@ urlpatterns = [
     path('okrs/submit-founder-approval/', views.SubmitFounderApprovalView.as_view(), name='submit_founder_approval'),
     path('okrs/manage-cycles/', views.ManageAppraisalCyclesView.as_view(), name='manage_appraisal_cycles'),
     path('okrs/download-letter/<str:employee_id>/<str:cycle_id>/<str:type>/', views.DownloadAppraisalLetterView.as_view(), name='download_appraisal_letter'),
+    path('api/register-device/', views.RegisterDeviceView.as_view(), name='register_device'),
+    path('api/unregister-device/', views.UnregisterDeviceView.as_view(), name='unregister_device'),
 ]
