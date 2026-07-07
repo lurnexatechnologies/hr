@@ -19,24 +19,24 @@
 </div>
 
 <div class="card h-100">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 pt-4 pb-2">
-        <form method="GET" action="{% url 'employee_directory' %}" class="d-flex align-items-center gap-3 w-100">
-            <div class="position-relative flex-grow-1" style="max-width: 400px;">
+    <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-3">
+        <form method="GET" action="{% url 'employee_directory' %}" class="row g-3 w-100 mx-0 align-items-center">
+            <div class="col-12 col-md-6 position-relative px-0 pe-md-2 mb-3 mb-md-0">
                 <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                 <input type="text" name="q" class="form-control ps-5 shadow-sm rounded-pill border-0 bg-light" 
-                    placeholder="Search by name, ID or department..." value="{{ query|default:'' }}">
+                    placeholder="Search by name, ID or department..." value="{{ query|default:'' }}" style="padding-left: 45px !important;">
             </div>
 
-            <div class="col-md-3">
-                <select name="dept" class="form-select form-select-sm shadow-sm rounded-pill border-0 bg-light px-3" onchange="this.form.submit()">
+            <div class="col-6 col-md-3 px-0 pe-1 ps-md-2 pe-md-2">
+                <select name="dept" class="form-select form-select-sm shadow-sm rounded-pill border-0 bg-light px-3 py-2" onchange="this.form.submit()">
                     <option value="">All Departments</option>
                     {% for d in departments %}
                     <option value="{{ d }}" {% if selected_dept == d %}selected{% endif %}>{{ d }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
-                <select name="role" class="form-select form-select-sm shadow-sm rounded-pill border-0 bg-light px-3" onchange="this.form.submit()">
+            <div class="col-6 col-md-3 px-0 ps-1 ps-md-2 pe-md-2">
+                <select name="role" class="form-select form-select-sm shadow-sm rounded-pill border-0 bg-light px-3 py-2" onchange="this.form.submit()">
                     <option value="">All Roles</option>
                     {% for r in roles %}
                     <option value="{{ r }}" {% if selected_role == r %}selected{% endif %}>{{ r }}</option>

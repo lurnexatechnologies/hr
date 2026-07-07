@@ -7,45 +7,49 @@
 {% block nav_attendance %}active{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
         <h2 class="page-title mb-1">My Attendance</h2>
-        <p class="text-muted">Clock in/out and view your daily logs.</p>
+        <p class="text-muted mb-0">Clock in/out and view your daily logs.</p>
     </div>
     {% if is_on_leave %}
-    <div class="alert bg-primary bg-opacity-10 text-primary border-0 rounded-pill px-4 py-2 d-flex align-items-center">
+    <div class="alert bg-primary bg-opacity-10 text-primary border-0 rounded-pill px-4 py-2 d-flex align-items-center mb-0">
         <i class="fa-solid fa-umbrella-beach me-2"></i>
         <small class="fw-bold">You are currently on an approved leave. Clock options are disabled.</small>
     </div>
     {% endif %}
-    <div class="d-flex gap-2">
-        {% if can_clock_in %}
-        <form method="POST" action="{% url 'clock_in' %}" id="clockInForm">
-            {% csrf_token %}
-            <input type="hidden" name="latitude" id="latInput">
-            <input type="hidden" name="longitude" id="lonInput">
-            <button type="button" class="btn btn-primary shadow-sm rounded-3 px-4" id="clockInBtn">
-                <i class="fa-solid fa-right-to-bracket me-2"></i> Clock In
+    <div class="d-flex gap-2 w-100 w-sm-auto justify-content-sm-end">
+        <div class="flex-grow-1 flex-sm-grow-0">
+            {% if can_clock_in %}
+            <form method="POST" action="{% url 'clock_in' %}" id="clockInForm" class="w-100 w-sm-auto">
+                {% csrf_token %}
+                <input type="hidden" name="latitude" id="latInput">
+                <input type="hidden" name="longitude" id="lonInput">
+                <button type="button" class="btn btn-primary shadow-sm rounded-3 w-100 w-sm-auto px-4" id="clockInBtn">
+                    <i class="fa-solid fa-right-to-bracket me-2"></i> Clock In
+                </button>
+            </form>
+            {% else %}
+            <button class="btn btn-light shadow-sm rounded-3 w-100 w-sm-auto px-4 disabled">
+                <i class="fa-solid fa-right-to-bracket text-muted me-2"></i> Clocked In
             </button>
-        </form>
-        {% else %}
-        <button class="btn btn-light shadow-sm rounded-3 px-4 disabled">
-            <i class="fa-solid fa-right-to-bracket text-muted me-2"></i> Clocked In
-        </button>
-        {% endif %}
+            {% endif %}
+        </div>
 
-        {% if can_clock_out %}
-        <form method="POST" action="{% url 'clock_out' %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-danger bg-white shadow-sm rounded-3 px-4">
-                <i class="fa-solid fa-right-from-bracket me-2"></i> Clock Out
+        <div class="flex-grow-1 flex-sm-grow-0">
+            {% if can_clock_out %}
+            <form method="POST" action="{% url 'clock_out' %}" class="w-100 w-sm-auto">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger bg-white shadow-sm rounded-3 w-100 w-sm-auto px-4">
+                    <i class="fa-solid fa-right-from-bracket me-2"></i> Clock Out
+                </button>
+            </form>
+            {% else %}
+            <button class="btn btn-light shadow-sm rounded-3 w-100 w-sm-auto px-4 disabled">
+                <i class="fa-solid fa-right-from-bracket text-muted me-2"></i> Clock Out
             </button>
-        </form>
-        {% else %}
-        <button class="btn btn-light shadow-sm rounded-3 px-4 disabled">
-            <i class="fa-solid fa-right-from-bracket text-muted me-2"></i> Clock Out
-        </button>
-        {% endif %}
+            {% endif %}
+        </div>
     </div>
 </div>
 
@@ -358,7 +362,15 @@
                             clockInForm.submit();
                         },
                         function(error) {
-                            alert("Location access is required for clock-in. Please enable location services in your browser.");
+                            if (error.code === error.PERMISSION_DENIED) {
+                                alert("Location access is required for clock-in. Please allow location access in your browser/app settings.");
+                            } else if (error.code === error.POSITION_UNAVAILABLE) {
+                                alert("Location services are disabled on your device. Please turn on Location/GPS in your phone settings and try again.");
+                            } else if (error.code === error.TIMEOUT) {
+                                alert("Location request timed out. Please ensure you have a stable connection and GPS signal, then try again.");
+                            } else {
+                                alert("Location access is required for clock-in. Please enable location services on your device.");
+                            }
                             clockInBtn.disabled = false;
                             clockInBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket me-2"></i> Clock In';
                         },

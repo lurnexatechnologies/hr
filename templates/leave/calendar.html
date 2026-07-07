@@ -48,8 +48,8 @@
                         {% for h in holidays %}
                         <div class="holiday-item p-3 mb-3 bg-light bg-opacity-50 border-0 rounded-4 d-flex align-items-center transition-all hover-translate-y shadow-sm-hover" style="border: 1px solid #f1f5f9 !important;" data-date="{{ h.HolidayDate }}">
                             <div class="holiday-date-badge me-3 flex-shrink-0 shadow-sm">
-                                <span style="font-size: 0.6rem; text-transform: uppercase; color: #64748b; font-weight: 700;">{{ h.MonthName }}</span>
-                                <span style="font-size: 1.2rem; font-weight: 800; color: #1e293b;">{{ h.Day }}</span>
+                                <span style="font-size: 0.6rem; text-transform: uppercase; color: rgba(255, 255, 255, 0.9) !important; font-weight: 700; line-height: 1;">{{ h.MonthName }}</span>
+                                <span style="font-size: 1.2rem; font-weight: 800; color: #ffffff !important; line-height: 1.1;">{{ h.Day }}</span>
                             </div>
                             <div class="flex-grow-1 overflow-hidden">
                                 <div class="fw-bold text-dark text-truncate" style="font-size: 0.85rem; line-height: 1.2;">{{ h.Name }}</div>

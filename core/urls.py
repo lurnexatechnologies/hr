@@ -10,6 +10,7 @@ urlpatterns = [
     path('settings/', views.SettingsView.as_view(), name='settings'),
     path('notifications/', views.NotificationsView.as_view(), name='notifications'),
     path('notifications/clear/', views.ClearNotificationsView.as_view(), name='clear_notifications'),
+    path('notifications/mark-all-read/', views.MarkAllNotificationsReadView.as_view(), name='mark_all_notifications_read'),
     path('notifications/delete/<path:timestamp>/', views.DeleteNotificationView.as_view(), name='delete_notification'),
     path('notifications/detail/<path:timestamp>/', views.NotificationDetailView.as_view(), name='notification_detail'),
     path('notifications/load-more/', views.LoadMoreNotificationsView.as_view(), name='load_more_notifications'),

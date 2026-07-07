@@ -4,6 +4,49 @@
 {% block title %}{% if request.user.role == 'Super admin' %}Super Admin Dashboard{% else %}HR Dashboard{% endif %} - Lurnexa{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Custom style overrides for mobile responsive stats and buttons */
+    .action-buttons-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+    }
+    
+    @media (min-width: 576px) {
+        .action-buttons-grid {
+            display: flex;
+            width: auto;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .stats-card-icon {
+            width: 44px !important;
+            height: 44px !important;
+            font-size: 1.15rem !important;
+            margin-right: 10px !important;
+            flex-shrink: 0;
+        }
+        .stats-card-title {
+            font-size: 0.75rem !important;
+            margin-bottom: 2px !important;
+            line-height: 1.2;
+        }
+        .stats-card-value {
+            font-size: 1.3rem !important;
+        }
+        .stats-card-body {
+            padding: 12px 10px !important;
+        }
+        .stats-card {
+            border-radius: 12px !important;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
 {% if is_birthday_today %}
@@ -43,69 +86,76 @@
 {% endif %}
 
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4">
     <h2 class="page-title mb-0">{% if request.user.role == 'Super admin' %}Super Admin Overview{% else %}HR Overview{% endif %}</h2>
-    <div>
-        <a href="{% url 'export_employees' %}" class="btn btn-outline-primary shadow-sm rounded-3 me-2"><i class="fa-solid fa-download me-2"></i> Report</a>
+    <div class="action-buttons-grid">
+        <a href="{% url 'export_employees' %}" class="btn btn-outline-primary shadow-sm rounded-3"><i class="fa-solid fa-download me-2"></i> Report</a>
         <a href="{% url 'add_employee' %}" class="btn btn-primary shadow-sm rounded-3"><i class="fa-solid fa-plus me-2"></i> Add Employee</a>
     </div>
 </div>
 
 <!-- Stats Row -->
-<div class="row mb-4">
-    <div class="col-xl-3 col-lg-6 mb-4 mb-xl-0">
-        <div class="card h-100 p-3">
-            <div class="d-flex align-items-center">
-                <div class="icon-btn me-3" style="background: rgba(26, 79, 139, 0.1); color: var(--brand-color); width: 60px; height: 60px; font-size: 1.5rem;">
-                    <i class="fa-solid fa-users"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">Total Employees</h6>
-                    <h3 class="fw-bold mb-0">{{ total_employees|default:"0" }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-xl-3 col-lg-6 mb-4 mb-xl-0">
-        <div class="card h-100 p-3">
-            <div class="d-flex align-items-center">
-                <div class="icon-btn me-3" style="background: rgba(40, 167, 69, 0.1); color: #28a745; width: 60px; height: 60px; font-size: 1.5rem;">
-                    <i class="fa-solid fa-user-check"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">Present Today</h6>
-                    <h3 class="fw-bold mb-0">{{ present_today|default:"0" }}</h3>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-0 stats-card mb-0">
+            <div class="card-body stats-card-body p-3">
+                <div class="d-flex align-items-center stats-card-content">
+                    <div class="icon-btn stats-card-icon me-3" style="background: rgba(26, 79, 139, 0.1); color: var(--brand-color); width: 60px; height: 60px; font-size: 1.5rem;">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1 small fw-bold stats-card-title">Total Employees</h6>
+                        <h3 class="fw-bold mb-0 stats-card-value">{{ total_employees|default:"0" }}</h3>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-xl-3 col-lg-6 mb-4 mb-xl-0">
-        <div class="card h-100 p-3">
-            <div class="d-flex align-items-center">
-                <div class="icon-btn me-3" style="background: rgba(255, 193, 7, 0.1); color: #ffc107; width: 60px; height: 60px; font-size: 1.5rem;">
-                    <i class="fa-solid fa-clipboard-question"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">Pending Leaves</h6>
-                    <h3 class="fw-bold mb-0">{{ pending_leave_count|default:"0" }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-xl-3 col-lg-6 mb-4 mb-xl-0">
-        <div class="card h-100 p-3">
-            <div class="d-flex align-items-center">
-                <div class="icon-btn me-3" style="background: rgba(102, 16, 242, 0.1); color: #6610f2; width: 60px; height: 60px; font-size: 1.5rem;">
-                    <i class="fa-solid fa-house-laptop"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">Pending WFH</h6>
-                    <h3 class="fw-bold mb-0">{{ pending_wfh_count|default:"0" }}</h3>
+    <div class="col-6 col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-0 stats-card mb-0">
+            <div class="card-body stats-card-body p-3">
+                <div class="d-flex align-items-center stats-card-content">
+                    <div class="icon-btn stats-card-icon me-3" style="background: rgba(40, 167, 69, 0.1); color: #28a745; width: 60px; height: 60px; font-size: 1.5rem;">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1 small fw-bold stats-card-title">Present Today</h6>
+                        <h3 class="fw-bold mb-0 stats-card-value">{{ present_today|default:"0" }}</h3>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
+    <div class="col-6 col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-0 stats-card mb-0">
+            <div class="card-body stats-card-body p-3">
+                <div class="d-flex align-items-center stats-card-content">
+                    <div class="icon-btn stats-card-icon me-3" style="background: rgba(255, 193, 7, 0.1); color: #ffc107; width: 60px; height: 60px; font-size: 1.5rem;">
+                        <i class="fa-solid fa-clipboard-question"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1 small fw-bold stats-card-title">Pending Leaves</h6>
+                        <h3 class="fw-bold mb-0 stats-card-value">{{ pending_leave_count|default:"0" }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-0 stats-card mb-0">
+            <div class="card-body stats-card-body p-3">
+                <div class="d-flex align-items-center stats-card-content">
+                    <div class="icon-btn stats-card-icon me-3" style="background: rgba(102, 16, 242, 0.1); color: #6610f2; width: 60px; height: 60px; font-size: 1.5rem;">
+                        <i class="fa-solid fa-house-laptop"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1 small fw-bold stats-card-title">Pending WFH</h6>
+                        <h3 class="fw-bold mb-0 stats-card-value">{{ pending_wfh_count|default:"0" }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row">

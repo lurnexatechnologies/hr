@@ -45,7 +45,7 @@
             <div class="position-relative flex-grow-1" style="max-width: 400px;">
                 <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                 <input type="text" name="q" class="form-control ps-5 shadow-sm rounded-pill border-0 bg-light" 
-                    placeholder="Search team members..." value="{{ query|default:'' }}">
+                    placeholder="Search team members..." value="{{ query|default:'' }}" style="padding-left: 45px !important;">
             </div>
             {% if query %}
                 <a href="{% url 'my_team' %}" class="btn btn-light shadow-sm rounded-pill px-3">Clear</a>

@@ -949,6 +949,30 @@ class ClearNotificationsView(LoginRequiredMixin, View):
             
         return redirect('notifications')
 
+class MarkAllNotificationsReadView(LoginRequiredMixin, View):
+    def post(self, request):
+        user_emp_id = request.user.employee_id
+        if not user_emp_id:
+            return JsonResponse({'success': False, 'error': 'No employee profile.'}, status=400)
+        try:
+            # Query all notifications for the user
+            table = NotificationsTable._get_table()
+            response = table.query(
+                KeyConditionExpression=Key('EmployeeID').eq(user_emp_id)
+            )
+            for n in response.get('Items', []):
+                if not n.get('IsRead'):
+                    NotificationsTable.update_item(
+                        Key={'EmployeeID': user_emp_id, 'Timestamp': n['Timestamp']},
+                        UpdateExpression="SET IsRead = :val",
+                        ExpressionAttributeValues={':val': True}
+                    )
+            # Set session flag to dismiss dynamic notifications (birthdays)
+            request.session['notifications_dismissed'] = True
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
 class SuperAdminApprovalsView(SuperAdminRequiredMixin, TemplateView):
     template_name = 'core/super_admin_approvals.html'
 

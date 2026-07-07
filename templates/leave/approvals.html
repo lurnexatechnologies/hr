@@ -11,14 +11,14 @@
 
 <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
     <div class="card-header bg-white border-bottom p-0">
-        <ul class="nav nav-tabs border-bottom-0" id="approvalTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'pending' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">
+        <ul class="nav nav-tabs border-bottom-0 w-100" id="approvalTabs" role="tablist">
+            <li class="nav-item flex-grow-1 text-center" role="presentation">
+                <button class="nav-link {% if active_tab == 'pending' %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">
                     Pending Requests <span class="badge bg-primary ms-2">{{ pending_count }}</span>
                 </button>
             </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
+            <li class="nav-item flex-grow-1 text-center" role="presentation">
+                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
                     Approval History
                 </button>
             </li>
@@ -26,7 +26,7 @@
     </div>
     <div class="card-body p-0">
         <!-- Filter Bar -->
-        <div class="px-4 py-3 bg-light border-bottom">
+        <div class="px-3 px-sm-4 py-3 bg-light border-bottom">
             <form method="GET" id="filterForm" class="row g-2 align-items-center">
                 <input type="hidden" name="tab" id="activeTabInput" value="{{ active_tab }}">
                 <div class="col-md-4">
@@ -64,8 +64,10 @@
         <div class="tab-content" id="approvalTabsContent">
             <!-- Pending Tab -->
             <div class="tab-pane fade {% if active_tab == 'pending' %}show active{% endif %}" id="pending" role="tabpanel">
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
+                <!-- Desktop Table View -->
+                <div class="d-none d-md-block">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
                         <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
                             <tr>
                                 <th class="ps-4 border-0 py-3">Employee</th>
@@ -128,10 +130,73 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
-                    <span>Showing {{ pending_leaves.start_index }} - {{ pending_leaves.end_index }} out of {{ pending_count }} pending requests</span>
+            </div>
+
+                <!-- Mobile Card View -->
+                <div class="d-md-none p-3">
+                    {% for l in pending_leaves %}
+                    <div class="card shadow-sm border-0 mb-3 p-3 mobile-approval-card" style="border-radius: 12px; background: white; border: 1px solid #f0f2f5 !important; margin-bottom: 12px !important;">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm me-2 bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; flex-shrink: 0;">
+                                    <i class="fa-regular fa-user text-muted"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-main" style="font-size: 0.95rem;">{{ l.EmployeeName }}</div>
+                                    <div class="text-muted small fw-semibold" style="font-size: 0.75rem;">{{ l.EmployeeID }}</div>
+                                </div>
+                            </div>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-10 px-2.5 py-1.5 rounded-pill" style="font-size: 0.75rem;">{{ l.Type }}</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1"><i class="fa-regular fa-calendar me-1.5"></i><strong>Duration:</strong></div>
+                            <div class="text-dark small fw-medium ps-3">
+                                {{ l.LeaveDate }} {% if l.EndDate != l.LeaveDate %}<i class="fa-solid fa-arrow-right mx-1 opacity-50"></i> {{ l.EndDate }}{% endif %}
+                                {% if l.DaysCount %}
+                                <br>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-2 mt-1" style="font-size: 0.65rem;">
+                                    {{ l.DaysCount }} day{{ l.DaysCount|pluralize }}
+                                    {% if l.IsHalfDay %} ({{ l.HalfDaySession }}){% endif %}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1"><i class="fa-regular fa-comment me-1.5"></i><strong>Reason:</strong></div>
+                            <div class="text-dark small ps-3 text-break">
+                                {{ l.Reason }}
+                            </div>
+                            {% if l.DocumentPath %}
+                            <div class="mt-2 ps-3">
+                                <a href="/static/{{ l.DocumentPath }}" target="_blank" class="btn btn-xs btn-outline-info rounded-pill px-2.5 py-1" style="font-size: 0.7rem;"><i class="fa-solid fa-file-pdf me-1"></i>View Document</a>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <hr class="my-3 opacity-10">
+
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'approve_leave' l.EmployeeID l.LeaveDate %}" class="btn btn-sm btn-success flex-grow-1 py-2 rounded-pill shadow-sm"><i class="fa-solid fa-check me-1"></i> Approve</a>
+                            <a href="{% url 'reject_leave' l.EmployeeID l.LeaveDate %}" class="btn btn-sm btn-outline-danger flex-grow-1 py-2 rounded-pill shadow-sm"><i class="fa-solid fa-xmark me-1"></i> Reject</a>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <div class="icon-btn mx-auto mb-3" style="background: rgba(40, 167, 69, 0.1); color: #28a745; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                            <i class="fa-solid fa-clipboard-check" style="font-size: 1.4rem;"></i>
+                        </div>
+                        <h6 class="fw-bold">All caught up!</h6>
+                        <p class="small mb-0">No pending leave requests to review.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="card-footer bg-white py-3 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 text-muted small">
+                    <span class="text-center text-sm-start">Showing {{ pending_leaves.start_index }} - {{ pending_leaves.end_index }} out of {{ pending_count }} pending requests</span>
                     <nav>
-                        <ul class="pagination pagination-sm mb-0">
+                        <ul class="pagination pagination-sm mb-0 justify-content-center">
                             {% if pending_leaves.has_previous %}
                                 <li class="page-item"><a class="page-link" href="?page_p={{ pending_leaves.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
                             {% else %}
@@ -150,8 +215,10 @@
 
             <!-- History Tab -->
             <div class="tab-pane fade {% if active_tab == 'history' %}show active{% endif %}" id="history" role="tabpanel">
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
+                <!-- Desktop Table View -->
+                <div class="d-none d-md-block">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
                         <thead class="bg-light text-muted" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;">
                             <tr>
                                 <th class="ps-4 border-0 py-3">Employee</th>
@@ -198,7 +265,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
+                                <td colspan="6" class="text-center py-5 text-muted">
                                     <p class="small mb-0">No processing history found.</p>
                                 </td>
                             </tr>
@@ -206,10 +273,64 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
-                    <span>Showing {{ processed_leaves.start_index }} - {{ processed_leaves.end_index }} out of {{ processed_count }} processed records</span>
+            </div>
+
+                <!-- Mobile Card View -->
+                <div class="d-md-none p-3">
+                    {% for l in processed_leaves %}
+                    <div class="card shadow-sm border-0 mb-3 p-3 mobile-approval-card opacity-90" style="border-radius: 12px; background: white; border: 1px solid #f0f2f5 !important; margin-bottom: 12px !important;">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <div class="fw-bold text-main" style="font-size: 0.95rem;">{{ l.EmployeeName }}</div>
+                                <div class="text-muted small fw-semibold" style="font-size: 0.75rem;">{{ l.EmployeeID }}</div>
+                            </div>
+                            <span class="badge bg-light text-muted border px-2.5 py-1.5 rounded-pill" style="font-size: 0.75rem;">{{ l.Type }}</span>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <div class="text-muted small mb-0.5"><strong>Duration:</strong></div>
+                            <div class="text-dark small fw-medium">
+                                {{ l.LeaveDate }} {% if l.EndDate != l.LeaveDate %} to {{ l.EndDate }}{% endif %}
+                                {% if l.DaysCount %}
+                                <span class="badge bg-light text-muted border rounded-pill px-2 ms-1" style="font-size: 0.65rem;">
+                                    {{ l.DaysCount }} day{{ l.DaysCount|pluralize }}
+                                    {% if l.IsHalfDay %} ({{ l.HalfDaySession }}){% endif %}
+                                </span>
+                                {% endif %}
+                                {% if l.DocumentPath %}
+                                <br>
+                                <a href="/static/{{ l.DocumentPath }}" target="_blank" class="badge bg-info bg-opacity-10 text-info border border-info px-2 mt-1 text-decoration-none" style="font-size: 0.65rem;"><i class="fa-solid fa-paperclip me-1"></i>Doc Attached</a>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <div class="text-muted small mb-0.5"><strong>Status:</strong></div>
+                            <div>
+                                {% if l.Status == 'Approved' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 px-2.5 py-1.5 rounded-pill" style="font-size: 0.75rem;"><i class="fa-solid fa-circle-check me-1"></i> {{ l.Status }}</span>
+                                {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 px-2.5 py-1.5 rounded-pill" style="font-size: 0.75rem;"><i class="fa-solid fa-circle-xmark me-1"></i> {{ l.Status }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-0">
+                            <div class="text-muted small mb-0.5"><strong>Processed By:</strong></div>
+                            <div class="text-dark small">{{ l.ProcessorName|default:"System" }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <p class="small mb-0">No processing history found.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="card-footer bg-white py-3 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 text-muted small">
+                    <span class="text-center text-sm-start">Showing {{ processed_leaves.start_index }} - {{ processed_leaves.end_index }} out of {{ processed_count }} processed records</span>
                     <nav>
-                        <ul class="pagination pagination-sm mb-0">
+                        <ul class="pagination pagination-sm mb-0 justify-content-center">
                             {% if processed_leaves.has_previous %}
                                 <li class="page-item"><a class="page-link" href="?page_h={{ processed_leaves.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
                             {% else %}

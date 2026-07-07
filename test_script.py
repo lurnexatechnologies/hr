@@ -13,7 +13,8 @@ if __name__ == '__main__':
     
     # Apply SessionMiddleware manually
     def dummy_get_response(req):
-        return None
+        from django.http import HttpResponse
+        return HttpResponse("OK")
     session_mw = SessionMiddleware(dummy_get_response)
     session_mw(request)
     

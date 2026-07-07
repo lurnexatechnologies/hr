@@ -7,7 +7,9 @@ def role_required(allowed_roles):
         def _wrapped_view(request, *args, **kwargs):
             if not request.user.is_authenticated:
                 return redirect('login')
-            if request.user.role not in allowed_roles:
+            user_role = (request.user.role or '').strip().upper()
+            allowed_roles_upper = [r.strip().upper() for r in allowed_roles]
+            if user_role not in allowed_roles_upper:
                 return redirect('forbidden_403')
             return view_func(request, *args, **kwargs)
         return _wrapped_view

@@ -3,7 +3,16 @@ class DynamoUser:
         self.id = data.get('UserID')
         self.user_id = data.get('UserID')
         self.email = data.get('Email')
-        self.role = data.get('Role', 'Employee')
+        role_raw = data.get('Role', 'Employee').strip()
+        role_upper = role_raw.upper()
+        if role_upper in ['SUPER ADMIN', 'SUPERADMIN']:
+            self.role = 'Super admin'
+        elif role_upper in ['HR ADMIN', 'HRADMIN', 'HR']:
+            self.role = 'HR ADMIN'
+        elif role_upper == 'MANAGER':
+            self.role = 'Manager'
+        else:
+            self.role = 'Employee'
         self.is_active = data.get('IsActive', True)
         self.is_authenticated = True
         self.is_anonymous = False

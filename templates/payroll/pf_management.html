@@ -23,7 +23,7 @@
                         </div>
                         
                         <!-- Month/Year Filter -->
-                        <form method="GET" class="d-flex align-items-center gap-2 bg-white bg-opacity-10 p-2 rounded-pill border border-white border-opacity-25">
+                        <form method="GET" class="d-flex align-items-center gap-2 bg-white bg-opacity-10 p-2 rounded-pill border border-white border-opacity-25 header-filter-form">
                             <select name="month" class="form-select form-select-sm border-0 bg-transparent text-white fw-bold cursor-pointer header-filter-select" style="width: auto;">
                                 {% for m_id, m_name in months %}
                                 <option value="{{ m_id }}" {% if selected_month == m_id %}selected{% endif %} class="text-dark">{{ m_name }}</option>

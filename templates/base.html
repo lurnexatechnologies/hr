@@ -34,6 +34,7 @@
       data-is-birthday="{% if is_birthday_today and 'resignation' not in request.path %}true{% else %}false{% endif %}"
       data-user-gender="{{ user_gender|default:'Other' }}">
     <script>
+        window.CSRF_TOKEN = "{{ csrf_token }}";
         if (localStorage.getItem('sidebarStatus') === 'closed') {
             document.body.classList.add('sidebar-closed');
         }
@@ -285,7 +286,7 @@
                     <div class="dropdown-menu dropdown-menu-end notification-dropdown shadow-lg">
                         <div class="notification-header">
                             <span class="fw-bold">Notifications</span>
-                            <a href="{% url 'notifications' %}" class="small text-decoration-none" style="color: var(--brand-color);">Mark all as read</a>
+                            <a href="#" onclick="markAllNotificationsAsRead(event)" class="small text-decoration-none" style="color: var(--brand-color);">Mark all as read</a>
                         </div>
                         <div class="notification-list">
                             {% for n in global_notifications %}
@@ -327,7 +328,7 @@
                         <li><a class="dropdown-item py-2" href="{% url 'employee_profile' emp_id=request.user.employee_id %}"><i class="fa-regular fa-user me-2 text-muted"></i> Profile</a></li>
                         {% endif %}
                         <li><a class="dropdown-item py-2" href="{% url 'settings' %}"><i class="fa-solid fa-gear me-2 text-muted"></i> Settings</a></li>
-                        <li id="installAppLi" style="display: none;"><a class="dropdown-item py-2 text-primary fw-semibold" href="#" id="installAppBtn"><i class="fa-solid fa-download me-2"></i> Install App</a></li>
+                        <li id="installAppLi"><a class="dropdown-item py-2 text-primary fw-semibold" href="#" id="installAppBtn"><i class="fa-solid fa-download me-2"></i> Install App</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Log out</a></li>
                     </ul>
@@ -612,17 +613,35 @@
         }
 
         // Request Notification permissions automatically if supported
-        if ('Notification' in window && Notification.permission === 'default') {
-            window.addEventListener('load', function() {
+        window.addEventListener('load', function() {
+            // 1. If running inside Capacitor mobile app, request native notification permissions
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+                const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+                LocalNotifications.checkPermissions().then(permissionStatus => {
+                    if (permissionStatus.display !== 'granted' && !localStorage.getItem('mobileNotificationPrompted')) {
+                        setTimeout(() => {
+                            LocalNotifications.requestPermissions().then(requestStatus => {
+                                console.log('LocalNotifications permission request:', requestStatus.display);
+                                localStorage.setItem('mobileNotificationPrompted', 'true');
+                            });
+                        }, 2000);
+                    }
+                }).catch(err => console.error('Error checking LocalNotifications permissions:', err));
+            } 
+            // 2. Otherwise, request standard Web Notification permissions for browsers (only once)
+            else if ('Notification' in window && Notification.permission === 'default' && !localStorage.getItem('webNotificationPrompted')) {
                 setTimeout(() => {
                     Notification.requestPermission().then(permission => {
                         console.log('Notification permission state:', permission);
+                        localStorage.setItem('webNotificationPrompted', 'true');
                     });
                 }, 3000);
-            });
-        }
+            }
+        });
+    </script>
 
-        {% if request.user.is_authenticated %}
+    {% if request.user.is_authenticated %}
+    <script>
         function updateNotificationBadge(unreadCount) {
             let bellBtn = null;
             document.querySelectorAll('.icon-btn').forEach(btn => {
@@ -673,6 +692,22 @@
         }
 
         function triggerNativeNotification(title, body) {
+            // 1. If running inside Capacitor mobile app, use native local notifications
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+                const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+                LocalNotifications.schedule({
+                    notifications: [
+                        {
+                            title: title,
+                            body: body,
+                            id: Math.floor(Math.random() * 1000000)
+                        }
+                    ]
+                }).catch(err => console.error('Failed to schedule native notification:', err));
+                return;
+            }
+
+            // 2. Otherwise, fall back to standard Web Notification API for browsers
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
                     new Notification(title, {
@@ -680,9 +715,34 @@
                         icon: '/static/img/namelesslogolurnexa.png'
                     });
                 } catch (e) {
-                    console.error('Failed to trigger Notification:', e);
+                    console.error('Failed to trigger Web Notification:', e);
                 }
             }
+        }
+
+        function markAllNotificationsAsRead(event) {
+            if (event) event.preventDefault();
+            fetch('/notifications/mark-all-read/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.CSRF_TOKEN
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateNotificationBadge(0);
+                    const items = document.querySelectorAll('#notifications-container > div');
+                    items.forEach(item => {
+                        item.classList.remove('bg-light-subtle');
+                    });
+                    pollNotifications();
+                } else {
+                    console.error('Failed to mark notifications as read:', data.error);
+                }
+            })
+            .catch(err => console.error('Error marking notifications as read:', err));
         }
 
         function pollNotifications() {
@@ -719,51 +779,110 @@
             pollNotifications();
             setInterval(pollNotifications, 15000);
         });
-        {% endif %}
+    </script>
+    {% endif %}
 
+    <script>
         // PWA Install Prompt Handler
         let deferredPrompt;
         const installAppLi = document.getElementById('installAppLi');
         const installAppBtn = document.getElementById('installAppBtn');
+
+        function showInstallInstructions() {
+            // Check if modal already exists
+            let installModal = document.getElementById('pwaInstallInstructionsModal');
+            if (installModal) {
+                const modal = new bootstrap.Modal(installModal);
+                modal.show();
+                return;
+            }
+
+            // Determine OS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            let instructionsHtml = '';
+            
+            if (isIOS) {
+                instructionsHtml = `
+                    <ol class="text-start ps-3 mb-0">
+                        <li class="mb-2">Open <strong>Safari</strong> on your iOS device.</li>
+                        <li class="mb-2">Tap the <strong>Share</strong> button <i class="fa-solid fa-share-from-square text-primary mx-1"></i> (at the bottom of the screen).</li>
+                        <li class="mb-2">Scroll down and select <strong>'Add to Home Screen'</strong> <i class="fa-regular fa-square-plus text-primary mx-1"></i>.</li>
+                        <li>Tap <strong>'Add'</strong> in the top-right corner to complete installation.</li>
+                    </ol>
+                `;
+            } else {
+                instructionsHtml = `
+                    <ol class="text-start ps-3 mb-0">
+                        <li class="mb-2">Open the browser settings menu <i class="fa-solid fa-ellipsis-vertical text-muted mx-1"></i> (usually three dots at the top-right corner).</li>
+                        <li class="mb-2">Select <strong>'Install app'</strong> or <strong>'Add to Home screen'</strong>.</li>
+                        <li>Follow the on-screen prompts to confirm installation.</li>
+                    </ol>
+                `;
+            }
+
+            // Create modal elements
+            const modalDiv = document.createElement('div');
+            modalDiv.className = 'modal fade';
+            modalDiv.id = 'pwaInstallInstructionsModal';
+            modalDiv.setAttribute('tabindex', '-1');
+            modalDiv.setAttribute('aria-hidden', 'true');
+            modalDiv.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
+                                <i class="fa-solid fa-circle-info text-primary me-2 fs-4"></i> Install Lurnexa HRMS
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body py-3">
+                            <p class="text-muted small mb-3">Install Lurnexa HRMS on your device for quick access, offline mode support, and a native application experience.</p>
+                            <div class="p-3 bg-light rounded-3">
+                                ${instructionsHtml}
+                            </div>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-primary w-100 py-2 fw-semibold" style="border-radius: 10px;" data-bs-dismiss="modal">Got it!</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalDiv);
+            const modal = new bootstrap.Modal(modalDiv);
+            modal.show();
+        }
 
         window.addEventListener('beforeinstallprompt', (e) => {
             // Prevent Chrome 67 and earlier from automatically showing the prompt
             e.preventDefault();
             // Stash the event so it can be triggered later.
             deferredPrompt = e;
-            // Update UI to notify the user they can install the PWA
-            if (installAppLi) {
-                installAppLi.style.display = 'block';
-            }
         });
 
         if (installAppBtn) {
             installAppBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                if (!deferredPrompt) return;
-                // Show the prompt
-                deferredPrompt.prompt();
-                // Wait for the user to respond to the prompt
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the install prompt');
-                    } else {
-                        console.log('User dismissed the install prompt');
-                    }
-                    deferredPrompt = null;
-                    if (installAppLi) {
-                        installAppLi.style.display = 'none';
-                    }
-                });
+                
+                // 1. Immediately trigger the APK download
+                const downloadLink = document.createElement('a');
+                downloadLink.href = '/static/apk/lurnexa-hrms.apk';
+                downloadLink.download = 'lurnexa-hrms.apk';
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+                // 2. Trigger native PWA installation if supported/available
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        deferredPrompt = null;
+                    });
+                } else {
+                    // Fallback to custom instructions modal
+                    showInstallInstructions();
+                }
             });
         }
-
-        window.addEventListener('appinstalled', (evt) => {
-            console.log('Lurnexa was installed.');
-            if (installAppLi) {
-                installAppLi.style.display = 'none';
-            }
-        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -300,7 +300,7 @@ body.sidebar-closed .main-wrapper {
     box-shadow: 0 2px 10px rgba(0,0,0,0.02);
 }
 
-.avatar {
+.user-profile .avatar {
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -378,6 +378,13 @@ body.sidebar-closed .main-wrapper {
         overflow: visible !important;
         height: auto !important;
     }
+    .calendar-card {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    #calendar {
+        min-width: 600px !important;
+    }
     .calendar-sidebar {
         width: 100% !important;
     }
@@ -427,7 +434,7 @@ body.sidebar-closed .main-wrapper {
         width: 36px !important;
         height: 36px !important;
     }
-    .avatar {
+    .user-profile .avatar {
         width: 32px !important;
         height: 32px !important;
         font-size: 0.85rem !important;
@@ -1008,9 +1015,31 @@ body.birthday-mode-Other {
 }
 
 /* --- Profile Page Styles --- */
-.profile-fixed-wrapper {
-    height: calc(100vh - 60px); /* Adjust based on navbar height */
-    overflow: hidden;
+@media (min-width: 992px) {
+    .profile-fixed-wrapper {
+        height: calc(100vh - 60px); /* Adjust based on navbar height */
+        overflow: hidden;
+    }
+    .profile-right-column {
+        height: calc(100vh - 100px);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .profile-fixed-wrapper {
+        height: auto;
+        overflow: visible;
+    }
+    .profile-right-column {
+        height: auto !important;
+    }
+    .profile-right-card {
+        overflow: visible !important;
+    }
+    .profile-card-body {
+        height: auto !important;
+        overflow: visible !important;
+    }
 }
 
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -1413,9 +1442,37 @@ label.btn { cursor: pointer; z-index: 5; }
 .nav-tabs .nav-link.active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: var(--brand-color); }
 
 /* --- Header Filter Select Styles --- */
-.header-filter-select { color: white !important; background-color: transparent !important; transition: all 0.2s ease; }
+.header-filter-select { 
+    color: white !important; 
+    background-color: transparent !important; 
+    transition: all 0.2s ease; 
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+}
 .header-filter-select:focus { background-color: rgba(255, 255, 255, 0.15) !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.3) !important; box-shadow: none !important; }
 .header-filter-select option { color: #333 !important; background-color: white !important; }
+
+/* Responsive styles for header filter form */
+@media (max-width: 576px) {
+    .header-filter-form {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        border-radius: 16px !important;
+        width: 100% !important;
+        padding: 12px !important;
+        gap: 10px !important;
+    }
+    .header-filter-form select.header-filter-select {
+        width: 100% !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        padding: 8px 12px !important;
+    }
+    .header-filter-form button {
+        width: 100% !important;
+        border-radius: 8px !important;
+        padding: 10px !important;
+    }
+}
 
 /* --- Restoration of missing utility and component styles --- */
 
