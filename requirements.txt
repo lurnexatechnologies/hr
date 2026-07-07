@@ -32,3 +32,4 @@ zopfli==0.4.1
 django-storages==1.14.4
 boto3==1.42.92
 whitenoise==6.7.0
+firebase-admin==7.5.0
