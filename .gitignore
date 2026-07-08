@@ -7,3 +7,5 @@ dynamodb_local/
 tools/
 staticfiles/
 .env
+firebase_credentials.json
+

@@ -1039,6 +1039,19 @@
             modal.show();
         }
 
+        // Hide PWA/APK download options when running in native mobile app wrapper
+        function hideInstallOptionInNativeApp() {
+            if (window.Capacitor || navigator.userAgent.includes('Capacitor') || window.AndroidBridge) {
+                const installLi = document.getElementById('installAppLi');
+                if (installLi) {
+                    installLi.style.display = 'none';
+                }
+            }
+        }
+        hideInstallOptionInNativeApp();
+        window.addEventListener('load', hideInstallOptionInNativeApp);
+        document.addEventListener('DOMContentLoaded', hideInstallOptionInNativeApp);
+
         window.addEventListener('beforeinstallprompt', (e) => {
             // Prevent Chrome 67 and earlier from automatically showing the prompt
             e.preventDefault();

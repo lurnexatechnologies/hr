@@ -52,12 +52,28 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                 print(f"DEBUG: No device tokens found for employee {clean_eid}, skipping push.")
                 return
                 
-            tokens = [t.get('DeviceToken') for t in tokens_data if t.get('DeviceToken')]
-            if not tokens:
+            tokens_list = [t for t in tokens_data if t.get('DeviceToken')]
+            if not tokens_list:
                 return
 
-            print(f"DEBUG: [FCM] Sending push to employee {clean_eid} | Title: {n_title} | Tokens count: {len(tokens)}")
+            print(f"DEBUG: [FCM] Sending push to employee {clean_eid} | Title: {n_title} | Tokens count: {len(tokens_list)}")
             
+            # Resolve sender avatar url from the request/session context
+            from core.middleware import get_current_request
+            request = get_current_request()
+            sender_avatar_url = None
+            if request and request.user and request.user.is_authenticated:
+                photo = getattr(request.user, 'passport_photo', None)
+                if photo:
+                    if photo.startswith('http'):
+                        sender_avatar_url = photo
+                    else:
+                        sender_avatar_url = request.build_absolute_uri(settings.MEDIA_URL + photo)
+            
+            # If no user photo exists, fall back to the public logo URL
+            if not sender_avatar_url and request:
+                sender_avatar_url = request.build_absolute_uri(settings.STATIC_URL + 'img/namelesslogolurnexa.png')
+
             route_map = {
                 'Leave': '/leave/history/',
                 'Attendance': '/attendance/my_records/',
@@ -87,22 +103,39 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
             target_route = route_map.get(notification_type, '/core/notifications/')
 
             # Create message payload for each device token
-            for token in tokens:
+            for t_item in tokens_list:
+                token = t_item.get('DeviceToken')
+                platform = str(t_item.get('Platform', 'android')).lower()
                 try:
                     # Construct message
-                    message_payload = messaging.Message(
-                        notification=messaging.Notification(
-                            title=n_title,
-                            body=n_message,
-                        ),
-                        data={
-                            'title': str(n_title),
-                            'body': str(n_message),
-                            'type': str(notification_type),
-                            'route': str(target_route)
-                        },
-                        token=token
-                    )
+                    if platform == 'android':
+                        # Send data-only payload to allow custom LurnexaMessagingService to render custom layout
+                        message_payload = messaging.Message(
+                            data={
+                                'title': str(n_title),
+                                'body': str(n_message),
+                                'type': str(notification_type),
+                                'route': str(target_route),
+                                'sender_avatar_url': str(sender_avatar_url or '')
+                            },
+                            token=token
+                        )
+                    else:
+                        # Send notification payload for iOS and other platforms
+                        message_payload = messaging.Message(
+                            notification=messaging.Notification(
+                                title=n_title,
+                                body=n_message,
+                            ),
+                            data={
+                                'title': str(n_title),
+                                'body': str(n_message),
+                                'type': str(notification_type),
+                                'route': str(target_route),
+                                'sender_avatar_url': str(sender_avatar_url or '')
+                            },
+                            token=token
+                        )
                     messaging.send(message_payload)
                     print(f"DEBUG: [FCM] Push sent successfully to device token: {token[:15]}...")
                 except messaging.UnregisteredError:
