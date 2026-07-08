@@ -625,6 +625,31 @@
                     const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
                     const PushNotifications = window.Capacitor.Plugins.PushNotifications;
                     
+                    // Immediately register stored device token if authenticated and available
+                    if (window.USER_IS_AUTHENTICATED) {
+                        const storedToken = localStorage.getItem('fcm_token');
+                        if (storedToken) {
+                            fetch('/core/api/register-device/', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': window.CSRF_TOKEN || ''
+                                },
+                                body: JSON.stringify({
+                                    token: storedToken,
+                                    platform: 'android'
+                                })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    console.log('Stored device token successfully registered on backend.');
+                                }
+                            })
+                            .catch(err => console.error('Error registering stored device token:', err));
+                        }
+                    }
+                    
                     if (LocalNotifications) {
                         // Create high importance notification channel for Android
                         LocalNotifications.createChannel({

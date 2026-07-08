@@ -30,6 +30,21 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
     except Exception as e:
         print(f"Error saving notification: {e}")
 
+    # Resolve sender avatar url from the request/session context (must do on the parent request thread)
+    from core.middleware import get_current_request
+    request = get_current_request()
+    sender_avatar_url = None
+    if request:
+        if request.user and request.user.is_authenticated:
+            photo = getattr(request.user, 'passport_photo', None)
+            if photo:
+                if photo.startswith('http'):
+                    sender_avatar_url = photo
+                else:
+                    sender_avatar_url = request.build_absolute_uri(settings.MEDIA_URL + photo)
+        if not sender_avatar_url:
+            sender_avatar_url = request.build_absolute_uri(settings.STATIC_URL + 'img/namelesslogolurnexa.png')
+
     # 1.5 Send Firebase Push Notification asynchronously in a background thread
     def _send_fcm_thread(emp_id, n_title, n_message, notification_type):
         try:
@@ -58,22 +73,6 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
 
             print(f"DEBUG: [FCM] Sending push to employee {clean_eid} | Title: {n_title} | Tokens count: {len(tokens_list)}")
             
-            # Resolve sender avatar url from the request/session context
-            from core.middleware import get_current_request
-            request = get_current_request()
-            sender_avatar_url = None
-            if request and request.user and request.user.is_authenticated:
-                photo = getattr(request.user, 'passport_photo', None)
-                if photo:
-                    if photo.startswith('http'):
-                        sender_avatar_url = photo
-                    else:
-                        sender_avatar_url = request.build_absolute_uri(settings.MEDIA_URL + photo)
-            
-            # If no user photo exists, fall back to the public logo URL
-            if not sender_avatar_url and request:
-                sender_avatar_url = request.build_absolute_uri(settings.STATIC_URL + 'img/namelesslogolurnexa.png')
-
             route_map = {
                 'Leave': '/leave/history/',
                 'Attendance': '/attendance/my_records/',
