@@ -36,4 +36,5 @@ urlpatterns = [
     path('okrs/download-letter/<str:employee_id>/<str:cycle_id>/<str:type>/', views.DownloadAppraisalLetterView.as_view(), name='download_appraisal_letter'),
     path('api/register-device/', views.RegisterDeviceView.as_view(), name='register_device'),
     path('api/unregister-device/', views.UnregisterDeviceView.as_view(), name='unregister_device'),
+    path('api/test-push-notification/', views.TestPushNotificationView.as_view(), name='test_push_notification'),
 ]

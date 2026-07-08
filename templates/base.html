@@ -1107,7 +1107,216 @@
                     showInstallInstructions();
                 }
             });
+    </script>
+
+    <!-- FCM Diagnostics Modal -->
+    <div class="modal fade" id="fcmDiagnosticsModal" tabindex="-1" aria-labelledby="fcmDiagnosticsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0" style="border-radius: 20px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); color: #212529;">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-dark" id="fcmDiagnosticsModalLabel">🚀 Push Notification Diagnostics</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted small mb-1">Capacitor Detected</label>
+                        <div id="diag-capacitor" class="fw-bold text-dark">Checking...</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted small mb-1">FCM Token</label>
+                        <div class="input-group">
+                            <textarea id="diag-token" class="form-control font-monospace small" style="font-size: 0.75rem; background: #f8f9fa;" rows="3" readonly></textarea>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-copy-token">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted small mb-1">Push Permission Status</label>
+                        <div id="diag-permission" class="fw-bold text-dark">Checking...</div>
+                    </div>
+                    <div class="mb-3" id="diag-last-response-container" style="display: none;">
+                        <label class="form-label fw-semibold text-muted small mb-1">Last API Action Response</label>
+                        <pre id="diag-last-response" class="bg-dark text-white p-2 rounded small" style="font-size: 0.7rem; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></pre>
+                    </div>
+                    <div class="d-grid gap-2 mt-4">
+                        <button id="btn-force-register" class="btn btn-primary" style="border-radius: 10px;">
+                            <i class="fa-solid fa-cloud-arrow-up me-2"></i> Force Register Token to Backend
+                        </button>
+                        <button id="btn-test-local" class="btn btn-outline-info" style="border-radius: 10px;">
+                            <i class="fa-solid fa-bell me-2"></i> Send Local Test Notification
+                        </button>
+                        <button id="btn-test-remote" class="btn btn-outline-warning" style="border-radius: 10px;">
+                            <i class="fa-solid fa-paper-plane me-2"></i> Send Remote Test Notification
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Secret Click Handler for Diagnostics
+        let clickCount = 0;
+        let clickTimer = null;
+        
+        function handleBrandClick() {
+            clickCount++;
+            clearTimeout(clickTimer);
+            clickTimer = setTimeout(() => { clickCount = 0; }, 3000);
+            
+            if (clickCount >= 5) {
+                clickCount = 0;
+                openDiagnostics();
+            }
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const h4Brand = document.querySelector('h4.fw-bold');
+            const imgLogo = document.querySelector('img[alt="Logo"]');
+            const sidebarBrand = document.getElementById('sidebarBrand');
+            
+            if (h4Brand) h4Brand.addEventListener('click', handleBrandClick);
+            if (imgLogo) imgLogo.addEventListener('click', handleBrandClick);
+            if (sidebarBrand) sidebarBrand.addEventListener('click', handleBrandClick);
+        });
+
+        function openDiagnostics() {
+            const modalEl = document.getElementById('fcmDiagnosticsModal');
+            if (!modalEl) return;
+            
+            const isCapacitor = !!(window.Capacitor && window.Capacitor.Plugins);
+            document.getElementById('diag-capacitor').innerText = isCapacitor ? '✅ Yes' : '❌ No (Running in web browser)';
+            
+            const storedToken = localStorage.getItem('fcm_token') || '';
+            document.getElementById('diag-token').value = storedToken || 'No token found in localStorage.';
+            
+            if (isCapacitor) {
+                try {
+                    const PushNotifications = window.Capacitor.Plugins.PushNotifications;
+                    PushNotifications.checkPermissions().then(status => {
+                        document.getElementById('diag-permission').innerText = 'receive: ' + status.receive;
+                    }).catch(err => {
+                        document.getElementById('diag-permission').innerText = 'Error: ' + err.message;
+                    });
+                } catch (e) {
+                    document.getElementById('diag-permission').innerText = 'Error checking permissions: ' + e.message;
+                }
+            } else {
+                document.getElementById('diag-permission').innerText = 'N/A (Web Browser)';
+            }
+            
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        // Copy Token to Clipboard
+        document.getElementById('btn-copy-token').addEventListener('click', () => {
+            const textarea = document.getElementById('diag-token');
+            textarea.select();
+            document.execCommand('copy');
+            alert('FCM Token copied to clipboard!');
+        });
+
+        // Force Register Token
+        document.getElementById('btn-force-register').addEventListener('click', () => {
+            const storedToken = localStorage.getItem('fcm_token');
+            const container = document.getElementById('diag-last-response-container');
+            const pre = document.getElementById('diag-last-response');
+            
+            if (!storedToken) {
+                container.style.display = 'block';
+                pre.innerText = 'Error: No FCM token exists in localStorage to register.';
+                return;
+            }
+            
+            pre.innerText = 'Registering device token...';
+            container.style.display = 'block';
+            
+            fetch('/core/api/register-device/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.CSRF_TOKEN || ''
+                },
+                body: JSON.stringify({
+                    token: storedToken,
+                    platform: 'android'
+                })
+            })
+            .then(res => res.json().then(data => ({ status: res.status, data })))
+            .then(({ status, data }) => {
+                pre.innerText = `HTTP ${status}\n` + JSON.stringify(data, null, 2);
+            })
+            .catch(err => {
+                pre.innerText = 'Fetch error: ' + err.message;
+            });
+        });
+
+        // Local Test Notification
+        document.getElementById('btn-test-local').addEventListener('click', () => {
+            const isCapacitor = !!(window.Capacitor && window.Capacitor.Plugins);
+            if (!isCapacitor) {
+                alert('Local Notifications require running inside the native APK.');
+                return;
+            }
+            
+            try {
+                const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+                LocalNotifications.schedule({
+                    notifications: [
+                        {
+                            title: "Lurnexa Push Diagnostics",
+                            body: "Local notifications are fully working!",
+                            id: 999,
+                            schedule: { at: new Date(Date.now() + 1000) },
+                            actionTypeId: "",
+                            extra: null
+                        }
+                    ]
+                }).then(() => {
+                    alert('Local test notification scheduled for 1 second from now!');
+                }).catch(err => {
+                    alert('Scheduling error: ' + err.message);
+                });
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        });
+
+        // Remote Test Notification
+        document.getElementById('btn-test-remote').addEventListener('click', () => {
+            const storedToken = localStorage.getItem('fcm_token');
+            const container = document.getElementById('diag-last-response-container');
+            const pre = document.getElementById('diag-last-response');
+            
+            if (!storedToken) {
+                container.style.display = 'block';
+                pre.innerText = 'Error: No FCM token exists in localStorage to target.';
+                return;
+            }
+            
+            pre.innerText = 'Sending test remote push...';
+            container.style.display = 'block';
+            
+            fetch('/core/api/test-push-notification/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.CSRF_TOKEN || ''
+                },
+                body: JSON.stringify({
+                    token: storedToken
+                })
+            })
+            .then(res => res.json().then(data => ({ status: res.status, data })))
+            .then(({ status, data }) => {
+                pre.innerText = `HTTP ${status}\n` + JSON.stringify(data, null, 2);
+            })
+            .catch(err => {
+                pre.innerText = 'Fetch error: ' + err.message;
+            });
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>

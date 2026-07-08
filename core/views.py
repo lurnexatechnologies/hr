@@ -2621,3 +2621,32 @@ class UnregisterDeviceView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
+class TestPushNotificationView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            token = data.get('token')
+            if not token:
+                return JsonResponse({'success': False, 'error': 'Token is required.'}, status=400)
+            
+            import firebase_admin
+            from firebase_admin import messaging
+            
+            message_payload = messaging.Message(
+                data={
+                    'title': 'Lurnexa Push Diagnostics',
+                    'body': 'Congratulations! Firebase Push Notifications are working perfectly on this device.',
+                    'type': 'Announcement',
+                    'route': '/core/notifications/',
+                    'sender_avatar_url': ''
+                },
+                token=token
+            )
+            response = messaging.send(message_payload)
+            return JsonResponse({'success': True, 'message': 'Test push sent successfully.', 'response': str(response)})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+
