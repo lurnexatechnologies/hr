@@ -15,7 +15,10 @@ try:
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lurnexa_hrms.settings')
     django.setup()
     
-    from core.dynamodb_service import EmployeesTable, PayrollApprovalsTable
+    from core.dynamodb_service import EmployeesTable, PayrollApprovalsTable, initialize_dynamodb_tables
+    logging.info("Initializing DynamoDB tables on live environment...")
+    initialize_dynamodb_tables()
+    logging.info("DynamoDB tables check completed.")
     from decimal import Decimal
     
     # 1. Find and update the employee
