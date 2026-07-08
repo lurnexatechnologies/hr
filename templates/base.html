@@ -730,7 +730,9 @@
                             console.log('Foreground FCM notification received:', notification);
                             // Show bootstrap toast overlay
                             if (typeof showBootstrapToast === 'function') {
-                                showBootstrapToast(notification.title, notification.body);
+                                const title = notification.title || (notification.data && notification.data.title) || 'Lurnexa Update';
+                                const body = notification.body || (notification.data && notification.data.body) || '';
+                                showBootstrapToast(title, body);
                             }
                             // Refresh badge and list if pollNotifications is available
                             if (typeof pollNotifications === 'function') {
@@ -1107,6 +1109,7 @@
                     showInstallInstructions();
                 }
             });
+        }
     </script>
 
     <!-- FCM Diagnostics Modal -->
