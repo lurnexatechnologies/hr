@@ -1,6 +1,10 @@
 from .models import DynamoUser, DynamoAnonymousUser
 from core.dynamodb_service import UsersTable, EmployeesTable
 import logging
+import time
+from django.shortcuts import redirect
+from django.contrib import messages
+
 
 logger = logging.getLogger(__name__)
 
@@ -49,3 +53,38 @@ class DynamoDBAuthMiddleware:
         response['Expires'] = '0'
             
         return response
+
+
+class SessionTimeoutMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            # Skip checking for programmatic background/polling requests
+            path = request.path
+            if not (path.endswith('/notifications/poll/') or 
+                    path.endswith('/api/register-device/') or 
+                    path.endswith('/api/unregister-device/')):
+                
+                last_activity = request.session.get('last_activity')
+                now = time.time()
+                TIMEOUT_SECONDS = 3600  # 1 hour
+                
+                if last_activity:
+                    elapsed = now - last_activity
+                    if elapsed > TIMEOUT_SECONDS:
+                        # Flush the session
+                        if 'user_id' in request.session:
+                            del request.session['user_id']
+                        if 'last_activity' in request.session:
+                            del request.session['last_activity']
+                        
+                        messages.warning(request, "Your session has expired due to inactivity. Please log in again.")
+                        return redirect('login')
+                
+                request.session['last_activity'] = now
+                
+        response = self.get_response(request)
+        return response
+

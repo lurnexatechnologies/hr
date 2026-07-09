@@ -518,7 +518,7 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
                 employee_id=approver_id,
                 title="New Leave Application",
                 message=f"{emp_name} has applied for {leave_type} from {start_date} to {end_date}.",
-                n_type='Leave',
+                n_type='Leave Request',
                 icon='fa-calendar-plus',
                 color='info',
                 email_subject=f"Leave Application: {emp_name}",

@@ -74,14 +74,18 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
             print(f"DEBUG: [FCM] Sending push to employee {clean_eid} | Title: {n_title} | Tokens count: {len(tokens_list)}")
             
             route_map = {
+                'Leave Request': '/leave/approvals/',
                 'Leave': '/leave/history/',
                 'Attendance': '/attendance/my_records/',
-                'WFH': '/workflows/wfh/',
+                'WFH Request': '/workflows/wfh/approvals/',
+                'WFH': '/attendance/history/',
+                'Expense Request': '/workflows/expenses/approvals/',
                 'Expense': '/workflows/expenses/',
                 'Payroll': '/payroll/payslips/',
                 'Payslip': '/payroll/payslips/',
                 'Announcement': '/core/notifications/',
                 'Policy': '/core/policies/',
+                'Resignation Request': '/workflows/resignation/approvals/',
                 'Resignation': '/workflows/resignation/',
                 'Onboarding': '/employees/directory/',
                 'Offboarding': '/employees/directory/',
@@ -94,13 +98,15 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                 'Task Assignment': '/core/okrs/',
                 'Birthday': '/core/notifications/',
                 'Work Anniversary': '/core/notifications/',
-                'Asset': '/employees/profile/',
-                'Assets': '/employees/profile/',
+                'Asset Request': '/employees/assets/',
+                'Asset Allocation': '/employees/my-assets/',
+                'Asset': '/employees/my-assets/',
+                'Assets': '/employees/my-assets/',
+                'Certificate Request': '/employees/certificates/approvals/',
                 'Certificate': '/employees/profile/',
                 'Certificates': '/employees/profile/'
             }
             target_route = route_map.get(notification_type, '/core/notifications/')
-
             # Create message payload for each device token
             for t_item in tokens_list:
                 token = t_item.get('DeviceToken')

@@ -723,7 +723,8 @@ class NotificationPollView(LoginRequiredMixin, View):
             notifications = NotificationsTable.query(
                 KeyConditionExpression=Key('EmployeeID').eq(user_emp_id),
                 ScanIndexForward=False,
-                Limit=10
+                Limit=10,
+                ConsistentRead=True
             )
             unread_count = 0
             new_notifications = []
@@ -958,7 +959,8 @@ class MarkAllNotificationsReadView(LoginRequiredMixin, View):
             # Query all notifications for the user
             table = NotificationsTable._get_table()
             response = table.query(
-                KeyConditionExpression=Key('EmployeeID').eq(user_emp_id)
+                KeyConditionExpression=Key('EmployeeID').eq(user_emp_id),
+                ConsistentRead=True
             )
             for n in response.get('Items', []):
                 if not n.get('IsRead'):

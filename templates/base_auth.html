@@ -4,15 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>{% block title %}Login - Lurnexa{% endblock %}</title>
-    <meta name="description" content="Access the Lurnexa HRMS platform. Enter your credentials to log in or request a password reset.">
+    <meta name="description" content="{% block meta_description %}Access the Lurnexa HRMS platform. Enter your credentials to log in or request a password reset.{% endblock %}">
     <meta name="robots" content="index, nofollow">
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
     <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
     <!-- Web App Manifest & iOS App Meta -->
     <link rel="manifest" href="{% url 'manifest_json' %}">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Lurnexa">
     <link rel="apple-touch-icon" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
 
@@ -39,7 +40,7 @@
                         <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa" style="height: 40px; width: auto;">
                     </div>
                     <h3>Lurnexa</h3>
-                    <p>Enter your credentials to access your account</p>
+                    <p>{% block subtitle %}Enter your credentials to access your account{% endblock %}</p>
                 </div>
                 <div class="auth-body">
                     {% if messages %}

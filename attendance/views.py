@@ -487,7 +487,7 @@ class ApplyWFHView(LoginRequiredMixin, View):
                 employee_id=approver_id,
                 title="New WFH Request",
                 message=f"{emp_name} has applied for WFH on {start_date}.",
-                n_type='WFH',
+                n_type='WFH Request',
                 icon='fa-house-laptop',
                 color='primary',
                 email_subject=f"WFH Request: {emp_name}",

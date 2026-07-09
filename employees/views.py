@@ -1924,7 +1924,7 @@ class UploadCertificateView(LoginRequiredMixin, View):
                     employee_id=hr.get('EmployeeID'),
                     title="Certificate Verification Required",
                     message=f"{employee.get('FirstName')} {employee.get('LastName')} uploaded a new certificate: {cert_name}.",
-                    n_type="Certificate",
+                    n_type="Certificate Request",
                     icon="fa-stamp",
                     color="warning"
                 )
@@ -2199,11 +2199,20 @@ class AllocateAssetView(HRRequiredMixin, View):
             asset['History'] = history
             
             AssetsTable.put_item(asset)
+            try:
+                send_notification(
+                    employee_id=employee_id,
+                    title="Asset Allocated",
+                    message=f"A new asset '{asset.get('AssetName')}' has been allocated to you.",
+                    n_type="Asset Allocation",
+                    icon="fa-laptop",
+                    color="success"
+                )
+            except Exception as e:
+                print(f"Error sending asset allocation notification: {e}")
             messages.success(request, f"Asset allocated to {employee.get('FirstName')} successfully.")
         except Exception as e:
             messages.error(request, f"Error allocating asset: {e}")
-            
-        return redirect('asset_management')
 
 class ReturnAssetView(HRRequiredMixin, View):
     def post(self, request, asset_id):
@@ -2249,10 +2258,21 @@ class ReturnAssetView(HRRequiredMixin, View):
             asset.pop('AssignedTo', None)
             asset.pop('AllocationDate', None)
             AssetsTable.put_item(asset)
+            if assigned_to and assigned_to != 'Unknown':
+                try:
+                    send_notification(
+                        employee_id=assigned_to,
+                        title="Asset Returned",
+                        message=f"Your assigned asset '{asset.get('AssetName')}' has been marked as returned.",
+                        n_type="Asset",
+                        icon="fa-rotate-left",
+                        color="info"
+                    )
+                except Exception as e:
+                    print(f"Error sending asset return notification: {e}")
             messages.success(request, "Asset marked as returned and is now available.")
         except Exception as e:
             messages.error(request, f"Error returning asset: {e}")
-            
         return redirect('asset_management')
 
 class UpdateAssetConditionView(HRRequiredMixin, View):
@@ -2325,7 +2345,7 @@ class MyAssetsView(LoginRequiredMixin, TemplateView):
 
 class RaiseAssetRequestView(LoginRequiredMixin, View):
     def post(self, request):
-        from core.dynamodb_service import AssetsTable, AssetRequestsTable, EmployeesTable
+        from core.dynamodb_service import AssetsTable, AssetRequestsTable, EmployeesTable, UsersTable
         from core.utils import get_local_date
         import uuid
         
@@ -2366,6 +2386,19 @@ class RaiseAssetRequestView(LoginRequiredMixin, View):
                 'ResolutionNotes': ''
             }
             AssetRequestsTable.put_item(request_item)
+            try:
+                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN']
+                for hr in hr_users:
+                    send_notification(
+                        employee_id=hr.get('EmployeeID'),
+                        title="New Asset Request",
+                        message=f"{emp_name} has raised a {request_type.lower()} request for '{asset.get('AssetName')}'.",
+                        n_type="Asset Request",
+                        icon="fa-triangle-exclamation",
+                        color="warning"
+                    )
+            except Exception as e:
+                print(f"Error sending HR notification: {e}")
             messages.success(request, f"Your {request_type.lower()} request has been submitted successfully.")
         except Exception as e:
             messages.error(request, f"Error raising request: {e}")
@@ -2409,6 +2442,21 @@ class HandleAssetRequestView(HRRequiredMixin, View):
             asset_req['Status'] = status
             asset_req['ResolutionNotes'] = resolution_notes
             AssetRequestsTable.put_item(asset_req)
+            
+            # Notify employee
+            target_emp_id = asset_req.get('EmployeeID')
+            if target_emp_id:
+                try:
+                    send_notification(
+                        employee_id=target_emp_id,
+                        title=f"Asset Request {status}",
+                        message=f"Your request for '{asset_req.get('AssetName')}' has been updated to {status}.",
+                        n_type="Asset",
+                        icon="fa-circle-check" if status == 'Resolved' else "fa-clock",
+                        color="success" if status == 'Resolved' else "info"
+                    )
+                except Exception as e:
+                    print(f"Error sending employee notification: {e}")
             
             # If request is Resolved/Approved AND it is an Exchange request
             if status == 'Resolved' and asset_req.get('RequestType') == 'Exchange':
