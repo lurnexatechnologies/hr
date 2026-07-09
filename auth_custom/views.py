@@ -21,7 +21,6 @@ class LoginView(View):
     def post(self, request):
         email_or_id = request.POST.get('username')
         password = request.POST.get('password')
-        remember_me = request.POST.get('remember_me') == 'true'
         
         user_data = None
         user = UsersTable.get_item({'UserID': email_or_id})
@@ -88,15 +87,57 @@ class LoginView(View):
                 if not user_data.get('IsActive', True):
                     messages.error(request, "This profile is deactivated. Please contact HR to reactivate.")
                     return render(request, 'auth_custom/login.html')
+                # Single Device Login Check
+                import time
+                now = time.time()
+                active_token = user_data.get('ActiveSessionToken')
+                last_act = user_data.get('LastActivityTime')
+                db_device_id = user_data.get('DeviceID')
+                
+                # Get device_id from cookie
+                cookie_device_id = request.COOKIES.get('device_id')
+                
+                if active_token and last_act:
+                    try:
+                        elapsed = now - float(last_act)
+                        # Block only if active session is less than 1 hour old AND the device_id does not match
+                        if elapsed < 3600 and cookie_device_id != db_device_id:
+                            messages.error(request, "You are already logged in on another device. Please log out from that device first or wait for it to expire.")
+                            return render(request, 'auth_custom/login.html')
+                    except (ValueError, TypeError):
+                        pass
+
+                # Ensure we have a cookie_device_id
+                if not cookie_device_id:
+                    cookie_device_id = str(uuid.uuid4())
+
+                # Generate a new unique session token
+                session_token = str(uuid.uuid4())
+                request.session['session_token'] = session_token
+                
+                # Update ActiveSessionToken, LastActivityTime, and DeviceID in DynamoDB
+                try:
+                    UsersTable.update_item(
+                        Key={'UserID': user_data['UserID']},
+                        UpdateExpression="SET ActiveSessionToken = :token, LastActivityTime = :act_time, DeviceID = :dev_id",
+                        ExpressionAttributeValues={
+                            ":token": session_token,
+                            ":act_time": int(now),
+                            ":dev_id": cookie_device_id
+                        }
+                    )
+                except Exception as e:
+                    print(f"ERROR: Failed to update active session token in DB: {e}")
+
+                from core.utils import is_mobile_app
                 
                 request.session['user_id'] = user_data['UserID']
-                
-                if remember_me:
-                    request.session.set_expiry(1209600) # 2 weeks
+                if is_mobile_app(request):
+                    # For mobile app, keep logged in forever (e.g., 100 years) until explicit logout
+                    request.session.set_expiry(3153600000)
                 else:
-                    # Mobile webviews clear session-only cookies on app close.
-                    # We use a 7-day default to keep mobile app users logged in.
-                    request.session.set_expiry(604800) # 7 days
+                    # Setting to 0 means the session cookie expires when the browser/tab is closed
+                    request.session.set_expiry(0)
                 
                 # Record Login History
                 try:
@@ -139,7 +180,9 @@ class LoginView(View):
                     print(f"Failed to record login history: {e}")
 
                 # Explicitly clear any redirect parameters to force dashboard landing as requested
-                return self._redirect_dashboard(user_data.get('Role', 'Employee'))
+                response = self._redirect_dashboard(user_data.get('Role', 'Employee'))
+                response.set_cookie('device_id', cookie_device_id, max_age=31536000, httponly=True, samesite='Lax')
+                return response
             else:
                 messages.error(request, "Invalid credentials.")
         else:
@@ -178,9 +221,26 @@ class LogoutView(View):
             except Exception as e:
                 print(f"ERROR: Failed to unregister token on logout: {e}")
 
+        if uid:
+            try:
+                # Clear active session in UsersTable
+                UsersTable.update_item(
+                    Key={'UserID': uid},
+                    UpdateExpression="REMOVE ActiveSessionToken, LastActivityTime"
+                )
+            except Exception as e:
+                print(f"ERROR: Failed to clear active session token on logout: {e}")
+
         if 'user_id' in request.session:
             del request.session['user_id']
-        messages.success(request, "You have been logged out.")
+        if 'session_token' in request.session:
+            del request.session['session_token']
+            
+        reason = request.GET.get('reason')
+        if reason == 'tab_closed':
+            messages.warning(request, "Your session has expired because the tab was closed. Please log in again.")
+        else:
+            messages.success(request, "You have been logged out.")
         return redirect('login')
 
 class ForgotPasswordView(View):

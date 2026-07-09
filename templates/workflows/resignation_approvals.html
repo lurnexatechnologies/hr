@@ -10,13 +10,13 @@
 </div>
 
 <div class="card border-0 shadow-sm" style="border-radius: 16px;">
-    <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-        <ul class="nav nav-tabs border-bottom-0" id="resignationTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'pending' or not active_tab %}active{% endif %} fw-bold px-4 py-3" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">Pending Review <span class="badge bg-primary ms-2">{{ pending_resignations|length }}</span></button>
+    <div class="card-header bg-white border-bottom p-0">
+        <ul class="nav nav-tabs border-bottom-0 w-100" id="resignationTabs" role="tablist">
+            <li class="nav-item flex-grow-1 text-center" role="presentation">
+                <button class="nav-link {% if active_tab == 'pending' or not active_tab %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">Pending Review <span class="badge bg-primary ms-2">{{ pending_resignations|length }}</span></button>
             </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} fw-bold px-4 py-3 text-muted" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">Approval History</button>
+            <li class="nav-item flex-grow-1 text-center" role="presentation">
+                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">Approval History</button>
             </li>
         </ul>
     </div>

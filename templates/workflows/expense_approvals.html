@@ -14,14 +14,14 @@
 
 <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
     <div class="card-header bg-white border-bottom p-0">
-        <ul class="nav nav-tabs border-bottom-0" id="expenseTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'pending' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">
+        <ul class="nav nav-tabs border-bottom-0 w-100" id="expenseTabs" role="tablist">
+            <li class="nav-item flex-grow-1 text-center" role="presentation">
+                <button class="nav-link {% if active_tab == 'pending' %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" onclick="updateActiveTab('pending')">
                     Pending Claims <span class="badge bg-primary ms-2">{{ pending_count }}</span>
                 </button>
             </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} px-4 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
+            <li class="nav-item flex-grow-1 text-center" role="presentation">
+                <button class="nav-link {% if active_tab == 'history' %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
                     Approval History
                 </button>
             </li>

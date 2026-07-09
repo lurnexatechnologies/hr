@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lurnexa-hrms-cache-v1';
+const CACHE_NAME = 'lurnexa-hrms-cache-v2';
 const OFFLINE_URL = '/offline/';
 
 // Assets to cache immediately on installation
@@ -72,6 +72,13 @@ self.addEventListener('fetch', (event) => {
             });
           }
           return networkResponse;
+        }).catch((err) => {
+          console.warn('[Service Worker] Fetch failed for:', event.request.url, err);
+          const acceptHeader = event.request.headers.get('accept');
+          if (acceptHeader && acceptHeader.includes('text/html')) {
+            return caches.match(OFFLINE_URL);
+          }
+          throw err;
         });
       })
     );

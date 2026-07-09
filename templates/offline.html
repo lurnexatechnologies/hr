@@ -81,10 +81,20 @@
             margin-bottom: 2rem;
         }
 
-        .brand-logo img {
-            height: 45px;
-            width: auto;
+        .brand-logo-img-wrapper {
+            background-color: #ffffff;
+            padding: 8px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             margin-right: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .brand-logo img {
+            height: 32px;
+            width: auto;
         }
 
         .brand-logo h4 {
@@ -154,24 +164,12 @@
             transform: translateY(0);
         }
 
-        .connection-tips {
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            font-size: 0.8rem;
-            color: var(--text-secondary);
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
-
-        .tip-item {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        .tip-item i {
-            color: var(--accent-color);
+        .spin-icon {
+            animation: spin 1s linear infinite;
         }
     </style>
 </head>
@@ -181,13 +179,22 @@
     <div class="offline-container">
         <!-- Logo -->
         <div class="brand-logo">
-            <img src="/static/img/namelesslogolurnexa.png?v=2" alt="Lurnexa Logo">
+            <span class="brand-logo-img-wrapper">
+                <img src="/static/img/namelesslogolurnexa.png?v=2" alt="Lurnexa Logo">
+            </span>
             <h4>LURNEXA</h4>
         </div>
 
         <!-- Animated Connection Icon -->
         <div class="offline-icon-wrapper">
-            <i class="fa-solid fa-wifi-slash"></i>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-color);">
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+                <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.5"></path>
+                <path d="M5 12.5a10.94 10.94 0 0 1 5.83-2.84"></path>
+                <path d="M12 18h.01"></path>
+                <path d="M8.5 14.5A4.5 4.5 0 0 1 12 13"></path>
+                <path d="M14.5 14.5a4.5 4.5 0 0 1 1 1.5"></path>
+            </svg>
         </div>
 
         <!-- Content -->
@@ -195,31 +202,26 @@
         <p>Lurnexa HRMS is currently offline. Please check your network connection or server status and try again.</p>
 
         <!-- Retry Button -->
-        <button class="btn btn-retry px-5 py-2.5" onclick="retryConnection()">
-            <i class="fa-solid fa-rotate-right me-2"></i> Retry Connection
+        <button class="btn btn-retry px-5 py-2.5 d-inline-flex align-items-center justify-content-center" onclick="retryConnection()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-2 inline-rotate-icon" style="transition: transform 0.3s ease;">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            <span>Retry Connection</span>
         </button>
-
-        <!-- Troubleshooting Tips -->
-        <div class="connection-tips">
-            <div class="tip-item">
-                <i class="fa-solid fa-circle-check"></i> Check your local internet connectivity.
-            </div>
-            <div class="tip-item">
-                <i class="fa-solid fa-circle-check"></i> Ensure the backend web server is running.
-            </div>
-        </div>
     </div>
 
     <script>
         function retryConnection() {
             const button = document.querySelector('.btn-retry');
-            const icon = button.querySelector('i');
+            const icon = button.querySelector('svg');
             
             // Add spinning class
-            icon.classList.add('fa-spin');
+            if (icon) {
+                icon.classList.add('spin-icon');
+            }
             button.disabled = true;
-            button.innerText = ' Checking...';
-            button.prepend(icon);
+            button.querySelector('span').innerText = 'Checking...';
             
             // Attempt to fetch root to see if connection is back
             fetch('/')
@@ -237,10 +239,12 @@
 
         function resetButton() {
             const button = document.querySelector('.btn-retry');
-            const icon = button.querySelector('i');
-            icon.classList.remove('fa-spin');
+            const icon = button.querySelector('svg');
+            if (icon) {
+                icon.classList.remove('spin-icon');
+            }
             button.disabled = false;
-            button.innerHTML = '<i class="fa-solid fa-rotate-right me-2"></i> Retry Connection';
+            button.querySelector('span').innerText = 'Retry Connection';
         }
 
         // Listen for online event to automatically reload

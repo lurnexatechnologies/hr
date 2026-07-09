@@ -1067,6 +1067,7 @@ class HistoricalPayrollView(HRRequiredMixin, TemplateView):
         
         # Fetch all users to find Super Admins
         all_users = UsersTable.scan()
+
         super_admin_ids = {u.get('UserID') for u in all_users if u.get('Role') == 'Super admin'}
 
         # Fetch all active employees for the dropdown and filter out Super Admins
@@ -1075,7 +1076,21 @@ class HistoricalPayrollView(HRRequiredMixin, TemplateView):
         filtered_employees = sorted(filtered_employees, key=lambda e: e.get('FirstName', ''))
         context['employees'] = filtered_employees
 
-        # Check if an employee is selected
+        # Calculate earliest joining year dynamically
+        earliest_year = get_local_date().year
+        for e in all_employees:
+            joined_str = e.get('JoinedDate')
+            if joined_str:
+                try:
+                    y = int(joined_str.split('-')[0])
+                    if y < earliest_year:
+                        earliest_year = y
+                except:
+                    pass
+        if earliest_year > 2024:
+            earliest_year = 2024
+        context['years'] = list(range(earliest_year, get_local_date().year + 1))
+
         selected_emp_id = self.request.GET.get('employee_id')
         
         if selected_emp_id:

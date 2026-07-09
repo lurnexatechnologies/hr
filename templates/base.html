@@ -40,6 +40,15 @@
         if (localStorage.getItem('sidebarStatus') === 'closed') {
             document.body.classList.add('sidebar-closed');
         }
+        
+        // If authenticated and on website (not mobile app), require a session token per tab
+        if (window.USER_IS_AUTHENTICATED && "{{ IS_MOBILE_APP }}".toLowerCase() !== 'true') {
+            if (!sessionStorage.getItem('session_active')) {
+                window.location.href = "{% url 'logout' %}?reason=tab_closed";
+            } else {
+                sessionStorage.setItem('session_active', 'true');
+            }
+        }
     </script>
 
     <!-- Sidebar -->
@@ -724,10 +733,20 @@
                         PushNotifications.addListener('registrationError', err => {
                             console.error('Push registration error:', err);
                         });
-
                         // Foreground Notification Received
                         PushNotifications.addListener('pushNotificationReceived', notification => {
                             console.log('Foreground FCM notification received:', notification);
+                            
+                            // Save timestamp to shown_notifications so the subsequent pollNotifications doesn't duplicate the alert
+                            const timestamp = notification.data && notification.data.timestamp;
+                            if (timestamp) {
+                                let shownNotifications = JSON.parse(localStorage.getItem('shown_notifications') || '[]');
+                                if (!shownNotifications.includes(timestamp)) {
+                                    shownNotifications.push(timestamp);
+                                    localStorage.setItem('shown_notifications', JSON.stringify(shownNotifications));
+                                }
+                            }
+
                             // Show bootstrap toast overlay
                             if (typeof showBootstrapToast === 'function') {
                                 const title = notification.title || (notification.data && notification.data.title) || 'Lurnexa Update';
@@ -739,7 +758,6 @@
                                 pollNotifications();
                             }
                         });
-
                         // Action/Click Performed
                         PushNotifications.addListener('pushNotificationActionPerformed', action => {
                             console.log('FCM notification action performed:', action);
@@ -865,29 +883,12 @@
                 toastDiv.remove();
             });
         }
-
         function triggerNativeNotification(title, body) {
             // Trigger in-app UI toast
             showBootstrapToast(title, body);
 
-            // 1. If running inside Capacitor mobile app, use native local notifications
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
-                const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
-                LocalNotifications.schedule({
-                    notifications: [
-                        {
-                            title: title,
-                            body: body,
-                            id: Math.floor(Math.random() * 1000000),
-                            channelId: 'lurnexa-alerts'
-                        }
-                    ]
-                }).catch(err => console.error('Failed to schedule native notification:', err));
-                return;
-            }
-
-            // 2. Otherwise, fall back to standard Web Notification API for browsers
-            if ('Notification' in window && Notification.permission === 'granted') {
+            // Web Notification API fallback (for desktop/web browsers only, not Capacitor apps)
+            if (!window.Capacitor && 'Notification' in window && Notification.permission === 'granted') {
                 try {
                     new Notification(title, {
                         body: body,
@@ -898,7 +899,6 @@
                 }
             }
         }
-
         function markAllNotificationsAsRead(event) {
             if (event) event.preventDefault();
             fetch('{% url "mark_all_notifications_read" %}', {

@@ -46,7 +46,7 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
             sender_avatar_url = request.build_absolute_uri(settings.STATIC_URL + 'img/namelesslogolurnexa.png')
 
     # 1.5 Send Firebase Push Notification asynchronously in a background thread
-    def _send_fcm_thread(emp_id, n_title, n_message, notification_type):
+    def _send_fcm_thread(emp_id, n_title, n_message, notification_type, timestamp):
         try:
             import firebase_admin
             from firebase_admin import messaging
@@ -114,14 +114,14 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                 try:
                     # Construct message
                     if platform == 'android':
-                        # Send data-only payload to allow custom LurnexaMessagingService to render custom layout
                         message_payload = messaging.Message(
                             data={
                                 'title': str(n_title),
                                 'body': str(n_message),
                                 'type': str(notification_type),
                                 'route': str(target_route),
-                                'sender_avatar_url': str(sender_avatar_url or '')
+                                'sender_avatar_url': str(sender_avatar_url or ''),
+                                'timestamp': str(timestamp)
                             },
                             token=token
                         )
@@ -137,7 +137,8 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                                 'body': str(n_message),
                                 'type': str(notification_type),
                                 'route': str(target_route),
-                                'sender_avatar_url': str(sender_avatar_url or '')
+                                'sender_avatar_url': str(sender_avatar_url or ''),
+                                'timestamp': str(timestamp)
                             },
                             token=token
                         )
@@ -155,10 +156,9 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
         except Exception as e:
             print(f"ERROR in _send_fcm_thread: {e}")
 
-    # Start the FCM push asynchronously
     fcm_thread = threading.Thread(
         target=_send_fcm_thread,
-        args=(employee_id, title, message, n_type)
+        args=(employee_id, title, message, n_type, timestamp)
     )
     fcm_thread.daemon = True
     fcm_thread.start()
@@ -508,6 +508,29 @@ def get_local_date():
     Returns the current date in the configured TIME_ZONE (Asia/Kolkata).
     """
     return get_local_now().date()
+
+
+def is_mobile_app(request):
+    """
+    Detects if the incoming request is originating from the Capacitor mobile app wrapper.
+    Checks the User-Agent (for webviews on Android/iOS) and X-Requested-With header.
+    """
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
+    requested_with = request.META.get('HTTP_X_REQUESTED_WITH', '')
+    
+    # 1. Check custom Android header/package name
+    if 'com.lurnexa' in requested_with:
+        return True
+        
+    # 2. Check Android webview User-Agent characteristics
+    if 'Android' in user_agent and ('wv' in user_agent or 'Version/4.0' in user_agent):
+        return True
+        
+    # 3. Check iOS webview User-Agent characteristics (iOS Capacitor / WKWebView)
+    if ('iPhone' in user_agent or 'iPad' in user_agent) and 'Mobile/' in user_agent and 'Safari' not in user_agent:
+        return True
+        
+    return False
 
 
 

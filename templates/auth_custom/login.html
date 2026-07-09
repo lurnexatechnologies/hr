@@ -40,12 +40,12 @@
                 icon.classList.add('fa-eye');
             }
         });
+        
+        // Mark session active in sessionStorage upon form submission
+        document.querySelector('form').addEventListener('submit', function() {
+            sessionStorage.setItem('session_active', 'true');
+        });
     </script>
-    
-    <div class="mb-4 form-check">
-        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me" value="true">
-        <label class="form-check-label text-muted" for="rememberMe" style="font-size: 0.9rem;">Remember me</label>
-    </div>
     
     <div class="d-grid gap-2">
         <button type="submit" class="btn btn-primary btn-lg">Sign In</button>

@@ -19,7 +19,7 @@
             </li>
             <li class="nav-item flex-grow-1 text-center" role="presentation">
                 <button class="nav-link {% if active_tab == 'history' %}active{% endif %} w-100 py-3 fw-semibold border-0 rounded-0" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" onclick="updateActiveTab('history')">
-                    Approval History <span class="badge bg-light text-muted ms-2">{{ history_count }}</span>
+                    Approval History
                 </button>
             </li>
         </ul>
@@ -180,7 +180,6 @@
                     {% endfor %}
                 </div>
 
-                {% if pending_wfh %}
                 <div class="card-footer bg-white py-3 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 text-muted small">
                     <span class="text-center text-sm-start">Showing {{ pending_wfh.start_index }} - {{ pending_wfh.end_index }} out of {{ pending_count }} pending requests</span>
                     <nav>
@@ -188,18 +187,17 @@
                             {% if pending_wfh.has_previous %}
                             <li class="page-item"><a class="page-link" href="?page_p={{ pending_wfh.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
                             {% else %}
-                            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
                             {% endif %}
-                            <li class="page-item active"><span class="page-link">{{ pending_wfh.number }}</span></li>
+                            <li class="page-item active"><a class="page-link" href="#">{{ pending_wfh.number }}</a></li>
                             {% if pending_wfh.has_next %}
                             <li class="page-item"><a class="page-link" href="?page_p={{ pending_wfh.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_p' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
                             {% else %}
-                            <li class="page-item disabled"><span class="page-link">Next</span></li>
+                            <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
                             {% endif %}
                         </ul>
                     </nav>
                 </div>
-                {% endif %}
             </div>
 
             <!-- History Tab -->
@@ -307,7 +305,6 @@
                     {% endfor %}
                 </div>
 
-                {% if history_wfh %}
                 <div class="card-footer bg-white py-3 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 text-muted small">
                     <span class="text-center text-sm-start">Showing {{ history_wfh.start_index }} - {{ history_wfh.end_index }} out of {{ history_count }} processed records</span>
                     <nav>
@@ -315,18 +312,17 @@
                             {% if history_wfh.has_previous %}
                             <li class="page-item"><a class="page-link" href="?page_h={{ history_wfh.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
                             {% else %}
-                            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
                             {% endif %}
-                            <li class="page-item active"><span class="page-link">{{ history_wfh.number }}</span></li>
+                            <li class="page-item active"><a class="page-link" href="#">{{ history_wfh.number }}</a></li>
                             {% if history_wfh.has_next %}
                             <li class="page-item"><a class="page-link" href="?page_h={{ history_wfh.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page_h' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
                             {% else %}
-                            <li class="page-item disabled"><span class="page-link">Next</span></li>
+                            <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
                             {% endif %}
                         </ul>
                     </nav>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>

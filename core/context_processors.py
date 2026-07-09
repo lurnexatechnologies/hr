@@ -3,6 +3,7 @@ from core.dynamodb_service import EmployeesTable, NotificationsTable, HolidaysTa
 from boto3.dynamodb.conditions import Key
 
 def lurnexa_settings(request):
+    from core.utils import is_mobile_app
     # Initialize default data
     data = {
         'LURNEXA_VERSION': '1.0.0',
@@ -11,7 +12,8 @@ def lurnexa_settings(request):
         'tomorrow_birthdays': [],
         'global_notifications': [],
         'unread_notifications_count': 0,
-        'user_gender': None
+        'user_gender': None,
+        'IS_MOBILE_APP': is_mobile_app(request)
     }
 
     # Only fetch birthdays if user is logged in
