@@ -115,6 +115,16 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                     # Construct message
                     if platform == 'android':
                         message_payload = messaging.Message(
+                            notification=messaging.Notification(
+                                title=str(n_title),
+                                body=str(n_message)
+                            ),
+                            android=messaging.AndroidConfig(
+                                notification=messaging.AndroidNotification(
+                                    sound='default',
+                                    notification_channel_id='lurnexa-alerts'
+                                )
+                            ),
                             data={
                                 'title': str(n_title),
                                 'body': str(n_message),
@@ -131,6 +141,13 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                             notification=messaging.Notification(
                                 title=n_title,
                                 body=n_message,
+                            ),
+                            apns=messaging.APNSConfig(
+                                payload=messaging.APNSPayload(
+                                    aps=messaging.Aps(
+                                        sound='default'
+                                    )
+                                )
                             ),
                             data={
                                 'title': str(n_title),

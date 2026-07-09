@@ -2636,6 +2636,23 @@ class TestPushNotificationView(View):
             from firebase_admin import messaging
             
             message_payload = messaging.Message(
+                notification=messaging.Notification(
+                    title='Lurnexa Push Diagnostics',
+                    body='Congratulations! Firebase Push Notifications are working perfectly on this device.',
+                ),
+                android=messaging.AndroidConfig(
+                    notification=messaging.AndroidNotification(
+                        sound='default',
+                        notification_channel_id='lurnexa-alerts'
+                    )
+                ),
+                apns=messaging.APNSConfig(
+                    payload=messaging.APNSPayload(
+                        aps=messaging.Aps(
+                            sound='default'
+                        )
+                    )
+                ),
                 data={
                     'title': 'Lurnexa Push Diagnostics',
                     'body': 'Congratulations! Firebase Push Notifications are working perfectly on this device.',

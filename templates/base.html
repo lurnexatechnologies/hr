@@ -660,8 +660,8 @@
                     }
                     
                     if (LocalNotifications) {
-                        // Create high importance notification channel for Android
-                        LocalNotifications.createChannel({
+                        // Create high importance notification channel for Android (Local & Push)
+                        const channelConfig = {
                             id: 'lurnexa-alerts',
                             name: 'Lurnexa Alerts',
                             description: 'Real-time HRMS notifications and updates',
@@ -669,9 +669,16 @@
                             visibility: 1, // VISIBILITY_PUBLIC
                             sound: 'default',
                             vibration: true
-                        }).then(() => {
+                        };
+                        LocalNotifications.createChannel(channelConfig).then(() => {
                             console.log('LocalNotifications channel initialized');
-                        }).catch(err => console.error('Failed to create notification channel:', err));
+                        }).catch(err => console.error('Failed to create local notification channel:', err));
+
+                        if (PushNotifications && typeof PushNotifications.createChannel === 'function') {
+                            PushNotifications.createChannel(channelConfig).then(() => {
+                                console.log('PushNotifications channel initialized');
+                            }).catch(err => console.error('Failed to create push notification channel:', err));
+                        }
 
                         // Check and request permissions
                         LocalNotifications.checkPermissions().then(permissionStatus => {
