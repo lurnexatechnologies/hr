@@ -3,9 +3,9 @@ import sys
 from playwright.sync_api import Playwright, sync_playwright, expect
 
 def run(playwright: Playwright) -> None:
-    # Launch browser (set headless=False to watch the test run visually!)
+    # Launch browser (set headless=True to prevent opening the browser window)
     # Using a slightly faster slow_mo to test thoroughly without taking too long
-    browser = playwright.chromium.launch(headless=False, slow_mo=200)
+    browser = playwright.chromium.launch(headless=True, slow_mo=200)
     context = browser.new_context()
     page = context.new_page()
 

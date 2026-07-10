@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from playwright.sync_api import Playwright, sync_playwright, expect
 
 def run(playwright: Playwright) -> None:
-    # Set headless=False to watch the workflow in real time!
-    browser = playwright.chromium.launch(headless=False, slow_mo=300)
+    # Set headless=True to prevent opening the browser window
+    browser = playwright.chromium.launch(headless=True, slow_mo=300)
     context = browser.new_context()
     page = context.new_page()
     BASE_URL = "http://127.0.0.1:8000"
