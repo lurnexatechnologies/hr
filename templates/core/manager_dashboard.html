@@ -190,7 +190,7 @@
                                              {% endif %}
                                          </div>
                                         <div>
-                                            <h6 class="mb-0 fw-bold">{{ emp.FirstName }} {{ emp.LastName }}</h6>
+                                            <h6 class="mb-0 fw-bold">{{ emp.FirstName }} {{ emp.LastName }}{% if emp.EmployeeID == request.user.employee_id %} (You){% endif %}</h6>
                                             <small class="text-muted">{{ emp.Email }}</small>
                                         </div>
                                     </div>

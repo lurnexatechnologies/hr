@@ -227,7 +227,16 @@ class MyTeamView(LoginRequiredMixin, TemplateView):
             manager_id = hierarchy[0].get('ManagerID')
             reporting_manager = EmployeesTable.get_item({'EmployeeID': manager_id})
 
-        if user_role in ['Manager', 'HR ADMIN']:
+        # Fallback to Super Admin for HR / HR ADMIN if no manager is found in ReportingHierarchyTable
+        if not reporting_manager and user_role in ['HR', 'HR ADMIN']:
+            reporting_manager = EmployeesTable.get_item({'EmployeeID': 'LT-26000'})
+            if not reporting_manager:
+                all_users = UsersTable.scan()
+                sa_user = next((u for u in all_users if u.get('Role') == 'Super admin'), None)
+                if sa_user and sa_user.get('EmployeeID'):
+                    reporting_manager = EmployeesTable.get_item({'EmployeeID': sa_user.get('EmployeeID')})
+
+        if user_role in ['Manager', 'HR ADMIN', 'HR']:
             # Managers/HR see their direct reports
             reporting_lines = ReportingHierarchyTable.query(
                 KeyConditionExpression=Key('ManagerID').eq(user_emp_id)
@@ -270,12 +279,17 @@ class MyTeamView(LoginRequiredMixin, TemplateView):
                 )
                 report_ids = [line.get('EmployeeID') for line in reporting_lines]
                 for emp_id in report_ids:
-                    if emp_id == user_emp_id: continue # Skip self
                     emp = EmployeesTable.get_item({'EmployeeID': emp_id})
                     if emp and emp.get('OnboardingStatus') != 'Resigned':
                         team_members.append(emp)
             
             context['title_suffix'] = "Team Members"
+
+        # Ensure the logged-in user is always included in the team list
+        if not any(emp.get('EmployeeID') == user_emp_id for emp in team_members):
+            self_emp = EmployeesTable.get_item({'EmployeeID': user_emp_id})
+            if self_emp:
+                team_members.append(self_emp)
 
         # 3. Apply Search Filter
         query = self.request.GET.get('q', '').strip().lower()

@@ -289,6 +289,13 @@ class ManagerDashboardView(ManagerRequiredMixin, TemplateView):
                     team_members.append(emp)
         except Exception:
             pass
+
+        # Ensure the logged-in user is always included in the team list
+        if not any(emp.get('EmployeeID') == user.employee_id for emp in team_members):
+            self_emp = EmployeesTable.get_item({'EmployeeID': user.employee_id})
+            if self_emp:
+                team_members.append(self_emp)
+
         context['team_members'] = team_members
 
         # --- Fetch Pending Leave Requests (for manager approval) ---
@@ -2643,7 +2650,7 @@ class TestPushNotificationView(View):
                 android=messaging.AndroidConfig(
                     notification=messaging.AndroidNotification(
                         sound='default',
-                        notification_channel_id='lurnexa-alerts'
+                        notification_channel_id='fcm_default_channel'
                     )
                 ),
                 apns=messaging.APNSConfig(

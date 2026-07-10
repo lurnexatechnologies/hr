@@ -122,7 +122,7 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                             android=messaging.AndroidConfig(
                                 notification=messaging.AndroidNotification(
                                     sound='default',
-                                    notification_channel_id='lurnexa-alerts'
+                                    notification_channel_id='fcm_default_channel'
                                 )
                             ),
                             data={
