@@ -18,6 +18,9 @@ class PFManagementView(HRRequiredMixin, View):
 
         # Prepare dropdown data
         all_employees = EmployeesTable.scan()
+        from core.dynamodb_service import UsersTable
+        all_users = UsersTable.scan()
+        super_admin_ids = {u.get('UserID') for u in all_users if u.get('Role') == 'Super admin' and u.get('UserID')}
         
         # Calculate the first employee's starting date year for the filter
         earliest_year = today.year
@@ -47,6 +50,10 @@ class PFManagementView(HRRequiredMixin, View):
         pf_employees = []
         
         for e in all_employees:
+            # Filter out Super Admins
+            if e.get('EmployeeID') == 'LT-26000' or (e.get('UserID') and e.get('UserID') in super_admin_ids):
+                continue
+                
             # 1. Permanent Check: Only show Permanent employees for PF management
             if e.get('EmploymentType') != 'Permanent':
                 continue
