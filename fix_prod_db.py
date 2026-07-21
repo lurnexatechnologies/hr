@@ -15,10 +15,53 @@ try:
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lurnexa_hrms.settings')
     django.setup()
     
-    from core.dynamodb_service import EmployeesTable, PayrollApprovalsTable, initialize_dynamodb_tables
+    from core.dynamodb_service import EmployeesTable, UsersTable, PayrollApprovalsTable, initialize_dynamodb_tables
+    from boto3.dynamodb.conditions import Key
+    import bcrypt
+    import uuid
+
     logging.info("Initializing DynamoDB tables on live environment...")
     initialize_dynamodb_tables()
     logging.info("DynamoDB tables check completed.")
+
+    # Seed Platform Admin if not exists
+    logging.info("Checking if Platform Admin user exists...")
+    platform_email = 'lurnexasolution@gmail.com'
+    existing_users = UsersTable.query(
+        IndexName='EmailIndex',
+        KeyConditionExpression=Key('Email').eq(platform_email)
+    )
+    if not existing_users:
+        logging.info("Platform Admin not found. Seeding Platform Admin details...")
+        user_id = str(uuid.uuid4())
+        employee_id = 'LXP-PLAT-001'
+        password = 'Password@123'
+        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        user_item = {
+            'UserID': user_id,
+            'Email': platform_email,
+            'Role': 'Platform Admin',
+            'PasswordHash': hashed_pw,
+            'EmployeeID': employee_id,
+            'IsActive': True
+        }
+        UsersTable.put_item(user_item)
+        
+        employee_item = {
+            'EmployeeID': employee_id,
+            'UserID': user_id,
+            'Email': platform_email,
+            'FirstName': 'Lurnexa',
+            'LastName': 'Technologies',
+            'Department': 'Administration',
+            'Designation': 'Platform Admin'
+        }
+        EmployeesTable.put_item(employee_item)
+        logging.info("Successfully seeded Platform Admin user.")
+    else:
+        logging.info("Platform Admin user already exists.")
+    
     from decimal import Decimal
     
     # 1. Find and update the employee
