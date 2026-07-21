@@ -11,6 +11,14 @@ class Command(BaseCommand):
         
         users_to_create = [
             {
+                'Email': 'lurnexasolution@gmail.com',
+                'Role': 'Platform Admin',
+                'FirstName': 'Lurnexa',
+                'LastName': 'Technologies',
+                'Password': 'Password@123',
+                'EmployeeID': 'LXP-PLAT-001'
+            },
+            {
                 'Email': 'hr@lurnexa.com',
                 'Role': 'HR ADMIN',
                 'FirstName': 'Alice',
@@ -77,7 +85,7 @@ class Command(BaseCommand):
                 'Email': user['Email'],
                 'FirstName': user['FirstName'],
                 'LastName': user['LastName'],
-                'Department': 'Administration' if user['Role'] in ['HR', 'HR ADMIN'] else 'Engineering',
+                'Department': 'Administration' if user['Role'] in ['HR', 'HR ADMIN', 'Platform Admin'] else 'Engineering',
                 'Designation': user['Role']
             }
             EmployeesTable.put_item(employee_item)
