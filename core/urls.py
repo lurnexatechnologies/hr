@@ -1,5 +1,8 @@
 from django.urls import path
 from . import views
+from . import platform_views
+from . import billing_views
+from . import views_feedback360
 
 urlpatterns = [
     path('hr_dashboard/', views.HRDashboardView.as_view(), name='hr_dashboard'),
@@ -8,6 +11,7 @@ urlpatterns = [
     path('employee_dashboard/', views.EmployeeDashboardView.as_view(), name='employee_dashboard'),
     path('export_employees/', views.ExportEmployeesCSVView.as_view(), name='export_employees'),
     path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('departments/', views.ManageDepartmentsView.as_view(), name='manage_departments'),
     path('notifications/', views.NotificationsView.as_view(), name='notifications'),
     path('notifications/clear/', views.ClearNotificationsView.as_view(), name='clear_notifications'),
     path('notifications/mark-all-read/', views.MarkAllNotificationsReadView.as_view(), name='mark_all_notifications_read'),
@@ -19,6 +23,9 @@ urlpatterns = [
     path('policies/add/', views.AddPolicyView.as_view(), name='add_policy'),
     path('policies/edit/<str:policy_id>/', views.EditPolicyView.as_view(), name='edit_policy'),
     path('policies/delete/', views.DeletePolicyView.as_view(), name='delete_policy'),
+    path('policies/approve/<str:policy_id>/', views.ApprovePolicyView.as_view(), name='approve_policy'),
+    path('policies/reject/<str:policy_id>/', views.RejectPolicyView.as_view(), name='reject_policy'),
+    path('policies/acknowledge/<str:policy_id>/', views.AcknowledgePolicyView.as_view(), name='acknowledge_policy'),
     path('search/', views.GlobalSearchView.as_view(), name='global_search'),
     path('super_admin/approvals/', views.SuperAdminApprovalsView.as_view(), name='super_admin_approvals'),
     path('hr/generate-letter/', views.HRGenerateLetterView.as_view(), name='hr_generate_letter'),
@@ -34,7 +41,37 @@ urlpatterns = [
     path('okrs/submit-founder-approval/', views.SubmitFounderApprovalView.as_view(), name='submit_founder_approval'),
     path('okrs/manage-cycles/', views.ManageAppraisalCyclesView.as_view(), name='manage_appraisal_cycles'),
     path('okrs/download-letter/<str:employee_id>/<str:cycle_id>/<str:type>/', views.DownloadAppraisalLetterView.as_view(), name='download_appraisal_letter'),
+    path('okrs/360/request/', views.RequestFeedback360View.as_view(), name='request_feedback_360'),
+    path('okrs/360/submit/', views.SubmitFeedback360View.as_view(), name='submit_feedback_360'),
+    path('okrs/360/hub/', views_feedback360.Feedback360HubView.as_view(), name='feedback_hub'),
+    path('okrs/360/competencies/', views_feedback360.FeedbackCompetenciesView.as_view(), name='feedback_competencies'),
+    path('okrs/360/questions/', views_feedback360.FeedbackQuestionBankView.as_view(), name='feedback_questions'),
+    path('okrs/360/templates/', views_feedback360.FeedbackTemplatesView.as_view(), name='feedback_templates'),
+    path('okrs/360/cycles/', views_feedback360.FeedbackCyclesView.as_view(), name='feedback_cycles'),
+    path('okrs/360/cycles/<str:cycle_id>/transition/', views_feedback360.FeedbackCycleTransitionView.as_view(), name='feedback_cycle_transition'),
+    path('okrs/360/nominations/', views_feedback360.ReviewerNominationView.as_view(), name='reviewer_nominations'),
+    path('okrs/360/nominations/<str:assignment_id>/approve/', views_feedback360.ApproveNominationView.as_view(), name='approve_nomination'),
+    path('okrs/360/evaluate/<str:assignment_id>/', views_feedback360.EvaluateSurveyView.as_view(), name='evaluate_survey'),
+    path('okrs/360/report/<str:cycle_id>/<str:employee_id>/', views_feedback360.FeedbackReportView.as_view(), name='feedback_report'),
+    path('okrs/360/report/<str:cycle_id>/acknowledge/', views_feedback360.AcknowledgeReportView.as_view(), name='acknowledge_report'),
+    path('okrs/360/report/<str:cycle_id>/<str:employee_id>/development-plan/', views_feedback360.CreateDevelopmentPlanView.as_view(), name='create_development_plan'),
+    path('okrs/360/audit-logs/', views_feedback360.FeedbackAuditLogsView.as_view(), name='feedback_audit_logs'),
     path('api/register-device/', views.RegisterDeviceView.as_view(), name='register_device'),
     path('api/unregister-device/', views.UnregisterDeviceView.as_view(), name='unregister_device'),
     path('api/test-push-notification/', views.TestPushNotificationView.as_view(), name='test_push_notification'),
+
+    # Platform Admin routes
+    path('platform/dashboard/', platform_views.PlatformDashboardView.as_view(), name='platform_dashboard'),
+    path('platform/organizations/', platform_views.PlatformOrgListView.as_view(), name='platform_org_list'),
+    path('platform/organizations/create/', platform_views.PlatformCreateOrgView.as_view(), name='platform_create_org'),
+    path('platform/organizations/<str:org_id>/edit/', platform_views.PlatformEditOrgView.as_view(), name='platform_edit_org'),
+    path('platform/organizations/<str:org_id>/workflows/', platform_views.PlatformOrgWorkflowsView.as_view(), name='platform_org_workflows'),
+    path('platform/organizations/<str:org_id>/renew/', platform_views.PlatformRenewOrgView.as_view(), name='platform_renew_org'),
+    path('platform/organizations/<str:org_id>/create-admin/', platform_views.PlatformCreateOrgAdminView.as_view(), name='platform_create_org_admin'),
+    path('platform/billing/', billing_views.PlatformBillingView.as_view(), name='platform_billing'),
+
+    # Tenant Billing routes
+    path('billing/dashboard/', billing_views.TenantBillingDashboardView.as_view(), name='tenant_billing_dashboard'),
+    path('billing/pay/', billing_views.TenantBillingPaymentView.as_view(), name='tenant_billing_payment'),
+    path('billing/invoice/<str:period_start>/', billing_views.InvoiceDetailView.as_view(), name='billing_invoice_detail'),
 ]

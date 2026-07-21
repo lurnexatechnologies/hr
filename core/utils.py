@@ -6,13 +6,63 @@ from django.core.mail import EmailMessage
 import threading
 from core.dynamodb_service import EmployeesTable, NotificationsTable
 
-def send_notification(employee_id, title, message, n_type='System', icon='fa-bell', color='primary', email_subject=None, email_body=None, attachments=None):
+DEFAULT_LEAVE_POLICIES = {
+    'Permanent': {
+        'SL_Limit': 12.0,
+        'CL_Limit': 12.0,
+        'PL_Limit': 0.0,
+        'AllowedTypes': [
+            'Earned Leave (EL)',
+            'Sick Leave (SL)',
+            'Casual Leave (CL)',
+            'Compensatory Off (Comp Off)',
+            'Marriage Leave',
+            'Maternity Leave',
+            'Paternity Leave',
+            'Unpaid Leave'
+        ]
+    },
+    'Probation': {
+        'SL_Limit': 12.0,
+        'CL_Limit': 12.0,
+        'PL_Limit': 0.0,
+        'AllowedTypes': [
+            'Sick Leave (SL)',
+            'Casual Leave (CL)',
+            'Unpaid Leave'
+        ]
+    },
+    'Intern': {
+        'SL_Limit': 0.0,
+        'CL_Limit': 0.0,
+        'PL_Limit': 0.0,
+        'AllowedTypes': [
+            'Unpaid Leave'
+        ]
+    }
+}
+
+def send_notification(employee_id, title, message, n_type='System', icon='fa-bell', color='primary', email_subject=None, email_body=None, attachments=None, org_id=None):
     """
     Sends a notification to an employee. 
     Saves to DynamoDB and optionally sends an email in a background thread.
     """
     
     timestamp = get_local_now().isoformat()
+
+    # Resolve org_id if not explicitly provided
+    if not org_id:
+        from core.middleware import get_current_request
+        request = get_current_request()
+        if request and hasattr(request, 'user') and getattr(request.user, 'org_id', None):
+            org_id = request.user.org_id
+        else:
+            try:
+                emp = EmployeesTable.get_item({'EmployeeID': employee_id})
+                if emp:
+                    org_id = emp.get('OrgID')
+            except Exception:
+                pass
     
     # 1. Save to DynamoDB
     notification_item = {
@@ -25,6 +75,9 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
         'Color': color,
         'IsRead': False
     }
+    if org_id:
+        notification_item['OrgID'] = org_id
+
     try:
         NotificationsTable.put_item(notification_item)
     except Exception as e:
@@ -246,33 +299,58 @@ def get_initial_leave_balance(employee, leave_type):
     """
     Calculates the initial leave balance for SL and CL.
     Prorated from joining/full-time month to December of the joining/full-time year for new employees.
-    If joined/full-time in a previous year, gets the full 12.0 days.
-    Interns get 0.0.
+    If joined/full-time in a previous year, gets the full configured limit.
     """
+    org_id = employee.get('OrgID')
+    emp_type = 'Permanent'
     if employee.get('EmploymentType') == 'Intern':
-        return 0.0
+        emp_type = 'Intern'
+    elif employee.get('EmploymentStatus') == 'Probation':
+        emp_type = 'Probation'
 
-    if leave_type not in ['SL', 'CL']:
+    # Fallback default limits
+    sl_limit = 12.0
+    cl_limit = 12.0
+    if emp_type == 'Intern':
+        sl_limit = 0.0
+        cl_limit = 0.0
+
+    if org_id:
+        try:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org and 'LeavePolicies' in org and emp_type in org['LeavePolicies']:
+                policy = org['LeavePolicies'][emp_type]
+                sl_limit = float(policy.get('SL_Limit', sl_limit))
+                cl_limit = float(policy.get('CL_Limit', cl_limit))
+        except Exception as e:
+            print(f"Error fetching org policy in get_initial_leave_balance: {e}")
+
+    limit = 0.0
+    if leave_type == 'SL':
+        limit = sl_limit
+    elif leave_type == 'CL':
+        limit = cl_limit
+    else:
         return 0.0
 
     effective_date_str = employee.get('FullTimeDate') or employee.get('JoinedDate')
     if not effective_date_str:
-        return 12.0
+        return limit
 
     try:
         effective_date = datetime.datetime.strptime(effective_date_str, '%Y-%m-%d').date()
         today = get_local_date()
         
         if effective_date.year < today.year:
-            # Joined/Full-time in a previous year, gets full 12.0 days
-            return 12.0
+            return limit
         else:
-            # Joined/Full-time in the current year (or future), prorate from joining/full-time month to December
             months_count = 12 - effective_date.month + 1
-            return float(max(1, min(12, months_count)))
+            prorated = (limit * months_count) / 12.0
+            return float(max(0.0, min(limit, round(prorated, 1))))
     except Exception as e:
         print(f"Error calculating initial leave: {e}")
-        return 12.0
+        return limit
 
 def refresh_monthly_leaves(employee):
     """
@@ -334,18 +412,43 @@ def refresh_monthly_leaves(employee):
         new_el = current_el + accrued_el
 
         if is_new_year:
-            # Reset CL and SL to 12.0 on Jan 1st, and update EL
+            org_id = employee.get('OrgID')
+            emp_type = 'Permanent'
+            if employee.get('EmploymentType') == 'Intern':
+                emp_type = 'Intern'
+            elif employee.get('EmploymentStatus') == 'Probation':
+                emp_type = 'Probation'
+
+            # Fallback default limits
+            sl_limit = 12.0
+            cl_limit = 12.0
+            if emp_type == 'Intern':
+                sl_limit = 0.0
+                cl_limit = 0.0
+
+            if org_id:
+                try:
+                    from core.dynamodb_service import OrganizationsTable
+                    org = OrganizationsTable.get_item({'OrgID': org_id})
+                    if org and 'LeavePolicies' in org and emp_type in org['LeavePolicies']:
+                        policy = org['LeavePolicies'][emp_type]
+                        sl_limit = float(policy.get('SL_Limit', sl_limit))
+                        cl_limit = float(policy.get('CL_Limit', cl_limit))
+                except Exception as e:
+                    print(f"Error fetching org policy in refresh_monthly_leaves: {e}")
+
+            # Reset CL and SL to configured limits on Jan 1st, and update EL
             EmployeesTable.update_item(
                 Key={'EmployeeID': emp_id},
                 UpdateExpression="SET Balance_SL = :sl, Balance_CL = :cl, Balance_PL = :pl, LastLeaveRefresh = :lr",
                 ExpressionAttributeValues={
-                    ':sl': '12.0',
-                    ':cl': '12.0',
+                    ':sl': str(sl_limit),
+                    ':cl': str(cl_limit),
                     ':pl': str(new_el),
                     ':lr': current_month
                 }
             )
-            print(f"Leave balances reset to 12.0 (SL/CL) and EL accrued (+{accrued_el}) on Jan 1st for {emp_id}")
+            print(f"Leave balances reset to {sl_limit}/{cl_limit} (SL/CL) and EL accrued (+{accrued_el}) on Jan 1st for {emp_id}")
             return True
         else:
             # On other months, just accrue EL
@@ -363,13 +466,22 @@ def refresh_monthly_leaves(employee):
         print(f"Failed to refresh leaves for {emp_id}: {e}")
         return False
 
-def save_uploaded_file(uploaded_file, folder='uploads'):
+def save_uploaded_file(uploaded_file, folder='uploads', org_id=None):
     """
     Saves an uploaded file to the MEDIA_ROOT/folder directory.
     Returns the filename of the saved file.
     """
     if not uploaded_file:
         return None
+
+    if not org_id:
+        from core.middleware import get_current_request
+        request = get_current_request()
+        if request and hasattr(request, 'user') and getattr(request.user, 'org_id', None):
+            org_id = request.user.org_id
+
+    if org_id:
+        folder = os.path.join(org_id, folder)
         
     fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, folder))
     filename = fs.save(uploaded_file.name, uploaded_file)
@@ -458,10 +570,11 @@ def safe_float(val, default=0.0):
 
 def get_lurnexa_logo_base64():
     """
-    Returns the base64 encoded data URI of the namelesslogolurnexa.png file.
+    Returns the base64 encoded data URI of the Lurnexa logo.
     """
     import base64
     from django.conf import settings
+
     path = os.path.join(settings.BASE_DIR, 'static', 'img', 'namelesslogolurnexa.png')
     if os.path.exists(path):
         try:
@@ -548,6 +661,198 @@ def is_mobile_app(request):
         return True
         
     return False
+
+
+def can_add_employee(org_id):
+    """Check if org can add more employees based on plan limits."""
+    if not org_id:
+        return True, ""
+    from core.dynamodb_service import OrganizationsTable, EmployeesTable
+    from core.features import PLAN_LIMITS
+    try:
+        org = OrganizationsTable.get_item({'OrgID': org_id})
+    except Exception:
+        org = None
+
+    if not org:
+        # Fallback to true if organization details are not yet fully provisioned
+        return True, ""
+
+    plan = org.get('Plan', 'basic')
+    max_emp = org.get('MaxEmployees') or PLAN_LIMITS.get(plan, {}).get('max_employees', 25)
+
+    try:
+        current_count = len(EmployeesTable.scan(
+            FilterExpression="OrgID = :oid AND IsActive = :active",
+            ExpressionAttributeValues={":oid": org_id, ":active": True}
+        ))
+    except Exception:
+        current_count = 0
+
+    if current_count >= max_emp:
+        return False, f"Employee limit ({max_emp}) reached for your {plan.title()} plan."
+    return True, ""
+
+
+def resolve_workflow_step(employee_id, org_id, current_status=None, action='submit', request_type='leave_request'):
+    """
+    Determines next status, next approver ID, and whether it's final approved
+    based on the organization's custom WorkflowRules.
+    WorkflowRules is a dictionary stored in the organization config.
+    """
+    from core.dynamodb_service import OrganizationsTable, ReportingHierarchyTable, UsersTable, EmployeesTable
+    
+    # 1. Load organization config and get WorkflowRules
+    workflow_rules = None
+    if org_id:
+        try:
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                workflow_rules = org.get('WorkflowRules')
+        except Exception:
+            pass
+
+    # 2. Get submitter role
+    submitter_role = 'Employee'
+    try:
+        emp = EmployeesTable.get_item({'EmployeeID': employee_id})
+        if emp:
+            submitter_role = emp.get('Role', 'Employee')
+    except Exception:
+        pass
+
+    # Standardize submitter_role
+    if submitter_role not in ['Employee', 'Manager', 'HR ADMIN', 'Super admin']:
+        submitter_role = 'Employee'
+
+    # Default fallback rules if no custom ones are configured
+    default_rules = {
+        'leave_request': {
+            'Employee': ['Manager'],
+            'Manager': ['HR ADMIN'],
+            'HR ADMIN': ['Super admin'],
+            'Super admin': []
+        },
+        'expense_claim': {
+            'Employee': ['Manager'],
+            'Manager': ['HR ADMIN'],
+            'HR ADMIN': ['Super admin'],
+            'Super admin': []
+        },
+        'wfh_request': {
+            'Employee': ['Manager'],
+            'Manager': ['HR ADMIN'],
+            'HR ADMIN': ['Super admin'],
+            'Super admin': []
+        },
+        'payroll_approval': {
+            'Employee': ['Manager', 'HR ADMIN', 'Super admin'],
+            'Manager': ['HR ADMIN', 'Super admin'],
+            'HR ADMIN': ['Super admin'],
+            'Super admin': []
+        }
+    }
+
+    rules_for_type = {}
+    if workflow_rules:
+        rules_for_type = workflow_rules.get(request_type, {})
+        
+    if not rules_for_type:
+        chain = default_rules.get(request_type, {}).get(submitter_role, [])
+    else:
+        chain = rules_for_type.get(submitter_role, [])
+    
+    # If no steps defined (e.g. Super Admin), approve immediately
+    if not chain:
+        return 'Approved', None, True
+
+    # 3. Determine actual managers/HRs in the org
+    manager_id = None
+    try:
+        hierarchy = ReportingHierarchyTable.scan(
+            FilterExpression="EmployeeID = :eid",
+            ExpressionAttributeValues={":eid": employee_id}
+        )
+        if hierarchy:
+            manager_id = hierarchy[0].get('ManagerID')
+    except Exception:
+        pass
+
+    manager_manager_id = None
+    if manager_id:
+        try:
+            m_hierarchy = ReportingHierarchyTable.scan(
+                FilterExpression="EmployeeID = :eid",
+                ExpressionAttributeValues={":eid": manager_id}
+            )
+            if m_hierarchy:
+                manager_manager_id = m_hierarchy[0].get('ManagerID')
+        except Exception:
+            pass
+
+    hr_users = []
+    sa_users = []
+    try:
+        all_users = UsersTable.scan()
+        for u in all_users:
+            u_org_id = u.get('OrgID')
+            if not org_id or u_org_id == org_id:
+                if u.get('Role') == 'HR ADMIN' and u.get('EmployeeID'):
+                    hr_users.append(u.get('EmployeeID'))
+                elif u.get('Role') == 'Super admin' and u.get('EmployeeID'):
+                    sa_users.append(u.get('EmployeeID'))
+    except Exception:
+        pass
+    
+    fallback_hr_id = hr_users[0] if hr_users else (sa_users[0] if sa_users else None)
+    fallback_sa_id = sa_users[0] if sa_users else (hr_users[0] if hr_users else None)
+
+    def get_approver_by_role_name(role_name):
+        if role_name == 'Manager':
+            return manager_id or fallback_hr_id
+        elif role_name == 'Team Lead':
+            return manager_id or fallback_hr_id # Fallback to manager
+        elif role_name == 'HR ADMIN':
+            return fallback_hr_id
+        elif role_name == 'Super admin':
+            return fallback_sa_id
+        return fallback_hr_id
+
+    # 4. Handle rejection
+    if action == 'reject':
+        return 'Rejected', None, False
+
+    # 5. Handle submission or progression
+    # Status format: 'Pending [Role Name] Approval'
+    # E.g. 'Pending Manager Approval'
+    
+    # Map current status to step index in chain
+    current_step_index = -1
+    if current_status:
+        # Find which role name matches current status
+        for idx, role_name in enumerate(chain):
+            if current_status == f"Pending {role_name} Approval":
+                current_step_index = idx
+                break
+
+    if action == 'submit' or not current_status:
+        next_role = chain[0]
+        status = f"Pending {next_role} Approval"
+        approver = get_approver_by_role_name(next_role)
+        return status, approver, False
+
+    elif action == 'approve':
+        next_step_index = current_step_index + 1
+        if next_step_index < len(chain):
+            next_role = chain[next_step_index]
+            status = f"Pending {next_role} Approval"
+            approver = get_approver_by_role_name(next_role)
+            return status, approver, False
+        else:
+            return 'Approved', None, True
+
+    return 'Approved', None, True
+
 
 
 

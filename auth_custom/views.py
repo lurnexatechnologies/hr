@@ -94,16 +94,23 @@ class LoginView(View):
                 last_act = user_data.get('LastActivityTime')
                 db_device_id = user_data.get('DeviceID')
                 
-                # Get device_id from cookie
-                cookie_device_id = request.COOKIES.get('device_id')
+                # Get device_id from cookie or posted form data
+                cookie_device_id = request.COOKIES.get('device_id') or request.POST.get('device_id')
                 
                 if active_token and last_act:
                     try:
                         elapsed = now - float(last_act)
                         # Block only if active session is less than 1 hour old AND the device_id does not match
                         if elapsed < 3600 and cookie_device_id != db_device_id:
-                            messages.error(request, "You are already logged in on another device. Please log out from that device first or wait for it to expire.")
-                            return render(request, 'auth_custom/login.html')
+                            if request.POST.get('force_login') == 'true':
+                                # User chose to force log in, bypass the device block
+                                pass
+                            else:
+                                messages.error(request, "You are already logged in on another device. Please log out from that device first or wait for it to expire.")
+                                return render(request, 'auth_custom/login.html', {
+                                    'show_force_login': True,
+                                    'username': email_or_id
+                                })
                     except (ValueError, TypeError):
                         pass
 
@@ -191,7 +198,9 @@ class LoginView(View):
         return render(request, 'auth_custom/login.html')
 
     def _redirect_dashboard(self, role):
-        if role == 'Super admin':
+        if role == 'Platform Admin':
+            return redirect('platform_dashboard')
+        elif role == 'Super admin':
             return redirect('super_admin_dashboard')
         elif role == 'HR ADMIN':
             return redirect('hr_dashboard')
@@ -241,7 +250,13 @@ class LogoutView(View):
             messages.warning(request, "Your session has expired because the tab was closed. Please log in again.")
         else:
             messages.success(request, "You have been logged out.")
-        return redirect('login')
+        
+        response = redirect('login')
+        try:
+            response.delete_cookie('device_id')
+        except Exception as e:
+            print(f"ERROR: Failed to delete device_id cookie: {e}")
+        return response
 
 class ForgotPasswordView(View):
     def get(self, request):

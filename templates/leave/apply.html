@@ -18,19 +18,35 @@
                         <label for="leave_type" class="form-label fw-medium">Leave Type <span class="text-danger">*</span></label>
                         <select class="form-select" id="leave_type" name="leave_type" required>
                             <option value="">Select leave type</option>
-                            {% if not is_intern %}
-                            <option value="Earned Leave (EL)">Earned Leave (EL)</option>
-                            <option value="Sick Leave (SL)">Sick Leave (SL)</option>
-                            <option value="Casual Leave (CL)">Casual Leave (CL)</option>
-                            <option value="Compensatory Off (Comp Off)">Compensatory Off (Comp Off)</option>
-                            {% if not has_parental_leave %}
-                            <option value="{{ parental_leave_type }}">{{ parental_leave_type }}</option>
+                            {% if allowed_leave_types is not None %}
+                                {% for lt in allowed_leave_types %}
+                                    {% if lt == 'Maternity Leave' or lt == 'Paternity Leave' %}
+                                        {% if lt == parental_leave_type and not has_parental_leave %}
+                                            <option value="{{ lt }}">{{ lt }}</option>
+                                        {% endif %}
+                                    {% elif lt == 'Marriage Leave' %}
+                                        {% if not has_marriage_leave %}
+                                            <option value="{{ lt }}">{{ lt }}</option>
+                                        {% endif %}
+                                    {% else %}
+                                        <option value="{{ lt }}">{{ lt }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                {% if not is_intern %}
+                                <option value="Earned Leave (EL)">Earned Leave (EL)</option>
+                                <option value="Sick Leave (SL)">Sick Leave (SL)</option>
+                                <option value="Casual Leave (CL)">Casual Leave (CL)</option>
+                                <option value="Compensatory Off (Comp Off)">Compensatory Off (Comp Off)</option>
+                                {% if not has_parental_leave %}
+                                <option value="{{ parental_leave_type }}">{{ parental_leave_type }}</option>
+                                {% endif %}
+                                {% if not has_marriage_leave %}
+                                <option value="Marriage Leave">Marriage Leave</option>
+                                {% endif %}
+                                {% endif %}
+                                <option value="Unpaid Leave">Unpaid Leave</option>
                             {% endif %}
-                            {% if not has_marriage_leave %}
-                            <option value="Marriage Leave">Marriage Leave</option>
-                            {% endif %}
-                            {% endif %}
-                            <option value="Unpaid Leave">Unpaid Leave</option>
                         </select>
                     </div>
                     
@@ -104,15 +120,37 @@
                 <div class="mb-4">
                     <label class="form-label fw-bold text-muted small text-uppercase">Select Leave Type</label>
                     <select id="balance_type_selector" class="form-select shadow-sm border-light-subtle rounded-3 py-2 mb-4">
-                        {% if not is_intern %}
-                        <option value="el" selected>Earned Leave (EL)</option>
-                        <option value="sl">Sick Leave (SL)</option>
-                        <option value="cl">Casual Leave (CL)</option>
-                        <option value="co">Compensatory Off (CO)</option>
-                        <option value="parental">{{ parental_leave_type }}</option>
-                        <option value="marriage">Marriage Leave</option>
+                        {% if allowed_leave_types is not None %}
+                            {% for lt in allowed_leave_types %}
+                                {% if lt == 'Earned Leave (EL)' %}
+                                <option value="el">Earned Leave (EL)</option>
+                                {% elif lt == 'Sick Leave (SL)' %}
+                                <option value="sl">Sick Leave (SL)</option>
+                                {% elif lt == 'Casual Leave (CL)' %}
+                                <option value="cl">Casual Leave (CL)</option>
+                                {% elif lt == 'Compensatory Off (Comp Off)' %}
+                                <option value="co">Compensatory Off (CO)</option>
+                                {% elif lt == 'Marriage Leave' %}
+                                <option value="marriage">Marriage Leave</option>
+                                {% elif lt == 'Maternity Leave' or lt == 'Paternity Leave' %}
+                                    {% if lt == parental_leave_type %}
+                                    <option value="parental">{{ parental_leave_type }}</option>
+                                    {% endif %}
+                                {% elif lt == 'Unpaid Leave' %}
+                                <option value="unpaid">Unpaid Leave</option>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            {% if not is_intern %}
+                            <option value="el" selected>Earned Leave (EL)</option>
+                            <option value="sl">Sick Leave (SL)</option>
+                            <option value="cl">Casual Leave (CL)</option>
+                            <option value="co">Compensatory Off (CO)</option>
+                            <option value="parental">{{ parental_leave_type }}</option>
+                            <option value="marriage">Marriage Leave</option>
+                            {% endif %}
+                            <option value="unpaid" {% if is_intern %}selected{% endif %}>Unpaid Leave</option>
                         {% endif %}
-                        <option value="unpaid" {% if is_intern %}selected{% endif %}>Unpaid Leave</option>
                     </select>
 
                     <div id="balance_display_container">

@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Platform Dashboard - Lurnexa{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-metric {
+        background: white;
+        border-radius: 20px;
+        border: 1px solid #f1f5f9;
+        padding: 28px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        transition: transform 0.2s, box-shadow 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+    .dashboard-metric:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+    .dashboard-metric .metric-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .metric-icon.bg-indigo-soft { background: linear-gradient(135deg, #eef2ff, #e0e7ff); color: #4f46e5; }
+    .metric-icon.bg-emerald-soft { background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #059669; }
+    .metric-icon.bg-amber-soft { background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #d97706; }
+    .metric-icon.bg-rose-soft { background: linear-gradient(135deg, #fff1f2, #fecdd3); color: #e11d48; }
+    .metric-icon.bg-sky-soft { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); color: #0284c7; }
+    .metric-icon.bg-purple-soft { background: linear-gradient(135deg, #faf5ff, #f3e8ff); color: #7c3aed; }
+
+    .dashboard-metric .metric-value {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: #0f172a;
+    }
+    .dashboard-metric .metric-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #94a3b8;
+        margin-top: 4px;
+    }
+    .dashboard-card {
+        background: white;
+        border-radius: 20px;
+        border: 1px solid #f1f5f9;
+        padding: 28px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    }
+    .dashboard-card h5 {
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 20px;
+    }
+    .plan-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        border-radius: 100px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+    .plan-chip.basic { background: #eff6ff; color: #1d4ed8; }
+    .plan-chip.elite { background: #faf5ff; color: #7c3aed; }
+    .plan-chip.professional { background: #f0fdf4; color: #166534; }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .status-dot.active { background: #22c55e; }
+    .status-dot.suspended { background: #ef4444; }
+
+    .top-org-bar {
+        height: 8px;
+        border-radius: 100px;
+        background: linear-gradient(90deg, #4f46e5, #7c3aed);
+        transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .welcome-banner {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%);
+        border-radius: 24px;
+        padding: 36px 40px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .welcome-banner::before {
+        content: '';
+        position: absolute;
+        top: -40%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 50%;
+    }
+    .welcome-banner::after {
+        content: '';
+        position: absolute;
+        bottom: -50%;
+        left: 20%;
+        width: 200px;
+        height: 200px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 50%;
+    }
+    .recent-org-row {
+        transition: background 0.2s;
+        border-radius: 12px;
+    }
+    .recent-org-row:hover {
+        background: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 1200px;">
+
+    <!-- Welcome Banner -->
+    <div class="welcome-banner mb-4">
+        <div class="position-relative" style="z-index: 1;">
+            <h2 class="fw-bold mb-1" style="font-size: 1.7rem;">Welcome back, {% if request.user.first_name or request.user.last_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}Platform Admin{% endif %}</h2>
+            <p class="mb-0 opacity-75">Here's a snapshot of your multi-tenant infrastructure across all organizations.</p>
+        </div>
+    </div>
+
+    <!-- Metric Cards Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4 col-lg">
+            <div class="dashboard-metric">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="metric-icon bg-indigo-soft"><i class="fa-solid fa-building"></i></div>
+                </div>
+                <div class="metric-value">{{ total_orgs }}</div>
+                <div class="metric-label">Total Tenants</div>
+            </div>
+        </div>
+        <div class="col-md-4 col-lg">
+            <div class="dashboard-metric">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="metric-icon bg-emerald-soft"><i class="fa-solid fa-circle-check"></i></div>
+                </div>
+                <div class="metric-value">{{ active_orgs }}</div>
+                <div class="metric-label">Active Tenants</div>
+            </div>
+        </div>
+        <div class="col-md-4 col-lg">
+            <div class="dashboard-metric">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="metric-icon bg-rose-soft"><i class="fa-solid fa-ban"></i></div>
+                </div>
+                <div class="metric-value">{{ suspended_orgs }}</div>
+                <div class="metric-label">Suspended</div>
+            </div>
+        </div>
+        <div class="col-md-4 col-lg">
+            <div class="dashboard-metric">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="metric-icon bg-sky-soft"><i class="fa-solid fa-users"></i></div>
+                </div>
+                <div class="metric-value">{{ total_users }}</div>
+                <div class="metric-label">Total Users</div>
+            </div>
+        </div>
+        <div class="col-md-4 col-lg">
+            <div class="dashboard-metric">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="metric-icon bg-purple-soft"><i class="fa-solid fa-receipt"></i></div>
+                </div>
+                <div class="metric-value">{{ total_subscriptions }}</div>
+                <div class="metric-label">Invoices</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts / Details Row -->
+    <div class="row g-4 mb-4">
+        <!-- Plan Distribution -->
+        <div class="col-lg-5">
+            <div class="dashboard-card h-100">
+                <h5><i class="fa-solid fa-chart-pie me-2 text-indigo"></i>Plan Distribution</h5>
+                <div class="d-flex flex-column gap-3">
+                    {% for plan_name, count in plan_distribution.items %}
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="plan-chip {{ plan_name|lower }}">{{ plan_name }}</span>
+                            <span class="fw-bold text-dark">{{ count }} <span class="text-muted fw-normal small">org{{ count|pluralize }}</span></span>
+                        </div>
+                        <div class="progress" style="height: 6px; border-radius: 100px; background: #f1f5f9;">
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: {% widthratio count total_orgs 100 %}%; border-radius: 100px; background: linear-gradient(90deg, #4f46e5, #7c3aed);">
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center py-3">No organizations provisioned yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Organizations by Headcount -->
+        <div class="col-lg-7">
+            <div class="dashboard-card h-100">
+                <h5><i class="fa-solid fa-ranking-star me-2 text-amber"></i>Top Organizations by Headcount</h5>
+                {% if top_orgs %}
+                <div class="d-flex flex-column gap-3">
+                    {% for org in top_orgs %}
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-semibold text-dark">{{ org.name }}</span>
+                            <span class="text-muted small">{{ org.count }} employee{{ org.count|pluralize }}</span>
+                        </div>
+                        <div style="background: #f1f5f9; border-radius: 100px; height: 8px;">
+                            <div class="top-org-bar" style="width: {% widthratio org.count total_employees 100 %}%;"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">No employee data available yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Organizations -->
+    <div class="dashboard-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="fa-solid fa-clock-rotate-left me-2 text-sky"></i>Recently Created Organizations</h5>
+            <a href="{% url 'platform_org_list' %}" class="btn btn-sm btn-light rounded-pill px-3">
+                View All <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr class="text-muted small" style="text-transform: uppercase; letter-spacing: 0.5px;">
+                        <th>Org ID</th>
+                        <th>Name</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for org in recent_orgs %}
+                    <tr class="recent-org-row">
+                        <td><span class="fw-bold text-indigo">{{ org.OrgID }}</span></td>
+                        <td><span class="fw-semibold text-dark">{{ org.Name }}</span></td>
+                        <td><span class="plan-chip {{ org.Plan }}">{{ org.Plan|title }}</span></td>
+                        <td>
+                            <span class="status-dot {{ org.Status }} me-1"></span>
+                            <span class="small">{{ org.Status|title }}</span>
+                        </td>
+                        <td><span class="text-muted small">{{ org.CreatedAt }}</span></td>
+                        <td class="text-end">
+                            <a href="{% url 'platform_edit_org' org.OrgID %}" class="btn btn-sm btn-dark rounded-pill px-3">
+                                <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            <i class="fa-solid fa-building-circle-xmark fa-2x mb-2 d-block opacity-25"></i>
+                            No organizations have been created yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

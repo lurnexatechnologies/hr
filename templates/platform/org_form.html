@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if org %}Edit Organization - {{ org.Name }}{% else %}Create Organization{% endif %} - Lurnexa{% endblock %}
+{% block nav_platform_orgs %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: white;
+        border-radius: 24px;
+        border: 1px solid #e2e8f0;
+        padding: 40px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+    }
+    
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1e1b4b;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #334155;
+        font-size: 0.88rem;
+        margin-bottom: 8px;
+    }
+
+    .form-control, .form-select {
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #0f172a;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        outline: none;
+    }
+
+    .form-control[readonly] {
+        background-color: #f8fafc;
+        border-color: #e2e8f0;
+        color: #64748b;
+        cursor: not-allowed;
+    }
+
+    .form-text {
+        color: #94a3b8;
+        font-size: 0.78rem;
+        margin-top: 6px;
+    }
+    
+    /* Plan Cards Styling */
+    .plan-card {
+        position: relative;
+        border: 2px solid #e2e8f0;
+        border-radius: 20px;
+        padding: 24px 20px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: #ffffff;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 140px;
+    }
+    
+    .plan-card:hover {
+        border-color: #cbd5e1;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.02);
+    }
+
+    .plan-card::after {
+        content: '\f058';
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        font-size: 1.2rem;
+        color: #cbd5e1;
+        opacity: 0;
+        transition: all 0.2s ease;
+    }
+    
+    .plan-radio:checked + .plan-card {
+        border-color: #6366f1;
+        background-color: #faf5ff;
+        box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.12);
+    }
+
+    .plan-radio:checked + .plan-card::after {
+        opacity: 1;
+        color: #6366f1;
+    }
+
+    .plan-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Dynamic Feature Overrides */
+    .feature-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        background: #f8fafc;
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .feature-card:hover {
+        border-color: #cbd5e1;
+        background: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+    }
+    
+    .feature-card:has(.feature-checkbox:checked) {
+        border-color: #6366f1;
+        background-color: #f5f3ff;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.06);
+    }
+
+    .form-check-input.feature-checkbox {
+        width: 1.15rem;
+        height: 1.15rem;
+        margin-top: 0.15rem;
+        cursor: pointer;
+    }
+
+    .form-check-input.feature-checkbox:checked {
+        background-color: #6366f1;
+        border-color: #6366f1;
+    }
+
+    .category-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 100px;
+        text-transform: uppercase;
+        display: inline-block;
+        margin-top: 4px;
+        letter-spacing: 0.3px;
+    }
+    .cat-employees { background-color: #eff6ff; color: #1d4ed8; }
+    .cat-leave { background-color: #ecfdf5; color: #047857; }
+    .cat-attendance { background-color: #fff7ed; color: #c2410c; }
+    .cat-core { background-color: #f5f3ff; color: #6d28d9; }
+    .cat-workflows { background-color: #f0fdfa; color: #0f766e; }
+    .cat-payroll { background-color: #fffbeb; color: #b45309; }
+    .cat-auth_custom { background-color: #fff1f2; color: #be123c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 1050px;">
+    <!-- Back Button & Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <a href="{% url 'platform_org_list' %}" class="btn btn-sm btn-light rounded-pill px-3 mb-2 shadow-sm border">
+                <i class="fa-solid fa-arrow-left me-1"></i>Back to List
+            </a>
+            <h2 class="fw-bold text-dark mb-0">{% if org %}Edit Organization{% else %}Create Organization{% endif %}</h2>
+            <p class="text-muted mb-0">{% if org %}Modify details and override features for <span class="fw-semibold text-indigo">{{ org.Name }}</span>{% else %}Provision a new tenant and configure pricing plans{% endif %}</p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form id="org-form" data-is-edit="{% if org %}true{% else %}false{% endif %}" method="post" action="{% if org %}{% url 'platform_edit_org' org.OrgID %}{% else %}{% url 'platform_create_org' %}{% endif %}">
+        {% csrf_token %}
+        <div class="form-container">
+            
+            <!-- Section 1: Org Details -->
+            <div class="section-title text-indigo">
+                <i class="fa-solid fa-building"></i> Organization Details
+            </div>
+            
+            <div class="row g-3 mb-5">
+                <div class="col-md-6">
+                    <label class="form-label">Organization ID (Unique Key)</label>
+                    <div class="position-relative">
+                        <input type="text" name="org_id" class="form-control" placeholder="e.g. ACME" 
+                               value="{{ org.OrgID }}" {% if org %}readonly{% endif %} required style="padding-right: 40px;">
+                        {% if org %}
+                        <i class="fa-solid fa-lock text-muted position-absolute" style="right: 16px; top: 16px;"></i>
+                        {% endif %}
+                    </div>
+                    <div class="form-text">Unique uppercase identifier. E.g., ACME, LURNEXA</div>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Organization Name</label>
+                    <input type="text" name="name" class="form-control" placeholder="e.g. Acme Corporation" 
+                           value="{{ org.Name }}" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="active" {% if org.Status == 'active' or not org %}selected{% endif %}>Active</option>
+                        <option value="suspended" {% if org.Status == 'suspended' %}selected{% endif %}>Suspended / Locked</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Custom Employee Limit (Optional)</label>
+                    <input type="number" id="custom_max_employees" name="max_employees" class="form-control" placeholder="Override plan limits" 
+                           value="{{ org.MaxEmployees|default:'' }}">
+                    <div class="form-text">Leave blank to use default plan limits (Basic: 25, Elite: 100, Professional: Unlimited)</div>
+                </div>
+
+
+                
+
+            </div>
+
+            <hr class="my-5 opacity-10">
+
+            <!-- Section 2: Pricing Plan -->
+            <div class="section-title text-indigo">
+                <i class="fa-solid fa-tags"></i> Subscription Plan
+            </div>
+            
+            <div class="row g-3 mb-5">
+                {% for plan in plans %}
+                <div class="col-md-4">
+                    <label class="w-100 mb-0">
+                        <input type="radio" name="plan" value="{{ plan }}" class="plan-radio d-none" 
+                               {% if org.Plan|lower == plan|lower or not org and plan == 'basic' %}checked{% endif %} required>
+                        <div class="plan-card">
+                            <div class="plan-title">{{ plan }}</div>
+                            <div class="small text-muted mb-0">
+                                {% if plan == 'basic' %}Essential HR Foundations
+                                {% elif plan == 'elite' %}Workforce Management
+                                {% elif plan == 'professional' %}Complete HR & Payroll Suite
+                                {% endif %}
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <hr class="my-5 opacity-10">
+
+            <!-- Section 2.5: Billing & Invoicing Calculator -->
+            <div class="section-title text-indigo mt-4">
+                <i class="fa-solid fa-calculator"></i> Billing & Invoicing Calculator
+            </div>
+            <div class="card border border-2 border-indigo-light rounded-4 shadow-sm p-4 mb-5 bg-light bg-opacity-50">
+                <div class="row g-3 align-items-end mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold text-dark">Plan Rate (₹ / person / month)</label>
+                        <input type="number" id="plan_rate" name="plan_rate" class="form-control bg-white" 
+                               value="{% if org.PlanRate %}{{ org.PlanRate }}{% else %}50{% endif %}" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold text-dark">Billing Seats (Users)</label>
+                        <input type="number" id="billing_seats" name="billing_seats" class="form-control bg-white" 
+                               value="{% if org.BillingSeats %}{{ org.BillingSeats }}{% else %}25{% endif %}" min="1">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold text-dark">Discount (%)</label>
+                        <input type="number" id="discount_percent" name="discount_percent" class="form-control bg-white" 
+                               value="{% if org.DiscountPercent %}{{ org.DiscountPercent }}{% else %}0{% endif %}" min="0" max="100">
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-indigo-soft rounded-3 text-indigo text-center h-100 d-flex flex-column justify-content-center">
+                            <span class="small fw-semibold text-uppercase" style="font-size: 0.75rem;">Effective Rate / User</span>
+                            <span class="fs-5 fw-bold" id="calculated_rate_person">₹50.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 align-items-end pt-3 border-top mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-dark">Term Start Date</label>
+                        <input type="date" id="term_start" name="term_start" class="form-control bg-white" 
+                               value="{{ org.TermStart|default:'' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-dark">Tenure Duration</label>
+                        <select id="tenure_duration" name="tenure_duration" class="form-select bg-white">
+                            <option value="12" selected>1 Year (12 Months)</option>
+                            <option value="6">6 Months</option>
+                            <option value="3">3 Months</option>
+                            <option value="1">1 Month</option>
+                            <option value="custom">Custom (Months)</option>
+                        </select>
+                        <div id="custom_tenure_container" class="mt-2" style="display: none;">
+                            <input type="number" id="custom_tenure_months" name="custom_tenure_months" class="form-control bg-white" placeholder="Months count" min="1" value="12">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-dark">Term End Date</label>
+                        <input type="date" id="term_end" name="term_end" class="form-control bg-white" 
+                               value="{{ org.TermEnd|default:'' }}" readonly>
+                    </div>
+                </div>
+
+                <div class="row g-3 align-items-end pt-3 border-top mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-dark">Payment Mode</label>
+                        <select id="payment_mode" name="payment_mode" class="form-select bg-white">
+                            <option value="Cash" selected>Cash</option>
+                            <option value="UPI">UPI</option>
+                            <option value="NEFT">NEFT</option>
+                            <option value="IMPS">IMPS</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6" id="transaction_id_container">
+                        <label class="form-label fw-bold text-dark" id="transaction_id_label">Proof ID / Transaction ID</label>
+                        <input type="text" id="transaction_id" name="transaction_id" class="form-control bg-white" 
+                               placeholder="e.g. TXN123456789" required>
+                    </div>
+                </div>
+
+                <div class="row mt-4 pt-3 border-top g-3">
+                    <div class="col-md-3">
+                        <div class="small text-muted mb-1">Monthly Base Subtotal</div>
+                        <div class="fw-semibold text-dark fs-5" id="calc_subtotal">₹0.00</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small text-muted mb-1">Discount Amount</div>
+                        <div class="fw-semibold text-danger fs-5" id="calc_discount">₹0.00 (0%)</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small text-muted mb-1">GST (18%)</div>
+                        <div class="fw-semibold text-dark fs-5" id="calc_gst">₹0.00</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-success-soft rounded-3 text-success text-center">
+                            <span class="small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.75rem;">Total Monthly Due (incl. 18% GST)</span>
+                            <span class="fs-4 fw-bold" id="calc_total">₹0.00</span>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" name="billing_amount" id="billing_amount_hidden" value="0.00">
+            </div>
+
+            <hr class="my-5 opacity-10">
+
+            <!-- Section 3: Feature Matrix Overrides -->
+            <div class="section-title text-indigo mb-2">
+                <i class="fa-solid fa-list-check"></i> Dynamic Feature Overrides
+            </div>
+            <p class="text-muted small mb-4">Select custom feature add-ons for this tenant. Changing the subscription plan above will automatically check its default feature set.</p>
+            
+            <div class="row g-3 mb-5">
+                {% for key, info in feature_registry.items %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card p-3 d-flex align-items-start h-100" onclick="toggleFeatureCard(event, 'feature_{{ key }}')">
+                        <div class="form-check me-2 mb-0">
+                            <input class="form-check-input feature-checkbox" type="checkbox" name="custom_features" 
+                                   value="{{ key }}" id="feature_{{ key }}"
+                                   {% if key in custom_features_enabled %}checked{% endif %} onclick="event.stopPropagation();">
+                        </div>
+                        <div class="d-flex flex-column align-items-start">
+                            <label class="form-check-label fw-bold text-dark small cursor-pointer" for="feature_{{ key }}">
+                                {{ info.0 }}
+                            </label>
+                            <span class="category-badge cat-{{ info.1|lower }}">
+                                {% if info.1 == 'auth_custom' %}Security
+                                {% elif info.1 == 'core' %}Core System
+                                {% else %}{{ info.1|title }}{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Action buttons -->
+            <div class="d-flex justify-content-end gap-3 pt-3 border-top">
+                <a href="{% url 'platform_org_list' %}" class="btn btn-light rounded-pill px-4 border">Cancel</a>
+                <button type="submit" class="btn btn-primary rounded-pill px-5 shadow" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none;">
+                    {% if org %}Save Changes{% else %}Create Tenant{% endif %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ plan_features|json_script:"plan-features-data" }}
+<script>
+    // Handle feature card clicks directly
+    function toggleFeatureCard(event, checkboxId) {
+        // Prevent action if clicking the label/checkbox itself which already propagates naturally
+        if (event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') {
+            const checkbox = document.getElementById(checkboxId);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                // Manually trigger change event if any listener is bound
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const parsedPlanFeatures = JSON.parse(document.getElementById('plan-features-data').textContent || '{}');
+        const planRadios = document.querySelectorAll('input[name="plan"]');
+        const checkboxes = document.querySelectorAll('.feature-checkbox');
+        
+        function updateFeatureVisibility(plan) {
+            const features = parsedPlanFeatures[plan] || [];
+            checkboxes.forEach(cb => {
+                const cardCol = cb.closest('.col-md-6.col-lg-4');
+                if (features.includes(cb.value)) {
+                    if (cardCol) {
+                        cardCol.style.setProperty('display', 'none', 'important');
+                    }
+                    cb.checked = false;
+                } else {
+                    if (cardCol) {
+                        cardCol.style.setProperty('display', 'block', 'important');
+                    }
+                }
+            });
+        }
+        
+        const isEdit = document.getElementById('org-form').dataset.isEdit === 'true';
+        const planRateInput = document.getElementById('plan_rate');
+        const billingSeatsInput = document.getElementById('billing_seats');
+        const discountPercentInput = document.getElementById('discount_percent');
+        
+        const termStartInput = document.getElementById('term_start');
+        const tenureDurationSelect = document.getElementById('tenure_duration');
+        const termEndInput = document.getElementById('term_end');
+        
+        const calculatedRatePerson = document.getElementById('calculated_rate_person');
+        const subtotalDisplay = document.getElementById('calc_subtotal');
+        const discountDisplay = document.getElementById('calc_discount');
+        const gstDisplay = document.getElementById('calc_gst');
+        const totalDisplay = document.getElementById('calc_total');
+        const billingAmountHidden = document.getElementById('billing_amount_hidden');
+
+        const customMaxEmployeesInput = document.getElementById('custom_max_employees');
+        const customTenureContainer = document.getElementById('custom_tenure_container');
+        const customTenureMonthsInput = document.getElementById('custom_tenure_months');
+
+        const planDefaultRates = {
+            'basic': 50,
+            'elite': 100,
+            'professional': 150
+        };
+
+        const planDefaultSeats = {
+            'basic': 25,
+            'elite': 100,
+            'professional': 500
+        };
+
+        function getTenureMonths() {
+            if (tenureDurationSelect && tenureDurationSelect.value === 'custom') {
+                return parseInt(customTenureMonthsInput.value) || 12;
+            }
+            return parseInt(tenureDurationSelect.value) || 12;
+        }
+
+        function calculateInvoice() {
+            const rate = parseFloat(planRateInput.value) || 0;
+            const seats = parseInt(billingSeatsInput.value) || 0;
+            const discountPercent = parseFloat(discountPercentInput.value) || 0;
+
+            const effectiveRate = rate * (1 - discountPercent / 100);
+            const baseAmount = rate * seats;
+            const discountAmount = baseAmount * (discountPercent / 100);
+            const netAmount = baseAmount - discountAmount;
+            const gstAmount = netAmount * 0.18;
+            const totalAmount = netAmount * 1.18;
+
+            calculatedRatePerson.innerText = "₹" + effectiveRate.toFixed(2);
+            subtotalDisplay.innerText = "₹" + baseAmount.toFixed(2);
+            discountDisplay.innerText = "₹" + discountAmount.toFixed(2) + " (" + discountPercent + "%)";
+            gstDisplay.innerText = "₹" + gstAmount.toFixed(2) + " (18%)";
+            totalDisplay.innerText = "₹" + totalAmount.toFixed(2);
+            billingAmountHidden.value = netAmount.toFixed(2);
+
+            // Calculate tenure date
+            if (termStartInput && tenureDurationSelect && termEndInput) {
+                const startVal = termStartInput.value;
+                if (startVal) {
+                    const startDate = new Date(startVal);
+                    if (!isNaN(startDate.getTime())) {
+                        const monthsToAdd = getTenureMonths();
+                        let endDate = new Date(startDate);
+                        endDate.setMonth(endDate.getMonth() + monthsToAdd);
+                        endDate.setDate(endDate.getDate() - 1);
+                        
+                        const ey = endDate.getFullYear();
+                        const em = String(endDate.getMonth() + 1).padStart(2, '0');
+                        const ed = String(endDate.getDate()).padStart(2, '0');
+                        termEndInput.value = `${ey}-${em}-${ed}`;
+                    }
+                }
+            }
+        }
+
+        planRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.checked) {
+                    updateFeatureVisibility(this.value);
+                    const planKey = this.value.toLowerCase();
+                    planRateInput.value = planDefaultRates[planKey] || 50;
+                    
+                    // If custom employee limit has a value, use it, else use plan default
+                    const customLimitVal = parseInt(customMaxEmployeesInput.value);
+                    if (customLimitVal && customLimitVal > 0) {
+                        billingSeatsInput.value = customLimitVal;
+                    } else {
+                        billingSeatsInput.value = planDefaultSeats[planKey] || 25;
+                    }
+                    calculateInvoice();
+                }
+            });
+        });
+
+        // Event listeners for calculator inputs
+        planRateInput.addEventListener('input', calculateInvoice);
+        billingSeatsInput.addEventListener('input', calculateInvoice);
+        discountPercentInput.addEventListener('input', calculateInvoice);
+        if (termStartInput) {
+            termStartInput.addEventListener('change', calculateInvoice);
+        }
+        if (tenureDurationSelect) {
+            tenureDurationSelect.addEventListener('change', function() {
+                if (this.value === 'custom') {
+                    customTenureContainer.style.display = 'block';
+                } else {
+                    customTenureContainer.style.display = 'none';
+                }
+                calculateInvoice();
+            });
+        }
+        if (customTenureMonthsInput) {
+            customTenureMonthsInput.addEventListener('input', calculateInvoice);
+        }
+        if (customMaxEmployeesInput) {
+            customMaxEmployeesInput.addEventListener('input', function() {
+                const val = parseInt(this.value);
+                if (val && val > 0) {
+                    billingSeatsInput.value = val;
+                } else {
+                    const activePlan = document.querySelector('input[name="plan"]:checked');
+                    if (activePlan) {
+                        const planKey = activePlan.value.toLowerCase();
+                        billingSeatsInput.value = planDefaultSeats[planKey] || 25;
+                    }
+                }
+                calculateInvoice();
+            });
+        }
+
+        const paymentModeSelect = document.getElementById('payment_mode');
+        const mainTransactionIdInput = document.getElementById('transaction_id');
+        const mainTransactionIdLabel = document.getElementById('transaction_id_label');
+
+        function updatePaymentModeUI() {
+            if (!paymentModeSelect || !mainTransactionIdInput) return;
+            const container = document.getElementById('transaction_id_container');
+            if (paymentModeSelect.value === 'Cash') {
+                mainTransactionIdInput.removeAttribute('required');
+                mainTransactionIdInput.value = '';
+                if (container) container.style.display = 'none';
+            } else {
+                mainTransactionIdInput.setAttribute('required', 'required');
+                if (container) container.style.display = 'block';
+                mainTransactionIdLabel.innerHTML = 'Proof ID / Transaction ID <span class="text-danger">*</span>';
+            }
+        }
+
+        if (paymentModeSelect) {
+            paymentModeSelect.addEventListener('change', updatePaymentModeUI);
+            updatePaymentModeUI();
+        }
+
+        // Initialize start date to today if creating new organization
+        if (termStartInput && !termStartInput.value) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            termStartInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+
+        // Initialize visibility and calculation on page load
+        const activePlan = document.querySelector('input[name="plan"]:checked');
+        if (activePlan) {
+            updateFeatureVisibility(activePlan.value);
+        }
+        calculateInvoice();
+        // Renewal modal and history moved to platform billing
+    });
+</script>
+{% endblock %}

@@ -1,4 +1,5 @@
 {% load static %}
+{% load feature_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,12 +42,45 @@
             document.body.classList.add('sidebar-closed');
         }
         
-        // If authenticated and on website (not mobile app), require a session token per tab
+        // If authenticated and on website (not mobile app), require a session token per tab.
+        // We sync session_active status via BroadcastChannel to prevent logout when opening a new tab/bookmark.
         if (window.USER_IS_AUTHENTICATED && "{{ IS_MOBILE_APP }}".toLowerCase() !== 'true') {
             if (!sessionStorage.getItem('session_active')) {
-                window.location.href = "{% url 'logout' %}?reason=tab_closed";
+                if (window.BroadcastChannel) {
+                    const channel = new BroadcastChannel('lurnexa_session_sync');
+                    let receivedResponse = false;
+                    
+                    channel.onmessage = function(event) {
+                        if (event.data === 'session_active_response') {
+                            receivedResponse = true;
+                            sessionStorage.setItem('session_active', 'true');
+                            channel.close();
+                            window.location.reload();
+                        }
+                    };
+                    
+                    channel.postMessage('session_active_request');
+                    
+                    // Allow 150ms for other active tabs to respond before assuming session is fresh/expired
+                    setTimeout(function() {
+                        if (!receivedResponse) {
+                            channel.close();
+                            window.location.href = "{% url 'logout' %}?reason=tab_closed";
+                        }
+                    }, 150);
+                } else {
+                    // Fallback if BroadcastChannel is not supported
+                    window.location.href = "{% url 'logout' %}?reason=tab_closed";
+                }
             } else {
-                sessionStorage.setItem('session_active', 'true');
+                if (window.BroadcastChannel) {
+                    const channel = new BroadcastChannel('lurnexa_session_sync');
+                    channel.onmessage = function(event) {
+                        if (event.data === 'session_active_request') {
+                            channel.postMessage('session_active_response');
+                        }
+                    };
+                }
             }
         }
     </script>
@@ -64,17 +98,51 @@
                 </a>
             </div>
             
+            {% if request.user.role == 'Platform Admin' %}
+            <div class="nav-item">
+                <a href="{% url 'platform_org_list' %}" class="nav-link {% block nav_platform_orgs %}{% endblock %}">
+                    <i class="fa-solid fa-server"></i> Organizations
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="{% url 'platform_billing' %}" class="nav-link {% block nav_platform_billing %}{% endblock %}">
+                    <i class="fa-solid fa-money-bill-trend-up"></i> Global Billing
+                </a>
+            </div>
+            {% endif %}
+
+            {% if request.user.role == 'Super admin' %}
+            <div class="nav-item">
+                <a href="{% url 'tenant_billing_dashboard' %}" class="nav-link {% block nav_tenant_billing %}{% endblock %}">
+                    <i class="fa-solid fa-credit-card"></i> Subscription & Billing
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="{% url 'platform_org_workflows' request.user.org_id %}" class="nav-link {% block nav_workflows %}{% endblock %}">
+                    <i class="fa-solid fa-diagram-project"></i> Workflow Rules
+                </a>
+            </div>
+            {% endif %}
+            
             {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            {% has_feature 'employee_directory' as show_employees %}
+            {% if show_employees %}
             <div class="nav-item">
                 <a href="{% url 'employee_directory' %}" class="nav-link {% block nav_employees %}{% endblock %}">
                     <i class="fa-solid fa-users"></i> Employees
                 </a>
             </div>
+            {% endif %}
+            {% has_feature 'attendance' as show_hr_attendance %}
+            {% if show_hr_attendance %}
             <div class="nav-item">
                 <a href="{% url 'hr_attendance' %}" class="nav-link {% block nav_hr_attendance %}{% endblock %}">
                     <i class="fa-solid fa-clipboard-user"></i> Attendance Dashboard
                 </a>
             </div>
+            {% endif %}
+            {% has_feature 'resignation_workflow' as show_resignation_approvals %}
+            {% if show_resignation_approvals %}
             <div class="nav-item">
                 <a href="{% url 'resignation_approvals' %}" class="nav-link {% block nav_resignation_hr %}{% endblock %}">
                     <i class="fa-solid fa-file-signature"></i> Resignation Approval
@@ -83,7 +151,10 @@
                     {% endif %}
                 </a>
             </div>
-            {% if request.user.role == 'HR ADMIN' %}
+            {% endif %}
+            {% if 'pf_access' in request.user.permissions %}
+            {% has_feature 'pf_management' as show_pf_management %}
+            {% if show_pf_management %}
             <div class="nav-item">
                 <a href="{% url 'pf_management' %}" class="nav-link {% block nav_pf_hr %}{% endblock %}">
                     <i class="fa-solid fa-file-invoice"></i> PF Management
@@ -91,9 +162,12 @@
             </div>
             {% endif %}
             {% endif %}
+            {% endif %}
 
             {% if request.user.role == 'Manager' or request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
             <!-- Manager Menu -->
+            {% has_feature 'leave_management' as show_leave_approvals %}
+            {% if show_leave_approvals %}
             <div class="nav-item">
                 <a href="{% url 'leave_approvals' %}" class="nav-link {% block nav_leave_approvals %}{% endblock %}">
                     <i class="fa-solid fa-calendar-check"></i> Leave Approvals
@@ -102,6 +176,9 @@
                     {% endif %}
                 </a>
             </div>
+            {% endif %}
+            {% has_feature 'expense_management' as show_expense_approvals %}
+            {% if show_expense_approvals %}
             <div class="nav-item">
                 <a href="{% url 'expense_approvals' %}" class="nav-link {% block nav_expense_approvals %}{% endblock %}">
                     <i class="fa-solid fa-file-invoice-dollar"></i> Expense Approvals
@@ -110,6 +187,9 @@
                     {% endif %}
                 </a>
             </div>
+            {% endif %}
+            {% has_feature 'wfh_requests' as show_wfh_approvals %}
+            {% if show_wfh_approvals %}
             <div class="nav-item">
                 <a href="{% url 'wfh_approvals' %}" class="nav-link {% block nav_wfh_approvals %}{% endblock %}">
                     <i class="fa-solid fa-house-laptop"></i> WFH Approvals
@@ -118,7 +198,10 @@
                     {% endif %}
                 </a>
             </div>
+            {% endif %}
             {% if request.user.role == 'HR ADMIN' %}
+            {% has_feature 'ess_portal' as show_certificate_approvals %}
+            {% if show_certificate_approvals %}
             <div class="nav-item">
                 <a href="{% url 'certificate_approvals' %}" class="nav-link {% block nav_certificate_approvals %}{% endblock %}">
                     <i class="fa-solid fa-stamp"></i> Certificate Approvals
@@ -128,13 +211,19 @@
                 </a>
             </div>
             {% endif %}
+            {% endif %}
             {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            {% has_feature 'hr_letters' as show_hr_letters %}
+            {% if show_hr_letters %}
             <div class="nav-item">
                 <a href="{% url 'hr_generate_letter' %}" class="nav-link {% block nav_documents %}{% endblock %}">
                     <i class="fa-solid fa-file-invoice"></i> Generate Letters
                 </a>
             </div>
             {% endif %}
+            {% endif %}
+            {% has_feature 'payroll' as show_payroll %}
+            {% if show_payroll %}
             {% if request.user.role == 'Super admin' %}
             <div class="nav-item">
                 <a href="{% url 'payroll_approval_list' %}" class="nav-link {% block nav_payroll_approvals %}{% endblock %}">
@@ -145,21 +234,24 @@
                 </a>
             </div>
             {% endif %}
-            {% if request.user.role == 'HR ADMIN' %}
+            {% if 'payroll_access' in request.user.permissions %}
             <div class="nav-item">
                 <a href="{% url 'manage_payroll' %}" class="nav-link {% block nav_manage_payroll %}{% endblock %}">
                     <i class="fa-solid fa-sack-dollar"></i> Payroll Management
                 </a>
             </div>
             {% endif %}
-            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            {% if request.user.role == 'Super admin' or 'historical_payroll_access' in request.user.permissions %}
             <div class="nav-item">
                 <a href="{% url 'historical_payroll' %}" class="nav-link {% block nav_historical_payroll %}{% endblock %}">
                     <i class="fa-solid fa-clock-rotate-left"></i> Historical Payroll
                 </a>
             </div>
             {% endif %}
+            {% endif %}
             {% if request.user.role == 'HR ADMIN' %}
+            {% has_feature 'onboarding' as show_onboarding %}
+            {% if show_onboarding %}
             <div class="nav-item">
                 <a href="{% url 'onboarding_requests' %}" class="nav-link {% block nav_onboarding %}{% endblock %}">
                     <i class="fa-solid fa-user-check"></i> Onboarding Verification
@@ -168,6 +260,9 @@
                     {% endif %}
                 </a>
             </div>
+            {% endif %}
+            {% has_feature 'asset_management' as show_asset_management %}
+            {% if show_asset_management %}
             <div class="nav-item">
                 <a href="{% url 'asset_management' %}" class="nav-link {% block nav_asset_management %}{% endblock %}">
                     <i class="fa-solid fa-cubes"></i> Asset Management
@@ -175,9 +270,11 @@
             </div>
             {% endif %}
             {% endif %}
+            {% endif %}
 
 
             <!-- Employee Self Service -->
+            {% if request.user.role != 'Platform Admin' %}
             <div class="nav-item mt-4 mb-2 ps-4">
                 <span style="font-size: 0.75rem; font-weight: 600; color: #a3aed1; text-transform: uppercase;">Self Service</span>
             </div>
@@ -189,11 +286,14 @@
             </div>
             {% endif %}
             {% if request.user.role != 'Super admin' %}
+            {% has_feature 'payslips' as show_payslips %}
+            {% if show_payslips %}
             <div class="nav-item">
                 <a href="{% url 'payslips_view' %}" class="nav-link {% block nav_payroll %}{% endblock %}">
                     <i class="fa-solid fa-file-invoice-dollar"></i> My Payslips
                 </a>
             </div>
+            {% endif %}
             {% endif %}
             {% if request.user.role != 'Super admin' %}
             <div class="nav-item">
@@ -203,45 +303,65 @@
             </div>
             {% endif %}
             {% if request.user.role != 'Super admin' %}
+            {% has_feature 'leave_management' as show_my_leave %}
+            {% if show_my_leave %}
             <div class="nav-item">
                 <a href="{% url 'leave_history' %}" class="nav-link {% block nav_leave %}{% endblock %}">
                     <i class="fa-solid fa-calendar-alt"></i> Leave
                 </a>
             </div>
             {% endif %}
+            {% endif %}
+            {% has_feature 'holiday_calendar' as show_calendar %}
+            {% if show_calendar %}
             <div class="nav-item">
                 <a href="{% url 'company_calendar' %}" class="nav-link {% block nav_calendar %}{% endblock %}">
                     <i class="fa-solid fa-calendar-days"></i> Calendar & Holidays
                 </a>
             </div>
+            {% endif %}
             {% if request.user.role != 'Super admin' %}
+            {% has_feature 'attendance' as show_my_attendance %}
+            {% if show_my_attendance %}
             <div class="nav-item">
                 <a href="{% url 'attendance_history' %}" class="nav-link {% block nav_attendance %}{% endblock %}">
                     <i class="fa-solid fa-clock"></i> Attendance
                 </a>
             </div>
             {% endif %}
+            {% endif %}
             {% if request.user.role != 'Super admin' %}
+            {% has_feature 'expense_management' as show_my_expenses %}
+            {% if show_my_expenses %}
             <div class="nav-item">
                 <a href="{% url 'expenses_view' %}" class="nav-link {% block nav_expenses %}{% endblock %}">
                     <i class="fa-solid fa-receipt"></i> Expenses
                 </a>
             </div>
             {% endif %}
+            {% endif %}
             {% if request.user.role != 'Super admin' %}
+            {% has_feature 'asset_management' as show_my_assets %}
+            {% if show_my_assets %}
             <div class="nav-item">
                 <a href="{% url 'my_assets' %}" class="nav-link {% block nav_my_assets %}{% endblock %}">
                     <i class="fa-solid fa-laptop"></i> My Assets
                 </a>
             </div>
             {% endif %}
+            {% endif %}
+            {% has_feature 'okrs_appraisals' as show_okrs %}
+            {% if show_okrs %}
             <div class="nav-item">
                 <a href="{% url 'okrs' %}" class="nav-link {% block nav_okrs %}{% endblock %}">
                     <i class="fa-solid fa-bullseye"></i> Performance & OKRs
                 </a>
             </div>
+            {% endif %}
+            {% endif %}
 
             <!-- Documents Section -->
+            {% if request.user.role != 'Platform Admin' %}
             <div class="nav-item mt-4 mb-2 ps-4">
                 <span style="font-size: 0.75rem; font-weight: 600; color: #a3aed1; text-transform: uppercase;">Documents</span>
             </div>
@@ -251,11 +371,15 @@
                 </a>
             </div>
             {% if request.user.role != 'Super admin' %}
+            {% has_feature 'hr_letters' as show_my_letters %}
+            {% if show_my_letters %}
              <div class="nav-item">
                 <a href="{% url 'employee_letters' %}" class="nav-link {% block nav_letters %}{% endblock %}">
                     <i class="fa-solid fa-file-lines"></i> Letters
                 </a>
             </div>
+            {% endif %}
+            {% endif %}
             {% endif %}
         </div>
         <div class="mt-auto p-3">
@@ -287,6 +411,7 @@
             
             {% if request.user.is_authenticated %}
             <div class="header-actions" style="flex: 1; justify-content: flex-end;">
+                {% if request.user.role != 'Platform Admin' %}
                 <div class="dropdown">
                     <button id="notificationBellBtn" class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fa-regular fa-bell"></i>
@@ -318,6 +443,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 
                 <div class="dropdown">
                     <div class="user-profile" data-bs-toggle="dropdown" aria-expanded="false">
@@ -335,11 +461,13 @@
                         <i class="fa-solid fa-chevron-down ms-2 text-muted" style="font-size: 0.8rem;"></i>
                     </div>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" style="border-radius: 12px; min-width: 200px;">
-                        {% if request.user.role != 'Super admin' %}
+                        {% if request.user.role != 'Super admin' and request.user.role != 'Platform Admin' %}
                         <li><a class="dropdown-item py-2" href="{% url 'employee_profile' emp_id=request.user.employee_id %}"><i class="fa-regular fa-user me-2 text-muted"></i> Profile</a></li>
                         {% endif %}
                         <li><a class="dropdown-item py-2" href="{% url 'settings' %}"><i class="fa-solid fa-gear me-2 text-muted"></i> Settings</a></li>
+                        {% if request.user.role != 'Platform Admin' %}
                         <li id="installAppLi"><a class="dropdown-item py-2 text-primary fw-semibold" href="#" id="installAppBtn"><i class="fa-solid fa-download me-2"></i> Install App</a></li>
+                        {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Log out</a></li>
                     </ul>
@@ -800,7 +928,7 @@
         });
     </script>
 
-    {% if request.user.is_authenticated %}
+    {% if request.user.is_authenticated and request.user.role != 'Platform Admin' %}
     <script>
         function updateNotificationBadge(unreadCount) {
             const bellBtn = document.getElementById('notificationBellBtn');

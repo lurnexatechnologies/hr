@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Welcome to Lurnexa - Self Onboarding{% endblock %}
+{% block title %}Welcome to {{ org_name }} - Self Onboarding{% endblock %}
 {% block body_class %}onboarding-page-body{% endblock %}
 
 {% block content %}
@@ -16,9 +16,7 @@
             <div class="col-lg-10">
                 <!-- Header Section -->
                 <div class="text-center mb-4 animate-fade-in">
-                    <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa" height="80"
-                        class="mb-2 onboarding-logo">
-                    <h1 class="display-5 fw-bold text-gradient">Join the Lurnexa Family!</h1>
+                    <h1 class="display-5 fw-bold text-gradient">Join the {{ org_name }} Family!</h1>
                     <p class="text-muted fw-medium mb-0">Let's get your onboarding completed in a few easy steps.</p>
                 </div>
 
@@ -664,17 +662,36 @@
                                         <h6 class="fw-bold mb-3"><i
                                                 class="fa-solid fa-shield-check me-2 text-primary"></i> Confirmation &
                                             Data Consent</h6>
+                                        {% for p in onboarding_policies %}
                                         <div class="form-check mb-3">
-                                            <input class="form-check-input custom-checkbox" type="checkbox"
-                                                id="checkSecurity" required>
+                                            <input class="form-check-input custom-checkbox onboarding-policy-chk" type="checkbox"
+                                                id="checkPolicy_{{ p.PolicyID }}" data-policy-id="{{ p.PolicyID }}" required style="pointer-events: none;">
+                                            <label class="form-check-label fw-medium" for="checkPolicy_{{ p.PolicyID }}">
+                                                I have read and agree to the <a href="#"
+                                                    class="text-decoration-none fw-bold text-primary" data-bs-toggle="modal"
+                                                    data-bs-target="#policyModal_{{ p.PolicyID }}">{{ p.Title }}</a>.
+                                            </label>
+                                        </div>
+                                        {% empty %}
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input custom-checkbox onboarding-policy-chk" type="checkbox"
+                                                id="checkSecurity" required style="pointer-events: none;">
                                             <label class="form-check-label fw-medium" for="checkSecurity">
                                                 I have read and agree to the <a href="#"
-                                                    class="text-decoration-none fw-bold" data-bs-toggle="modal"
-                                                    data-bs-target="#securityModal">Data Security Policies</a> and <a
-                                                    href="#" class="text-decoration-none fw-bold" data-bs-toggle="modal"
+                                                    class="text-decoration-none fw-bold text-primary" data-bs-toggle="modal"
+                                                    data-bs-target="#securityModal">Data Security Policies</a>.
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input custom-checkbox onboarding-policy-chk" type="checkbox"
+                                                id="checkTerms" required style="pointer-events: none;">
+                                            <label class="form-check-label fw-medium" for="checkTerms">
+                                                I have read and agree to the <a href="#"
+                                                    class="text-decoration-none fw-bold text-primary" data-bs-toggle="modal"
                                                     data-bs-target="#termsModal">Terms of Service</a>.
                                             </label>
                                         </div>
+                                        {% endfor %}
                                         <div class="form-check">
                                             <input class="form-check-input custom-checkbox" type="checkbox"
                                                 id="checkDeclaration" required>
@@ -708,7 +725,6 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const checkSecurity = document.getElementById('checkSecurity');
         const checkDeclaration = document.getElementById('checkDeclaration');
         const submitBtn = document.getElementById('submitBtn');
         const form = document.getElementById('onboardingForm');
@@ -716,11 +732,75 @@
 
         // Toggle Submit Button
         function toggleSubmit() {
-            submitBtn.disabled = !(checkSecurity.checked && checkDeclaration.checked);
+            let allChecked = true;
+            document.querySelectorAll('.onboarding-policy-chk').forEach(chk => {
+                if (!chk.checked) allChecked = false;
+            });
+            if (checkDeclaration && !checkDeclaration.checked) {
+                allChecked = false;
+            }
+            submitBtn.disabled = !allChecked;
         }
 
-        checkSecurity.addEventListener('change', toggleSubmit);
-        checkDeclaration.addEventListener('change', toggleSubmit);
+        if (checkDeclaration) {
+            checkDeclaration.addEventListener('change', toggleSubmit);
+        }
+
+        // Setup scroll-to-read validation on all policy containers
+        const scrollContainers = document.querySelectorAll('.policy-scroll-container');
+        scrollContainers.forEach(container => {
+            const idAttr = container.id;
+            const policyId = idAttr.replace('scrollContainer_', '');
+            const acceptBtn = document.getElementById('acceptBtn_' + policyId);
+            
+            // Check if scrollbar exists; if not, enable accept button immediately
+            const checkScroll = () => {
+                if (container.scrollHeight <= container.clientHeight + 5) {
+                    if (acceptBtn) acceptBtn.disabled = false;
+                }
+            };
+
+            // Trigger on load/display and when modal opens
+            const modalEl = container.closest('.modal');
+            if (modalEl) {
+                modalEl.addEventListener('shown.bs.modal', function () {
+                    checkScroll();
+                });
+            }
+            setTimeout(checkScroll, 500);
+
+            container.addEventListener('scroll', function() {
+                if (container.scrollHeight - container.scrollTop <= container.clientHeight + 10) {
+                    if (acceptBtn) acceptBtn.disabled = false;
+                }
+            });
+
+            if (acceptBtn) {
+                acceptBtn.addEventListener('click', function() {
+                    let chk;
+                    if (policyId === 'security') {
+                        chk = document.getElementById('checkSecurity');
+                    } else if (policyId === 'terms') {
+                        chk = document.getElementById('checkTerms');
+                    } else {
+                        chk = document.getElementById('checkPolicy_' + policyId);
+                    }
+
+                    if (chk) {
+                        chk.checked = true;
+                    }
+
+                    // Hide the Modal
+                    if (modalEl) {
+                        const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        if (modalInstance) {
+                            modalInstance.hide();
+                        }
+                    }
+                    toggleSubmit();
+                });
+            }
+        });
 
         // Update Hidden Education Field and Verify Files before actual submit
         form.addEventListener('submit', async function (e) {
@@ -792,16 +872,7 @@
                 }
             }
             
-            // 3. Save Form Data to session storage
-            const formData = new FormData(form);
-            const data = {};
-            for (const [key, value] of formData.entries()) {
-                const element = form.querySelector(`[name="${key}"]`);
-                if (element && element.type !== 'file') {
-                    data[key] = value;
-                }
-            }
-            sessionStorage.setItem(`selfOnboardingFormData_${form.email.value}`, JSON.stringify(data));
+            // 3. Clear stored data from session storage on successful fetch submit
             
             // 4. Submit form via Fetch to intercept any client/browser file-read errors before navigation
             try {
@@ -813,6 +884,7 @@
                 if (response.ok) {
                     // Clear the stored form data on successful submission
                     sessionStorage.removeItem(`selfOnboardingFormData_${form.email.value}`);
+                    sessionStorage.removeItem(`selfOnboardingCurrentStep_${form.email.value}`);
                     
                     const html = await response.text();
                     document.open();
@@ -831,25 +903,6 @@
             }
         });
         
-        // Form Data Retention Logic
-        const targetEmail = form.email.value;
-        const sessionKey = `selfOnboardingFormData_${targetEmail}`;
-        const savedData = sessionStorage.getItem(sessionKey);
-        
-        if (savedData) {
-            const data = JSON.parse(savedData);
-            for (const key in data) {
-                const element = document.querySelector(`[name="${key}"]`);
-                if (element && element.type !== 'file' && key !== 'email' && key !== 'employee_id') {
-                    if (element.type === 'checkbox') {
-                        element.checked = data[key] === 'on' || data[key] === true;
-                    } else {
-                        element.value = data[key];
-                    }
-                }
-            }
-        }
-
         // Add some interactive color on input focus
         const inputs = document.querySelectorAll('.form-control');
         inputs.forEach(input => {
@@ -869,6 +922,10 @@
         const steps = document.querySelectorAll('.step');
         const stepContents = document.querySelectorAll('.step-content');
 
+        const targetEmail = form.email.value;
+        const sessionKey = `selfOnboardingFormData_${targetEmail}`;
+        const stepKey = `selfOnboardingCurrentStep_${targetEmail}`;
+
         function updateStepUI() {
             stepContents.forEach(content => content.classList.remove('active'));
             steps.forEach(step => {
@@ -879,36 +936,69 @@
             });
             document.getElementById(`step${currentStep}`).classList.add('active');
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            sessionStorage.setItem(stepKey, currentStep);
         }
 
-        nextBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Simple validation before moving to next step
-                const currentStepDiv = document.getElementById(`step${currentStep}`);
-                const requiredInputs = currentStepDiv.querySelectorAll('[required]');
-                let isValid = true;
-                requiredInputs.forEach(input => {
-                    if (!input.checkValidity()) {
-                        input.reportValidity();
-                        isValid = false;
+        // Save All Form Data Function
+        function saveAllFormData() {
+            const data = {};
+            const elements = form.querySelectorAll('input, select, textarea');
+            elements.forEach(el => {
+                if (el.type === 'file' || el.type === 'password') return;
+                const key = el.name || el.id;
+                if (!key) return;
+                if (el.type === 'checkbox') {
+                    if (el.classList.contains('onboarding-policy-chk')) return;
+                    data[key] = el.checked;
+                } else if (el.type === 'radio') {
+                    if (el.checked) {
+                        data[key] = el.value;
                     }
-                });
-
-                if (isValid && currentStep < totalSteps) {
-                    currentStep++;
-                    updateStepUI();
+                } else {
+                    data[key] = el.value;
                 }
             });
-        });
+            sessionStorage.setItem(sessionKey, JSON.stringify(data));
+        }
 
-        prevBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                if (currentStep > 1) {
-                    currentStep--;
-                    updateStepUI();
+        // Restore All Form Data Function
+        function restoreAllFormData() {
+            const savedData = sessionStorage.getItem(sessionKey);
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    for (const key in data) {
+                        const element = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
+                        if (element && element.type !== 'file' && key !== 'email' && key !== 'employee_id') {
+                            if (element.type === 'checkbox') {
+                                element.checked = data[key] === 'on' || data[key] === true;
+                            } else if (element.type === 'radio') {
+                                if (element.value === data[key]) {
+                                    element.checked = true;
+                                }
+                            } else {
+                                element.value = data[key];
+                            }
+                            // Dispatch event to trigger toggles or custom inputs
+                            element.dispatchEvent(new Event('change'));
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error restoring form data:", e);
                 }
-            });
-        });
+            }
+
+            // Restore Step
+            const savedStep = sessionStorage.getItem(stepKey);
+            if (savedStep) {
+                currentStep = parseInt(savedStep) || 1;
+                updateStepUI();
+            }
+        }
+
+        // Listen for input/change on form fields
+        form.addEventListener('input', saveAllFormData);
+        form.addEventListener('change', saveAllFormData);
 
         // Experienced Toggle Logic
         const expSwitch = document.getElementById('isExperiencedSwitch');
@@ -940,6 +1030,38 @@
             handleExpToggle(); // Initial check on load
         }
 
+        // Run data restoration
+        restoreAllFormData();
+
+        nextBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Simple validation before moving to next step
+                const currentStepDiv = document.getElementById(`step${currentStep}`);
+                const requiredInputs = currentStepDiv.querySelectorAll('[required]');
+                let isValid = true;
+                requiredInputs.forEach(input => {
+                    if (!input.checkValidity()) {
+                        input.reportValidity();
+                        isValid = false;
+                    }
+                });
+
+                if (isValid && currentStep < totalSteps) {
+                    currentStep++;
+                    updateStepUI();
+                }
+            });
+        });
+
+        prevBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (currentStep > 1) {
+                    currentStep--;
+                    updateStepUI();
+                }
+            });
+        });
+
         // Name field validation (Allow only characters and spaces)
         document.querySelectorAll('input[name="emergency_contact_name"]').forEach(field => {
             field.addEventListener('input', function(e) {
@@ -951,6 +1073,14 @@
         if (expSwitch && expSwitch.checked) {
             expSwitch.dispatchEvent(new Event('change'));
         }
+
+        // Apply custom policy header gradients dynamically
+        document.querySelectorAll('.custom-policy-header').forEach(header => {
+            const grad = header.getAttribute('data-gradient');
+            if (grad && grad.trim() !== '') {
+                header.style.background = grad;
+            }
+        });
     });
     function toggleAccVisibility(inputId, btn) {
         const input = document.getElementById(inputId);
@@ -1005,82 +1135,88 @@
         }
     }
 </script>
-<!-- Data Security Modal -->
-<div class="modal fade" id="securityModal" tabindex="-1" aria-hidden="true">
+{% for p in onboarding_policies %}
+<!-- Custom Policy Modal for {{ p.Title }} -->
+<div class="modal fade policy-scroll-modal" id="policyModal_{{ p.PolicyID }}" tabindex="-1" aria-hidden="true" data-policy-id="{{ p.PolicyID }}">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 p-4 rounded-top-4 text-white custom-policy-header" data-gradient="{{ p.Gradient }}" style="background: linear-gradient(135deg, #1a4f8b 0%, #3a7fcf 100%);">
+                <h5 class="modal-title fw-bold"><i class="fa-solid {{ p.Icon|default:'fa-file-lines' }} me-2"></i> {{ p.Title }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="policy-scroll-container p-3 bg-light rounded-3 border" style="max-height: 300px; overflow-y: auto;" id="scrollContainer_{{ p.PolicyID }}">
+                    {{ p.Content|safe }}
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4">
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold accept-policy-btn" id="acceptBtn_{{ p.PolicyID }}" disabled>
+                    I Accept
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% empty %}
+<!-- Fallback Data Security Modal -->
+<div class="modal fade policy-scroll-modal" id="securityModal" tabindex="-1" aria-hidden="true" data-fallback="security">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content rounded-4 border-0 shadow-lg">
             <div class="modal-header border-0 bg-gradient-blue p-4 rounded-top-4">
-                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-shield-halved me-2"></i> Data Security
-                    Policy</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-shield-halved me-2"></i> Data Security Policy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="security-policy-content">
-                    <h6 class="fw-bold text-primary">1. Data Encryption</h6>
-                    <p class="text-muted small">All personal information and documents uploaded are encrypted using
-                        industry-standard AES-256 encryption before being stored in our secure database.</p>
-
-                    <h6 class="fw-bold text-primary">2. Access Control</h6>
-                    <p class="text-muted small">Only authorized HR personnel and designated management have access to
-                        your sensitive documents for the sole purpose of onboarding verification and compliance.</p>
-
-                    <h6 class="fw-bold text-primary">3. Retention Policy</h6>
-                    <p class="text-muted small">Your data is retained for the duration of your employment. Upon
-                        termination, data is archived or deleted in accordance with statutory requirements.</p>
-
-                    <div class="alert alert-info py-2 px-3 mb-0" style="border-radius: 10px;">
-                        <i class="fa-solid fa-info-circle me-2"></i> We comply with global data protection regulations
-                        to ensure your privacy.
+                <div class="policy-scroll-container p-3 bg-light rounded-3 border" style="max-height: 300px; overflow-y: auto;" id="scrollContainer_security">
+                    <div class="security-policy-content">
+                        <h6 class="fw-bold text-primary">1. Data Encryption</h6>
+                        <p class="text-muted small">All personal information and documents uploaded are encrypted using industry-standard AES-256 encryption before being stored in our secure database.</p>
+                        <h6 class="fw-bold text-primary">2. Access Control</h6>
+                        <p class="text-muted small">Only authorized HR personnel and designated management have access to your sensitive documents for the sole purpose of onboarding verification and compliance.</p>
+                        <h6 class="fw-bold text-primary">3. Retention Policy</h6>
+                        <p class="text-muted small">Your data is retained for the duration of your employment. Upon termination, data is archived or deleted in accordance with statutory requirements.</p>
+                        <div class="alert alert-info py-2 px-3 mb-0" style="border-radius: 10px;">
+                            <i class="fa-solid fa-info-circle me-2"></i> We comply with global data protection regulations to ensure your privacy.
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer border-0 p-4">
-                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">I
-                    Understand</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold accept-policy-btn" id="acceptBtn_security" disabled>I Understand</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Terms of Service Modal -->
-<div class="modal fade" id="termsModal" tabindex="-1" aria-hidden="true">
+<!-- Fallback Terms of Service Modal -->
+<div class="modal fade policy-scroll-modal" id="termsModal" tabindex="-1" aria-hidden="true" data-fallback="terms">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content rounded-4 border-0 shadow-lg">
             <div class="modal-header border-0 bg-gradient-purple p-4 rounded-top-4">
-                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-file-contract me-2"></i> Terms of
-                    Service</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-file-contract me-2"></i> Terms of Service</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="terms-content">
-                    <h6 class="fw-bold text-purple">1. Accuracy of Information</h6>
-                    <p class="text-muted small">You agree to provide accurate, complete, and truthful information during
-                        the onboarding process. Any discrepancy may lead to disciplinary action or withdrawal of the
-                        offer.</p>
-
-                    <h6 class="fw-bold text-purple">2. System Usage</h6>
-                    <p class="text-muted small">The Lurnexa portal is for authorized corporate use only. Users are
-                        responsible for maintaining the confidentiality of their account credentials.</p>
-
-                    <h6 class="fw-bold text-purple">3. Code of Conduct</h6>
-                    <p class="text-muted small">By joining Lurnexa, you agree to abide by the company's code of conduct
-                        and professional ethics guidelines as outlined in the employee handbook.</p>
-
-                    <div class="alert alert-secondary py-2 px-3 mb-0" style="border-radius: 10px;">
-                        <i class="fa-solid fa-check-double me-2"></i> Your digital signature on this form constitutes a
-                        binding agreement.
+                <div class="policy-scroll-container p-3 bg-light rounded-3 border" style="max-height: 300px; overflow-y: auto;" id="scrollContainer_terms">
+                    <div class="terms-content">
+                        <h6 class="fw-bold text-purple">1. Accuracy of Information</h6>
+                        <p class="text-muted small">You agree to provide accurate, complete, and truthful information during the onboarding process. Any discrepancy may lead to disciplinary action or withdrawal of the offer.</p>
+                        <h6 class="fw-bold text-purple">2. System Usage</h6>
+                        <p class="text-muted small">The {{ org_name }} portal is for authorized corporate use only. Users are responsible for maintaining the confidentiality of their account credentials.</p>
+                        <h6 class="fw-bold text-purple">3. Code of Conduct</h6>
+                        <p class="text-muted small">By joining {{ org_name }}, you agree to abide by the company's code of conduct and professional ethics guidelines as outlined in the employee handbook.</p>
+                        <div class="alert alert-secondary py-2 px-3 mb-0" style="border-radius: 10px;">
+                            <i class="fa-solid fa-check-double me-2"></i> Your digital signature on this form constitutes a binding agreement.
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer border-0 p-4">
-                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-dismiss="modal"
-                    style="background: linear-gradient(135deg, #a855f7 0%, #d946ef 100%); border: none;">Accept
-                    Terms</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold accept-policy-btn" id="acceptBtn_terms" disabled style="background: linear-gradient(135deg, #a855f7 0%, #d946ef 100%); border: none;">Accept Terms</button>
             </div>
         </div>
     </div>
 </div>
+{% endfor %}
 
 {% endblock %}

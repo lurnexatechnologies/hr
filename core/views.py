@@ -3,21 +3,23 @@ from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import HRRequiredMixin, ManagerRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, SuperAdminRequiredMixin
+from auth_custom.mixins import HRRequiredMixin, ManagerRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, SuperAdminRequiredMixin, FeatureRequiredMixin
 import datetime
 import uuid
 import csv
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 from core.dynamodb_service import (
     EmployeesTable, ReportingHierarchyTable, LeaveRequestsTable, 
     ExpensesTable, AttendanceTable, HolidaysTable, PoliciesTable, 
     ResignationsTable, NotificationsTable, WFHRequestsTable,
     UsersTable, LoginHistoryTable, PayrollApprovalsTable, OKRsTable,
-    AppraisalCyclesTable, AppraisalsTable
+    AppraisalCyclesTable, AppraisalsTable, PolicyAcknowledgementsTable
 )
 from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now
 
-class HRDashboardView(HRRequiredMixin, TemplateView):
+class HRDashboardView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/hr_dashboard.html'
 
     def get_context_data(self, **kwargs):
@@ -103,17 +105,19 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
         approvals = []
         
         # 0. Payroll (Critical Priority)
-        if user_role == 'Super admin':
-            try:
-                payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status') == 'Pending Super Admin Approval']
-                for p in payroll_queue:
-                    approvals.append({
-                        'title': 'Payroll Batch',
-                        'subtitle': f"{p.get('MonthYear')} Authorization Required",
-                        'badge': 'Payroll',
-                        'url': 'payroll_approval_list'
-                    })
-            except: pass
+        try:
+            if user_role == 'Super admin':
+                payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status', '').startswith('Pending')]
+            else:
+                payroll_queue = [p for p in PayrollApprovalsTable.scan() if p.get('Status', '').startswith('Pending') and p.get('ApproverID') == user_emp_id]
+            for p in payroll_queue:
+                approvals.append({
+                    'title': 'Payroll Batch',
+                    'subtitle': f"{p.get('MonthYear')} Authorization Required",
+                    'badge': 'Payroll',
+                    'url': 'payroll_approval_list'
+                })
+        except: pass
 
         for l in pending_leaves[:2]:
             emp = next((e for e in all_employees if e.get('EmployeeID') == l.get('EmployeeID')), None)
@@ -175,15 +179,17 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
 
         # 5. Department-wise Monthly Payroll Distribution
         dept_payroll = {}
-        for e in active_employees:
-            dept = e.get('Department')
-            if not dept or dept == 'None':
-                dept = 'Other'
-            try:
-                monthly_sal = safe_float(e.get('SalaryPA', 0)) / 12.0
-            except:
-                monthly_sal = 0.0
-            dept_payroll[dept] = dept_payroll.get(dept, 0.0) + monthly_sal
+        user_permissions = getattr(self.request.user, 'permissions', [])
+        if 'payroll_access' in user_permissions:
+            for e in active_employees:
+                dept = e.get('Department')
+                if not dept or dept == 'None':
+                    dept = 'Other'
+                try:
+                    monthly_sal = safe_float(e.get('SalaryPA', 0)) / 12.0
+                except:
+                    monthly_sal = 0.0
+                dept_payroll[dept] = dept_payroll.get(dept, 0.0) + monthly_sal
         context['payroll_labels'] = list(dept_payroll.keys())
         context['payroll_values'] = [round(val, 2) for val in dept_payroll.values()]
 
@@ -208,6 +214,7 @@ class HRDashboardView(HRRequiredMixin, TemplateView):
         return context
 
 class SuperAdminDashboardView(HRDashboardView):
+    required_feature = 'ess_portal'
     template_name = 'core/super_admin_dashboard.html'
 
     def get_context_data(self, **kwargs):
@@ -239,23 +246,37 @@ class SuperAdminDashboardView(HRDashboardView):
 
         # 4. Inject Payroll into Pending Approvals
         payroll_requests = PayrollApprovalsTable.scan()
-        pending_batches = [r for r in payroll_requests if r.get('Status') == 'Pending Super Admin Approval']
+        pending_batches = [r for r in payroll_requests if r.get('Status', '').startswith('Pending')]
         
         pending_list = context.get('pending_approvals', [])
         for r in pending_batches:
             # Check if this batch is already in the list to avoid duplicates if HRDashboardView already added it
             if not any(item.get('title') == f"Payroll Batch: {r.get('Month')} {r.get('Year')}" for item in pending_list):
                 pending_list.insert(0, {
-                    'title': f"Payroll Batch: {r.get('Month')} {r.get('Year')}",
+                    'title': f"Payroll Batch: {r.get('MonthYear')}",
                     'subtitle': f"Net Disbursement: ₹{float(r.get('TotalNetPay', 0)):,.2f}",
                     'badge': 'Payroll',
                     'url': 'payroll_approval_list'
                 })
+        # 5. Inject Policies pending approval
+        try:
+            pending_policies = [p for p in PoliciesTable.scan() if p.get('ApprovalStatus') == 'Pending Approval']
+            for p in pending_policies:
+                pending_list.insert(0, {
+                    'title': p.get('Title', 'Corporate Policy'),
+                    'subtitle': f"Version {p.get('Version')} - Approval Required",
+                    'badge': 'Policy',
+                    'url': 'policies'
+                })
+        except Exception as e:
+            print(f"Error loading pending policies for dashboard: {e}")
+
         context['pending_approvals'] = pending_list
         
         return context
 
-class ManagerDashboardView(ManagerRequiredMixin, TemplateView):
+class ManagerDashboardView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/manager_dashboard.html'
 
     def get_context_data(self, **kwargs):
@@ -342,7 +363,8 @@ class ManagerDashboardView(ManagerRequiredMixin, TemplateView):
 
         return context
 
-class EmployeeDashboardView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+class EmployeeDashboardView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/employee_dashboard.html'
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -428,7 +450,8 @@ class EmployeeDashboardView(LoginRequiredMixin, ApprovedOnboardingMixin, Templat
             
         return context
 
-class ExportEmployeesCSVView(HRRequiredMixin, View):
+class ExportEmployeesCSVView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def get(self, request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="employees.csv"'
@@ -451,7 +474,8 @@ class ExportEmployeesCSVView(HRRequiredMixin, View):
 
         return response
 
-class SettingsView(LoginRequiredMixin, TemplateView):
+class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/settings.html'
 
     def get_context_data(self, **kwargs):
@@ -481,6 +505,49 @@ class SettingsView(LoginRequiredMixin, TemplateView):
             )
             context['full_login_history'] = full_history
 
+            # Organization-level Biometric Settings for Super Admin
+            if getattr(user, 'role', None) == 'Super admin' and getattr(user, 'org_id', None):
+                from core.dynamodb_service import OrganizationsTable
+                org = OrganizationsTable.get_item({'OrgID': user.org_id})
+                if org:
+                    all_users = UsersTable.scan(
+                        FilterExpression="OrgID = :oid",
+                        ExpressionAttributeValues={":oid": user.org_id}
+                    )
+                    context['org_users'] = sorted(all_users, key=lambda u: u.get('Email', ''))
+                    context['org'] = org
+
+                    context['biometric_settings'] = {
+                        'Enabled': org.get('BiometricEnabled', False),
+                        'APIURL': org.get('BiometricAPIURL', ''),
+                        'APIKey': org.get('BiometricAPIKey', ''),
+                        'DeviceID': org.get('BiometricDeviceID', ''),
+                    }
+                    context['bank_settings'] = {
+                        'Enabled': org.get('BankAPIEnabled', False),
+                        'APIURL': org.get('BankAPIURL', ''),
+                        'ClientID': org.get('BankClientID', ''),
+                        'APIKey': org.get('BankAPIKey', ''),
+                    }
+                    
+                    # Leave Policies (with defaults)
+                    leave_policies = org.get('LeavePolicies', {})
+                    from core.utils import DEFAULT_LEAVE_POLICIES
+                    for emp_type in ['Permanent', 'Probation', 'Intern']:
+                        if emp_type not in leave_policies:
+                            leave_policies[emp_type] = DEFAULT_LEAVE_POLICIES[emp_type]
+                    context['leave_policies'] = leave_policies
+                    
+                    # Tax and PF Settings
+                    context['tax_pf_settings'] = {
+                        'PFEnabled': org.get('PFEnabled', True),
+                        'EmployeePFPercent': org.get('EmployeePFPercent', 12.0),
+                        'EmployerPFPercent': org.get('EmployerPFPercent', 12.0),
+                        'TDSEnabled': org.get('TDSEnabled', True),
+                        'TaxRegime': org.get('TaxRegime', 'New Regime'),
+                        'TaxStandardDeduction': org.get('TaxStandardDeduction', 75000.0)
+                    }
+
         except Exception as e:
             print(f"Error in Settings context: {e}")
             context['login_history'] = []
@@ -489,6 +556,112 @@ class SettingsView(LoginRequiredMixin, TemplateView):
     def post(self, request):
         user = request.user
         action = request.POST.get('action')
+
+        if action == 'update_biometric' and getattr(user, 'role', None) == 'Super admin':
+            enabled = request.POST.get('biometric_enabled') == 'on'
+            api_url = request.POST.get('biometric_api_url', '').strip()
+            api_key = request.POST.get('biometric_api_key', '').strip()
+            device_id = request.POST.get('biometric_device_id', '').strip()
+
+            from core.dynamodb_service import OrganizationsTable
+            try:
+                org = OrganizationsTable.get_item({'OrgID': user.org_id})
+                if org:
+                    org['BiometricEnabled'] = enabled
+                    org['BiometricAPIURL'] = api_url
+                    org['BiometricAPIKey'] = api_key
+                    org['BiometricDeviceID'] = device_id
+                    OrganizationsTable.put_item(org)
+                    messages.success(request, "Biometric API settings updated successfully.")
+                else:
+                    messages.error(request, "Organization not found.")
+            except Exception as e:
+                messages.error(request, f"Error saving biometric settings: {str(e)}")
+            return redirect('settings')
+
+        if action == 'update_bank' and getattr(user, 'role', None) == 'Super admin':
+            enabled = request.POST.get('bank_enabled') == 'on'
+            api_url = request.POST.get('bank_api_url', '').strip()
+            client_id = request.POST.get('bank_client_id', '').strip()
+            api_key = request.POST.get('bank_api_key', '').strip()
+
+            from core.dynamodb_service import OrganizationsTable
+            try:
+                org = OrganizationsTable.get_item({'OrgID': user.org_id})
+                if org:
+                    org['BankAPIEnabled'] = enabled
+                    org['BankAPIURL'] = api_url
+                    org['BankClientID'] = client_id
+                    org['BankAPIKey'] = api_key
+                    OrganizationsTable.put_item(org)
+                    messages.success(request, "Bank API settings updated successfully.")
+                else:
+                    messages.error(request, "Organization not found.")
+            except Exception as e:
+                messages.error(request, f"Error saving bank API settings: {str(e)}")
+        if action == 'update_leave_policies' and getattr(user, 'role', None) == 'Super admin':
+            from core.dynamodb_service import OrganizationsTable
+            try:
+                org = OrganizationsTable.get_item({'OrgID': user.org_id})
+                if org:
+                    leave_policies = {}
+                    for emp_type in ['Permanent', 'Probation', 'Intern']:
+                        sl_limit = Decimal(request.POST.get(f'{emp_type}_SL_Limit', '0.0') or '0.0')
+                        cl_limit = Decimal(request.POST.get(f'{emp_type}_CL_Limit', '0.0') or '0.0')
+                        pl_limit = Decimal(request.POST.get(f'{emp_type}_PL_Limit', '0.0') or '0.0')
+                        allowed_types = request.POST.getlist(f'{emp_type}_AllowedTypes')
+                        leave_policies[emp_type] = {
+                            'SL_Limit': sl_limit,
+                            'CL_Limit': cl_limit,
+                            'PL_Limit': pl_limit,
+                            'AllowedTypes': allowed_types
+                        }
+                    org['LeavePolicies'] = leave_policies
+                    OrganizationsTable.put_item(org)
+                    messages.success(request, "Leave policies updated successfully.")
+                else:
+                    messages.error(request, "Organization not found.")
+            except Exception as e:
+                messages.error(request, f"Error saving leave policies: {str(e)}")
+            return redirect('settings')
+
+        if action == 'update_tax_pf' and getattr(user, 'role', None) == 'Super admin':
+            from core.dynamodb_service import OrganizationsTable
+            try:
+                org = OrganizationsTable.get_item({'OrgID': user.org_id})
+                if org:
+                    org['PFEnabled'] = request.POST.get('pf_enabled') == 'on'
+                    org['EmployeePFPercent'] = Decimal(request.POST.get('employee_pf_percent', '12.0') or '12.0')
+                    org['EmployerPFPercent'] = Decimal(request.POST.get('employer_pf_percent', '12.0') or '12.0')
+                    org['TDSEnabled'] = request.POST.get('tds_enabled') == 'on'
+                    org['TaxRegime'] = request.POST.get('tax_regime', 'New Regime')
+                    org['TaxStandardDeduction'] = Decimal(request.POST.get('tax_standard_deduction', '75000.0') or '75000.0')
+                    OrganizationsTable.put_item(org)
+                    messages.success(request, "Tax & PF settings updated successfully.")
+                else:
+                    messages.error(request, "Organization not found.")
+            except Exception as e:
+                messages.error(request, f"Error saving Tax & PF settings: {str(e)}")
+            return redirect('settings')
+
+        if action == 'update_payroll_manager' and getattr(user, 'role', None) == 'Super admin':
+            payroll_manager_user_id = request.POST.get('payroll_manager_user_id', '').strip()
+            pf_manager_user_id = request.POST.get('pf_manager_user_id', '').strip()
+            historical_payroll_manager_user_id = request.POST.get('historical_payroll_manager_user_id', '').strip()
+            from core.dynamodb_service import OrganizationsTable
+            try:
+                org = OrganizationsTable.get_item({'OrgID': user.org_id})
+                if org:
+                    org['PayrollManagerUserID'] = payroll_manager_user_id or None
+                    org['PFManagerUserID'] = pf_manager_user_id or None
+                    org['HistoricalPayrollManagerUserID'] = historical_payroll_manager_user_id or None
+                    OrganizationsTable.put_item(org)
+                    messages.success(request, "Designated Payroll/PF/Historical Access updated successfully.")
+                else:
+                    messages.error(request, "Organization not found.")
+            except Exception as e:
+                messages.error(request, f"Error saving payroll/PF/historical access settings: {str(e)}")
+            return redirect('settings')
         
         # Basic Profile Update & Security Settings
         first_name = request.POST.get('first_name')
@@ -583,7 +756,8 @@ class SettingsView(LoginRequiredMixin, TemplateView):
             messages.success(request, "Account settings updated successfully.")
         return redirect('settings')
 
-class NotificationsView(LoginRequiredMixin, TemplateView):
+class NotificationsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/notifications.html'
 
     def get_context_data(self, **kwargs):
@@ -642,7 +816,8 @@ class NotificationsView(LoginRequiredMixin, TemplateView):
             
         return context
 
-class DeleteNotificationView(LoginRequiredMixin, View):
+class DeleteNotificationView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def get(self, request, timestamp):
         user_emp_id = request.user.employee_id
         if timestamp == 'Today':
@@ -659,7 +834,8 @@ class DeleteNotificationView(LoginRequiredMixin, View):
                 messages.error(request, f"Error deleting notification: {e}")
         return redirect('notifications')
 
-class NotificationDetailView(LoginRequiredMixin, TemplateView):
+class NotificationDetailView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/notification_detail.html'
 
     def get_context_data(self, **kwargs):
@@ -683,7 +859,8 @@ class NotificationDetailView(LoginRequiredMixin, TemplateView):
             context['notification'] = notification
         return context
 
-class LoadMoreNotificationsView(LoginRequiredMixin, View):
+class LoadMoreNotificationsView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def get(self, request):
         user_emp_id = request.user.employee_id
         last_timestamp = request.GET.get('last_timestamp')
@@ -721,23 +898,32 @@ class LoadMoreNotificationsView(LoginRequiredMixin, View):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
 
-class NotificationPollView(LoginRequiredMixin, View):
+class NotificationPollView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def get(self, request):
         user_emp_id = request.user.employee_id
         if not user_emp_id:
             return JsonResponse({'unread_count': 0, 'notifications': []})
         try:
+            try:
+                all_unread = NotificationsTable.query(
+                    KeyConditionExpression=Key('EmployeeID').eq(user_emp_id),
+                    FilterExpression="#r = :val",
+                    ExpressionAttributeNames={'#r': 'IsRead'},
+                    ExpressionAttributeValues={':val': False}
+                )
+                unread_count = len(all_unread)
+            except Exception:
+                unread_count = 0
+
             notifications = NotificationsTable.query(
                 KeyConditionExpression=Key('EmployeeID').eq(user_emp_id),
                 ScanIndexForward=False,
                 Limit=10,
                 ConsistentRead=True
             )
-            unread_count = 0
             new_notifications = []
             for n in notifications:
-                if not n.get('IsRead'):
-                    unread_count += 1
                 new_notifications.append({
                     'title': n.get('Title', ''),
                     'message': n.get('Message', ''),
@@ -755,33 +941,162 @@ class NotificationPollView(LoginRequiredMixin, View):
 
 import json
 
-class PoliciesView(LoginRequiredMixin, TemplateView):
+class PoliciesView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/policies.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        emp_id = getattr(user, 'employee_id', None) or user.user_id
+        
         try:
-            policies = PoliciesTable.scan()
-            context['policies'] = policies
+            all_policies = PoliciesTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={':oid': user.org_id}
+            )
+            visible_policies = []
             
-            # Create a clean JSON version for the JS layer
+            # Fetch acknowledgments for this organization
+            try:
+                org_acks = PolicyAcknowledgementsTable.scan(
+                    FilterExpression="OrgID = :oid",
+                    ExpressionAttributeValues={':oid': user.org_id}
+                )
+            except Exception:
+                org_acks = []
+                
+            # Map acknowledgments by PolicyID -> EmployeeID -> AcknowledgedAt
+            acks_by_policy = {}
+            for ack in org_acks:
+                pid = ack.get('PolicyID')
+                eid = ack.get('EmployeeID')
+                if pid not in acks_by_policy:
+                    acks_by_policy[pid] = {}
+                acks_by_policy[pid][eid] = ack.get('AcknowledgedAt')
+
+            # Fetch active employees for the organization to generate HR / Super Admin Reports
+            active_employees = []
+            if role in ['HR ADMIN', 'Super admin']:
+                try:
+                    all_org_emps = EmployeesTable.scan(
+                        FilterExpression="OrgID = :oid",
+                        ExpressionAttributeValues={':oid': user.org_id}
+                    )
+                    all_users = UsersTable.scan()
+                    user_map = {u.get('UserID'): u for u in all_users if u.get('UserID')}
+                    
+                    today_date = get_local_date()
+                    for emp in all_org_emps:
+                        uid = emp.get('UserID')
+                        usr = user_map.get(uid) if uid else None
+                        
+                        is_user_active = usr.get('IsActive', True) if usr else True
+                        if not is_user_active:
+                            continue
+                            
+                        # Exclude Admins (Super Admin, Platform Admin, HR Admin) from needing to acknowledge
+                        user_role = (usr.get('Role') or '').strip().upper() if usr else 'EMPLOYEE'
+                        if user_role in ['SUPER ADMIN', 'SUPERADMIN', 'PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                            continue
+                            
+                        status = emp.get('OnboardingStatus')
+                        if status in ['Resigned', 'Pending Review', 'Rejected', 'Pending']:
+                            continue
+                            
+                        lwd_str = emp.get('LastWorkingDate')
+                        is_active_view = True
+                        if status == 'Accepted Resignation' and lwd_str:
+                            try:
+                                lwd = datetime.datetime.strptime(lwd_str, '%Y-%m-%d').date()
+                                if today_date > lwd:
+                                    is_active_view = False
+                            except:
+                                pass
+                        
+                        if is_active_view:
+                            active_employees.append(emp)
+                except Exception as e:
+                    print(f"Error fetching active employees for report: {e}")
+
+            for p in all_policies:
+                pid = p['PolicyID']
+                status = p.get('ApprovalStatus', 'Approved')
+                
+                # Role-based visibility logic
+                is_visible = False
+                if role in ['Super admin', 'HR ADMIN']:
+                    is_visible = True
+                elif status == 'Approved':
+                    is_visible = True
+                    
+                if is_visible:
+                    p['ApprovalStatus'] = status
+                    p['Version'] = p.get('Version', '1.0')
+                    p['VersionDate'] = p.get('VersionDate', '')
+                    
+                    # Check current user's acknowledgment status
+                    user_acks = acks_by_policy.get(pid, {})
+                    p['user_acknowledged'] = emp_id in user_acks
+                    p['acknowledged_at'] = user_acks.get(emp_id)
+                    
+                    if role in ['HR ADMIN', 'Super admin']:
+                        acknowledged_list = []
+                        pending_list = []
+                        
+                        for emp in active_employees:
+                            emp_eid = emp.get('EmployeeID')
+                            emp_name = f"{emp.get('FirstName', '')} {emp.get('LastName', '')}".strip() or emp.get('Email', '')
+                            
+                            if emp_eid in user_acks:
+                                acknowledged_list.append({
+                                    'name': emp_name,
+                                    'date': user_acks[emp_eid]
+                                })
+                            else:
+                                pending_list.append({
+                                    'name': emp_name
+                                })
+                                
+                        p['ack_report'] = {
+                            'acknowledged': acknowledged_list,
+                            'pending': pending_list,
+                            'ack_count': len(acknowledged_list),
+                            'total_count': len(active_employees),
+                            'ack_percentage': round((len(acknowledged_list) / len(active_employees) * 100), 1) if active_employees else 0
+                        }
+                    visible_policies.append(p)
+                    
+            context['policies'] = visible_policies
+            
+            # Create a clean JSON version for JS layer
             js_data = {}
-            for p in policies:
+            for p in visible_policies:
                 js_data[p['PolicyID']] = {
                     'title': p.get('Title', ''),
                     'description': p.get('Description', ''),
                     'content': p.get('Content', ''),
                     'gradient': p.get('Gradient', ''),
                     'icon': p.get('Icon', 'fa-file-lines'),
-                    'color': p.get('Color', '#1a4f8b')
+                    'color': p.get('Color', '#1a4f8b'),
+                    'version': p.get('Version', '1.0'),
+                    'version_date': p.get('VersionDate', ''),
+                    'status': p.get('ApprovalStatus', 'Approved'),
+                    'user_acknowledged': p.get('user_acknowledged', False),
+                    'ack_report': p.get('ack_report', None),
+                    'is_onboarding_policy': p.get('IsOnboardingPolicy', False)
                 }
             context['policies_json'] = json.dumps(js_data)
-        except Exception:
+        except Exception as e:
+            print(f"Error loading Policies: {e}")
             context['policies'] = []
             context['policies_json'] = '{}'
+            
         return context
 
-class AddPolicyView(HRRequiredMixin, View):
+class AddPolicyView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def post(self, request):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot add policies.")
@@ -791,41 +1106,76 @@ class AddPolicyView(HRRequiredMixin, View):
         content = request.POST.get('content')
         icon = request.POST.get('icon', 'fa-file-lines')
         color = request.POST.get('color', '#1a4f8b')
+        version = request.POST.get('version', '1.0').strip() or '1.0'
+        version_date = request.POST.get('version_date', '').strip() or get_local_date().isoformat()
+        is_onboarding_policy = request.POST.get('is_onboarding_policy') == 'on'
         
         policy_item = {
             'PolicyID': str(uuid.uuid4()),
+            'OrgID': request.user.org_id,
             'Title': title,
             'Description': description,
             'Content': content,
             'Icon': icon,
             'Color': color,
             'Gradient': f"linear-gradient(135deg, {color}22 0%, {color}44 100%)",
-            'CreatedAt': get_local_now().isoformat()
+            'Version': version,
+            'VersionDate': version_date,
+            'ApprovalStatus': 'Pending Approval',
+            'CreatedAt': get_local_now().isoformat(),
+            'IsOnboardingPolicy': is_onboarding_policy
         }
         
         try:
             PoliciesTable.put_item(policy_item)
-            messages.success(request, f"Policy '{title}' added successfully.")
+            
+            try:
+                super_admins = [u for u in UsersTable.scan() if (u.get('Role') or '').strip().upper() in ['SUPER ADMIN', 'SUPERADMIN'] and u.get('OrgID') == request.user.org_id]
+                for sa in super_admins:
+                    sa_emp_id = sa.get('EmployeeID') or sa.get('UserID')
+                    if sa_emp_id:
+                        send_notification(
+                            employee_id=sa_emp_id,
+                            title="New Policy Pending Approval",
+                            message=f"Policy '{title}' (Version {version}) has been submitted for approval.",
+                            n_type='Policy',
+                            icon='fa-file-contract',
+                            color='warning',
+                            org_id=request.user.org_id
+                        )
+            except Exception as e:
+                print(f"Error sending Super Admin notification for policy: {e}")
+                
+            messages.success(request, f"Policy '{title}' created and sent to Super Admin for approval.")
         except Exception as e:
             messages.error(request, f"Error adding policy: {str(e)}")
             
         return redirect('policies')
 
-class EditPolicyView(HRRequiredMixin, View):
+class EditPolicyView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def post(self, request, policy_id):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot modify policies.")
             return redirect('policies')
+        policy = PoliciesTable.get_item({'PolicyID': policy_id})
+        if not policy:
+            messages.error(request, "Policy not found or unauthorized access.")
+            return redirect('policies')
+
         title = request.POST.get('title')
         description = request.POST.get('description')
         content = request.POST.get('content')
         icon = request.POST.get('icon', 'fa-file-lines')
         color = request.POST.get('color', '#1a4f8b')
+        version = request.POST.get('version', '1.0').strip() or '1.0'
+        version_date = request.POST.get('version_date', '').strip() or get_local_date().isoformat()
+        is_onboarding_policy = request.POST.get('is_onboarding_policy') == 'on'
         
         try:
             PoliciesTable.update_item(
                 Key={'PolicyID': policy_id},
-                UpdateExpression="SET #t = :t, Description = :d, Content = :c, Icon = :i, Color = :co, Gradient = :g",
+                UpdateExpression="SET #t = :t, Description = :d, Content = :c, Icon = :i, Color = :co, Gradient = :g, Version = :v, VersionDate = :vd, ApprovalStatus = :s, IsOnboardingPolicy = :io",
                 ExpressionAttributeNames={'#t': 'Title'},
                 ExpressionAttributeValues={
                     ':t': title,
@@ -833,16 +1183,39 @@ class EditPolicyView(HRRequiredMixin, View):
                     ':c': content,
                     ':i': icon,
                     ':co': color,
-                    ':g': f"linear-gradient(135deg, {color}22 0%, {color}44 100%)"
+                    ':g': f"linear-gradient(135deg, {color}22 0%, {color}44 100%)",
+                    ':v': version,
+                    ':vd': version_date,
+                    ':s': 'Pending Approval',
+                    ':io': is_onboarding_policy
                 }
             )
-            messages.success(request, f"Policy '{title}' updated successfully.")
+            
+            try:
+                super_admins = [u for u in UsersTable.scan() if (u.get('Role') or '').strip().upper() in ['SUPER ADMIN', 'SUPERADMIN'] and u.get('OrgID') == request.user.org_id]
+                for sa in super_admins:
+                    sa_emp_id = sa.get('EmployeeID') or sa.get('UserID')
+                    if sa_emp_id:
+                        send_notification(
+                            employee_id=sa_emp_id,
+                            title="Policy Update Pending Approval",
+                            message=f"Policy '{title}' (Version {version}) has been updated and requires approval.",
+                            n_type='Policy',
+                            icon='fa-file-contract',
+                            color='warning',
+                            org_id=request.user.org_id
+                        )
+            except Exception as e:
+                print(f"Error sending Super Admin notification for policy update: {e}")
+                
+            messages.success(request, f"Policy '{title}' updated and sent to Super Admin for approval.")
         except Exception as e:
             messages.error(request, f"Error updating policy: {str(e)}")
             
         return redirect('policies')
 
-class DeletePolicyView(HRRequiredMixin, View):
+class DeletePolicyView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def post(self, request):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot delete policies.")
@@ -851,20 +1224,218 @@ class DeletePolicyView(HRRequiredMixin, View):
         if not policy_id:
             messages.error(request, "Error: No Policy ID provided.")
             return redirect('policies')
+        policy = PoliciesTable.get_item({'PolicyID': policy_id})
+        if not policy:
+            messages.error(request, "Policy not found or unauthorized access.")
+            return redirect('policies')
             
         try:
-            print(f"DEBUG: Deleting policy from DynamoDB with ID: '{policy_id}'")
-            # Attempt to delete from DynamoDB
-            response = PoliciesTable.delete_item({'PolicyID': policy_id})
-            print(f"DEBUG: DynamoDB response: {response}")
+            PoliciesTable.delete_item({'PolicyID': policy_id})
             messages.success(request, "Policy has been successfully deleted from the database.")
         except Exception as e:
-            print(f"DEBUG: Exception during deletion: {e}")
-            messages.error(request, f"Critical Database Error during deletion: {str(e)}")
+            messages.error(request, f"Error during deletion: {str(e)}")
             
         return redirect('policies')
 
-class GlobalSearchView(LoginRequiredMixin, TemplateView):
+class ApprovePolicyView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
+    def post(self, request, policy_id):
+        user = request.user
+        role = getattr(user, 'role', '')
+        if role not in ['Super admin', 'HR ADMIN']:
+            messages.error(request, "Unauthorized to approve policies.")
+            return redirect('policies')
+            
+        policy = PoliciesTable.get_item({'PolicyID': policy_id})
+        if not policy:
+            messages.error(request, "Policy not found or unauthorized access.")
+            return redirect('policies')
+
+        current_status = policy.get('ApprovalStatus', 'Pending Approval')
+        title = policy.get('Title', 'New Policy')
+        version = policy.get('Version', '1.0')
+
+        try:
+            if role == 'Super admin':
+                if current_status != 'Pending Approval':
+                    messages.error(request, f"This policy cannot be approved by Super Admin in its current state ({current_status}).")
+                    return redirect('policies')
+                
+                # Super Admin Approval: Move to Pending HR Admin Approval
+                PoliciesTable.update_item(
+                    Key={'PolicyID': policy_id},
+                    UpdateExpression="SET ApprovalStatus = :s",
+                    ExpressionAttributeValues={':s': 'Pending HR Admin Approval'}
+                )
+                
+                # Notify HR Admins
+                try:
+                    hr_admins = [u for u in UsersTable.scan() if (u.get('Role') or '').strip().upper() in ['HR ADMIN', 'HRADMIN', 'HR'] and u.get('OrgID') == user.org_id]
+                    for hr in hr_admins:
+                        hr_emp_id = hr.get('EmployeeID') or hr.get('UserID')
+                        if hr_emp_id:
+                            send_notification(
+                                employee_id=hr_emp_id,
+                                title="Policy Approved by Super Admin",
+                                message=f"Policy '{title}' (Version {version}) has been approved by the Super Admin and requires your final validation/acceptance.",
+                                n_type='Policy',
+                                icon='fa-file-circle-check',
+                                color='warning',
+                                org_id=user.org_id
+                            )
+                except Exception as e:
+                    print(f"Error sending Super Admin approval notification to HR Admin: {e}")
+                
+                messages.success(request, "Policy approved by Super Admin. Awaiting HR Admin validation.")
+
+            elif role == 'HR ADMIN':
+                if current_status != 'Pending HR Admin Approval':
+                    messages.error(request, f"You can only validate policies that are approved by the Super Admin. Current status: {current_status}")
+                    return redirect('policies')
+
+                # HR Admin Validation: Move to Approved
+                PoliciesTable.update_item(
+                    Key={'PolicyID': policy_id},
+                    UpdateExpression="SET ApprovalStatus = :s",
+                    ExpressionAttributeValues={':s': 'Approved'}
+                )
+
+                # Fetch all active employees (excluding Super Admin, Platform Admin)
+                employees = []
+                try:
+                    all_org_emps = EmployeesTable.scan(
+                        FilterExpression="OrgID = :oid",
+                        ExpressionAttributeValues={':oid': user.org_id}
+                    )
+                    all_users = UsersTable.scan()
+                    user_map = {u.get('UserID'): u for u in all_users if u.get('UserID')}
+                    
+                    today_date = get_local_date()
+                    for emp in all_org_emps:
+                        uid = emp.get('UserID')
+                        usr = user_map.get(uid) if uid else None
+                        
+                        is_user_active = usr.get('IsActive', True) if usr else True
+                        if not is_user_active:
+                            continue
+                            
+                        user_role = (usr.get('Role') or '').strip().upper() if usr else 'EMPLOYEE'
+                        # HR Admins also need to acknowledge approved policies
+                        if user_role in ['SUPER ADMIN', 'SUPERADMIN', 'PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                            continue
+                            
+                        status = emp.get('OnboardingStatus')
+                        if status in ['Resigned', 'Pending Review', 'Rejected', 'Pending']:
+                            continue
+                            
+                        lwd_str = emp.get('LastWorkingDate')
+                        is_active_view = True
+                        if status == 'Accepted Resignation' and lwd_str:
+                            try:
+                                lwd = datetime.datetime.strptime(lwd_str, '%Y-%m-%d').date()
+                                if today_date > lwd:
+                                    is_active_view = False
+                            except:
+                                pass
+                        
+                        if is_active_view:
+                            employees.append(emp)
+                except Exception as e:
+                    print(f"Error fetching active employees for final approval notification: {e}")
+
+                # Notify all employees (including HR Admin themselves if they are in the list)
+                for emp in employees:
+                    emp_id = emp.get('EmployeeID')
+                    if emp_id:
+                        send_notification(
+                            employee_id=emp_id,
+                            title="New Policy Acknowledgment Required",
+                            message=f"Policy '{title}' (Version {version}) has been fully approved. Please review and acknowledge it.",
+                            n_type='Policy',
+                            icon='fa-file-signature',
+                            color='info',
+                            org_id=user.org_id
+                        )
+                messages.success(request, "Policy fully approved and published for all employees.")
+        except Exception as e:
+            messages.error(request, f"Error processing policy approval: {str(e)}")
+
+        return redirect('policies')
+
+class RejectPolicyView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
+    def post(self, request, policy_id):
+        user = request.user
+        role = getattr(user, 'role', '')
+        if role not in ['Super admin', 'HR ADMIN']:
+            messages.error(request, "Unauthorized to reject policies.")
+            return redirect('policies')
+            
+        policy = PoliciesTable.get_item({'PolicyID': policy_id})
+        if not policy:
+            messages.error(request, "Policy not found or unauthorized access.")
+            return redirect('policies')
+            
+        try:
+            PoliciesTable.update_item(
+                Key={'PolicyID': policy_id},
+                UpdateExpression="SET ApprovalStatus = :s",
+                ExpressionAttributeValues={':s': 'Rejected'}
+            )
+            
+            # Send rejection notification to HR Admin who handles policies
+            try:
+                hr_admins = [u for u in UsersTable.scan() if (u.get('Role') or '').strip().upper() in ['HR ADMIN', 'HRADMIN', 'HR'] and u.get('OrgID') == user.org_id]
+                for hr in hr_admins:
+                    hr_emp_id = hr.get('EmployeeID') or hr.get('UserID')
+                    if hr_emp_id:
+                        send_notification(
+                            employee_id=hr_emp_id,
+                            title="Policy Rejected",
+                            message=f"Policy '{policy.get('Title')}' (Version {policy.get('Version')}) has been rejected by {role}.",
+                            n_type='Policy',
+                            icon='fa-file-circle-xmark',
+                            color='danger',
+                            org_id=user.org_id
+                        )
+            except Exception as e:
+                print(f"Error sending rejection notification: {e}")
+                
+            messages.success(request, f"Policy has been rejected by {role}.")
+        except Exception as e:
+            messages.error(request, f"Error rejecting policy: {str(e)}")
+            
+        return redirect('policies')
+
+class AcknowledgePolicyView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
+    def post(self, request, policy_id):
+        user = request.user
+        emp_id = getattr(user, 'employee_id', None) or user.user_id
+        emp_name = f"{user.first_name} {user.last_name}".strip() or user.email
+        
+        try:
+            policy = PoliciesTable.get_item({'PolicyID': policy_id})
+            if not policy or policy.get('ApprovalStatus', 'Approved') != 'Approved':
+                messages.error(request, "Invalid policy or policy is not approved yet.")
+                return redirect('policies')
+                
+            ack_item = {
+                'PolicyID': policy_id,
+                'EmployeeID': emp_id,
+                'EmployeeName': emp_name,
+                'OrgID': user.org_id,
+                'AcknowledgedAt': get_local_now().isoformat()
+            }
+            PolicyAcknowledgementsTable.put_item(ack_item)
+            messages.success(request, f"Thank you! Policy '{policy.get('Title')}' has been acknowledged.")
+        except Exception as e:
+            messages.error(request, f"Error acknowledging policy: {str(e)}")
+            
+        return redirect('policies')
+
+class GlobalSearchView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/search_results.html'
 
     def get_context_data(self, **kwargs):
@@ -936,7 +1507,8 @@ class GlobalSearchView(LoginRequiredMixin, TemplateView):
         context['query'] = query
         return context
 
-class ClearNotificationsView(LoginRequiredMixin, View):
+class ClearNotificationsView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def post(self, request):
         user_emp_id = request.user.employee_id
         try:
@@ -957,7 +1529,8 @@ class ClearNotificationsView(LoginRequiredMixin, View):
             
         return redirect('notifications')
 
-class MarkAllNotificationsReadView(LoginRequiredMixin, View):
+class MarkAllNotificationsReadView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def post(self, request):
         user_emp_id = request.user.employee_id
         if not user_emp_id:
@@ -982,7 +1555,8 @@ class MarkAllNotificationsReadView(LoginRequiredMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
-class SuperAdminApprovalsView(SuperAdminRequiredMixin, TemplateView):
+class SuperAdminApprovalsView(FeatureRequiredMixin, SuperAdminRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'core/super_admin_approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -1055,7 +1629,8 @@ class SuperAdminApprovalsView(SuperAdminRequiredMixin, TemplateView):
         context['total_pending'] = len(approvals)
         return context
 
-class HRGenerateLetterView(HRRequiredMixin, View):
+class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'hr_letters'
     def get(self, request):
         from core.utils import apply_pending_hikes
         apply_pending_hikes()
@@ -1395,7 +1970,8 @@ class HRGenerateLetterView(HRRequiredMixin, View):
         return redirect('hr_generate_letter')
 
 
-class HRSendLetterEmailView(HRRequiredMixin, View):
+class HRSendLetterEmailView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'hr_letters'
     def get(self, request, employee_id, letter_id):
         from core.dynamodb_service import EmployeesTable, EmployeeLettersTable
         from django.contrib import messages
@@ -1612,7 +2188,8 @@ class ContactUsView(View):
         return redirect('/#contact')
 
 
-class OKRView(LoginRequiredMixin, TemplateView):
+class OKRView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'okrs_appraisals'
     template_name = 'core/okrs.html'
 
     def get_context_data(self, **kwargs):
@@ -1645,7 +2222,10 @@ class OKRView(LoginRequiredMixin, TemplateView):
         team_okrs = []
         all_okrs = []
         try:
-            all_okrs = OKRsTable.scan()
+            all_okrs = OKRsTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={":oid": user.org_id}
+            )
             for o in all_okrs:
                 o['Progress'] = int(o.get('Progress', 0))
                 o['TargetValue'] = int(o.get('TargetValue', 100))
@@ -1662,11 +2242,17 @@ class OKRView(LoginRequiredMixin, TemplateView):
 
         emp_role_map = {}
         try:
-            all_emp_raw = EmployeesTable.scan()
+            all_emp_raw = EmployeesTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={":oid": user.org_id}
+            )
             emp_map = {e['EmployeeID']: f"{e.get('FirstName', '')} {e.get('LastName', '')}" for e in all_emp_raw}
             
             # Fetch user roles mapping from UsersTable
-            users_raw = UsersTable.scan()
+            users_raw = UsersTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={":oid": user.org_id}
+            )
             emp_role_map = {u['EmployeeID']: u.get('Role') for u in users_raw if u.get('EmployeeID')}
             
             if role == 'Super admin':
@@ -1943,9 +2529,101 @@ class OKRView(LoginRequiredMixin, TemplateView):
             'dept_rankings': dept_rankings
         }
 
+        # 360-degree feedback data fetching
+        feedback_eligible_employees = []
+        try:
+            for e in all_emp_raw:
+                if e.get('OrgID') == user.org_id and e.get('EmployeeID') != eid:
+                    role_of_e = emp_role_map.get(e.get('EmployeeID'))
+                    if role_of_e not in ('Super admin', 'Platform Admin'):
+                        feedback_eligible_employees.append({
+                            'EmployeeID': e.get('EmployeeID'),
+                            'Name': f"{e.get('FirstName', '')} {e.get('LastName', '')}",
+                            'Designation': e.get('Designation', 'Employee'),
+                            'Department': e.get('Department', '')
+                        })
+        except Exception as ex:
+            print(f"Error fetching feedback eligible employees: {ex}")
+        context['feedback_eligible_employees'] = feedback_eligible_employees
+
+        feedback_requests_pending = []
+        feedback_requests_submitted = []
+        feedback_received = []
+        feedback_manager_hr_view = []
+
+        try:
+            from core.dynamodb_service import FeedbackReviewAssignmentsTable, FeedbackReviewResponsesTable
+            
+            all_assignments = FeedbackReviewAssignmentsTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={":oid": user.org_id}
+            )
+            all_responses = FeedbackReviewResponsesTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={":oid": user.org_id}
+            )
+            
+            responses_by_assign = {r.get('AssignmentID'): r for r in all_responses if r.get('AssignmentID')}
+            
+            def get_avg_rating(resp):
+                if not resp:
+                    return 0.0
+                answers = resp.get('Answers', {})
+                ratings = []
+                for val in answers.values():
+                    try:
+                        ratings.append(float(val))
+                    except ValueError:
+                        pass
+                return round(sum(ratings) / len(ratings), 1) if ratings else 0.0
+
+            for a in all_assignments:
+                assignment_id = a.get('AssignmentID')
+                status = a.get('Status')
+                resp_obj = responses_by_assign.get(assignment_id)
+                
+                formatted_fb = {
+                    'FeedbackID': assignment_id,
+                    'AssignmentID': assignment_id,
+                    'RevieweeID': a.get('RevieweeID'),
+                    'RevieweeName': a.get('RevieweeName'),
+                    'ReviewerID': a.get('ReviewerID'),
+                    'ReviewerName': a.get('ReviewerName'),
+                    'ReviewerRole': a.get('ReviewerRole') or a.get('Relationship', 'Peer'),
+                    'Status': 'Pending' if status in ('Pending Review', 'Pending Approval') else 'Submitted',
+                    'RequestedAt': a.get('CreatedAt') or '2026-07-20',
+                    'SubmittedAt': resp_obj.get('SubmittedAt', '') if resp_obj else '',
+                    'Rating': get_avg_rating(resp_obj),
+                    'Comments': resp_obj.get('Comments', 'No comments provided.') if resp_obj else ''
+                }
+                
+                if a.get('ReviewerID') == eid:
+                    if status in ('Pending Review', 'Pending Approval'):
+                        feedback_requests_pending.append(formatted_fb)
+                    elif status == 'Submitted':
+                        feedback_requests_submitted.append(formatted_fb)
+                
+                if a.get('RevieweeID') == eid and status == 'Submitted':
+                    feedback_received.append(formatted_fb)
+                
+                if status == 'Submitted':
+                    if role == 'HR ADMIN':
+                        feedback_manager_hr_view.append(formatted_fb)
+                    elif role == 'Manager':
+                        if a.get('RevieweeID') in sub_ids:
+                            feedback_manager_hr_view.append(formatted_fb)
+        except Exception as ex:
+            print(f"Error loading new 360 feedback records for OKRView: {ex}")
+
+        context['feedback_requests_pending'] = feedback_requests_pending
+        context['feedback_requests_submitted'] = feedback_requests_submitted
+        context['feedback_received'] = feedback_received
+        context['feedback_manager_hr_view'] = feedback_manager_hr_view
+
         return context
 
-class CreateOKRView(LoginRequiredMixin, View):
+class CreateOKRView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         user = request.user
         role = user.role
@@ -2008,7 +2686,8 @@ class CreateOKRView(LoginRequiredMixin, View):
                 'Progress': 0,
                 'Status': 'In Progress',
                 'CreatedAt': get_local_now().isoformat(),
-                'UpdatedAt': get_local_now().isoformat()
+                'UpdatedAt': get_local_now().isoformat(),
+                'OrgID': request.user.org_id
             }
             OKRsTable.put_item(item)
             messages.success(request, "Goal successfully assigned to the employee.")
@@ -2016,7 +2695,146 @@ class CreateOKRView(LoginRequiredMixin, View):
             messages.error(request, f"Error creating OKR: {e}")
         return redirect('okrs')
 
-class UpdateOKRProgressView(LoginRequiredMixin, View):
+
+class RequestFeedback360View(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
+
+    def post(self, request):
+        reviewer_id = request.POST.get('reviewer_id', '').strip()
+        reviewee_id = request.user.employee_id
+        
+        if not reviewer_id or not reviewee_id:
+            messages.error(request, "Invalid feedback request parameters.")
+            return redirect('okrs')
+            
+        try:
+            from core.dynamodb_service import Feedback360Table, EmployeesTable
+            import uuid
+            from core.utils import get_local_now, send_notification
+            
+            user = request.user
+            
+            # Fetch names
+            all_employees = EmployeesTable.scan()
+            reviewer_emp = next((e for e in all_employees if e.get('EmployeeID') == reviewer_id), None)
+            reviewee_emp = next((e for e in all_employees if e.get('EmployeeID') == reviewee_id), None)
+            
+            if not reviewer_emp or not reviewee_emp:
+                messages.error(request, "Employee not found.")
+                return redirect('okrs')
+                
+            # Verify OrgID matching
+            if reviewer_emp.get('OrgID') != user.org_id or reviewee_emp.get('OrgID') != user.org_id:
+                messages.error(request, "Access denied. Employee belongs to another organization.")
+                return redirect('okrs')
+                
+            # Check if request already exists
+            existing = Feedback360Table.scan(
+                FilterExpression="OrgID = :oid AND RevieweeID = :rid AND ReviewerID = :rvr AND Status = :status",
+                ExpressionAttributeValues={
+                    ':oid': user.org_id,
+                    ':rid': reviewee_id,
+                    ':rvr': reviewer_id,
+                    ':status': 'Pending'
+                }
+            )
+            if existing:
+                messages.warning(request, f"A pending feedback request already exists for {reviewer_emp.get('FirstName')} {reviewer_emp.get('LastName')}.")
+                return redirect('okrs')
+                
+            feedback_id = str(uuid.uuid4())
+            item = {
+                'FeedbackID': feedback_id,
+                'OrgID': user.org_id,
+                'RevieweeID': reviewee_id,
+                'RevieweeName': f"{reviewee_emp.get('FirstName', '')} {reviewee_emp.get('LastName', '')}",
+                'ReviewerID': reviewer_id,
+                'ReviewerName': f"{reviewer_emp.get('FirstName', '')} {reviewer_emp.get('LastName', '')}",
+                'ReviewerRole': reviewer_emp.get('Designation', 'Peer'),
+                'Status': 'Pending',
+                'RequestedAt': get_local_now().isoformat(),
+            }
+            Feedback360Table.put_item(item)
+            
+            # Send Notification to Reviewer
+            send_notification(
+                employee_id=reviewer_id,
+                title="360° Feedback Request",
+                message=f"{item['RevieweeName']} has requested your 360° performance feedback.",
+                n_type='System',
+                icon='fa-arrows-spin',
+                color='info'
+            )
+            
+            messages.success(request, f"Feedback request sent successfully to {item['ReviewerName']}.")
+        except Exception as e:
+            messages.error(request, f"Error requesting feedback: {e}")
+            
+        return redirect('okrs')
+
+
+class SubmitFeedback360View(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
+
+    def post(self, request):
+        feedback_id = request.POST.get('feedback_id', '').strip()
+        rating = request.POST.get('rating', '').strip()
+        comments = request.POST.get('comments', '').strip()
+        
+        if not feedback_id or not rating or not comments:
+            messages.error(request, "All fields are required to submit feedback.")
+            return redirect('okrs')
+            
+        try:
+            from decimal import Decimal
+            rating_val = Decimal(rating)
+            if not (Decimal('1.0') <= rating_val <= Decimal('5.0')):
+                raise ValueError("Rating must be between 1.0 and 5.0")
+        except (ValueError, Exception) as e:
+            messages.error(request, str(e))
+            return redirect('okrs')
+            
+        try:
+            from core.dynamodb_service import Feedback360Table
+            from core.utils import get_local_now, send_notification
+            
+            # Get feedback request
+            fb_item = Feedback360Table.get_item({'FeedbackID': feedback_id})
+            if not fb_item:
+                messages.error(request, "Feedback request not found.")
+                return redirect('okrs')
+                
+            # Verify authorization (only reviewer can submit)
+            if fb_item.get('ReviewerID') != request.user.employee_id:
+                messages.error(request, "Unauthorized to submit this feedback.")
+                return redirect('okrs')
+                
+            fb_item['Status'] = 'Submitted'
+            fb_item['Rating'] = rating_val
+            fb_item['Comments'] = comments
+            fb_item['SubmittedAt'] = get_local_now().isoformat()
+            
+            Feedback360Table.put_item(fb_item)
+            
+            # Send notification to Reviewee
+            send_notification(
+                employee_id=fb_item['RevieweeID'],
+                title="360° Feedback Received",
+                message="A colleague has submitted 360° performance feedback for you.",
+                n_type='System',
+                icon='fa-thumbs-up',
+                color='success'
+            )
+            
+            messages.success(request, "Feedback submitted successfully. Thank you for your contribution!")
+        except Exception as e:
+            messages.error(request, f"Error submitting feedback: {e}")
+            
+        return redirect('okrs')
+
+
+class UpdateOKRProgressView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         user = request.user
         eid = user.employee_id
@@ -2087,7 +2905,8 @@ class UpdateOKRProgressView(LoginRequiredMixin, View):
             messages.error(request, f"Error updating OKR progress: {e}")
         return redirect('okrs')
 
-class EvaluateOKRView(LoginRequiredMixin, View):
+class EvaluateOKRView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         goal_id = request.POST.get('goal_id')
         target_emp_id = request.POST.get('employee_id')
@@ -2120,12 +2939,14 @@ class EvaluateOKRView(LoginRequiredMixin, View):
             messages.error(request, f"Error submitting OKR evaluation: {e}")
         return redirect('okrs')
 
-class SubmitSelfAppraisalView(LoginRequiredMixin, View):
+class SubmitSelfAppraisalView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         messages.error(request, "Self Appraisal is disabled.")
         return redirect('okrs')
 
-class SubmitManagerReviewView(LoginRequiredMixin, View):
+class SubmitManagerReviewView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         user = request.user
         role = user.role
@@ -2260,7 +3081,8 @@ class SubmitManagerReviewView(LoginRequiredMixin, View):
             messages.error(request, f"Error saving manager review: {e}")
         return redirect('okrs')
 
-class SubmitHRReviewView(LoginRequiredMixin, View):
+class SubmitHRReviewView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         user = request.user
         role = user.role
@@ -2328,7 +3150,8 @@ class SubmitHRReviewView(LoginRequiredMixin, View):
             messages.error(request, f"Error saving HR review: {e}")
         return redirect('okrs')
 
-class SubmitFounderApprovalView(LoginRequiredMixin, View):
+class SubmitFounderApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         user = request.user
         role = user.role
@@ -2461,7 +3284,8 @@ class SubmitFounderApprovalView(LoginRequiredMixin, View):
             messages.error(request, f"Error saving Founder decision: {e}")
         return redirect('okrs')
 
-class ManageAppraisalCyclesView(LoginRequiredMixin, View):
+class ManageAppraisalCyclesView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def post(self, request):
         user = request.user
         role = user.role
@@ -2502,7 +3326,8 @@ class ManageAppraisalCyclesView(LoginRequiredMixin, View):
             messages.error(request, f"Error saving appraisal cycle: {e}")
         return redirect('okrs')
 
-class DownloadAppraisalLetterView(LoginRequiredMixin, View):
+class DownloadAppraisalLetterView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'okrs_appraisals'
     def get(self, request, employee_id, cycle_id, type):
         user = request.user
         role = user.role
@@ -2650,7 +3475,7 @@ class TestPushNotificationView(View):
                 android=messaging.AndroidConfig(
                     notification=messaging.AndroidNotification(
                         sound='default',
-                        notification_channel_id='fcm_default_channel'
+                        channel_id='fcm_default_channel'
                     )
                 ),
                 apns=messaging.APNSConfig(
@@ -2673,6 +3498,66 @@ class TestPushNotificationView(View):
             return JsonResponse({'success': True, 'message': 'Test push sent successfully.', 'response': str(response)})
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+from django.views import View
+import uuid
+import datetime
+from auth_custom.mixins import SuperAdminRequiredMixin
+from core.dynamodb_service import DepartmentsTable
+
+class ManageDepartmentsView(SuperAdminRequiredMixin, View):
+    def get(self, request):
+        org_id = request.user.org_id
+        try:
+            departments = DepartmentsTable.scan(
+                FilterExpression="OrgID = :oid",
+                ExpressionAttributeValues={":oid": org_id}
+            )
+        except Exception:
+            departments = []
+
+        # Sort departments by Name
+        departments = sorted(departments, key=lambda x: x.get('Name', '').lower())
+
+        return render(request, 'core/manage_departments.html', {
+            'departments': departments
+        })
+
+    def post(self, request):
+        org_id = request.user.org_id
+        action = request.POST.get('action')
+
+        if action == 'create_department':
+            dept_name = request.POST.get('department_name', '').strip()
+            dept_desc = request.POST.get('department_desc', '').strip()
+            if not dept_name:
+                messages.error(request, "Department name is required.")
+                return redirect('manage_departments')
+
+            dept_id = f"DEPT-{uuid.uuid4().hex[:6].upper()}"
+            dept_item = {
+                'OrgID': org_id,
+                'DepartmentID': dept_id,
+                'Name': dept_name,
+                'Description': dept_desc,
+                'CreatedAt': datetime.datetime.utcnow().isoformat()
+            }
+            try:
+                DepartmentsTable.put_item(dept_item)
+                messages.success(request, f"Department '{dept_name}' created successfully.")
+            except Exception as e:
+                messages.error(request, f"Error creating department: {e}")
+
+        elif action == 'delete_department':
+            dept_id = request.POST.get('department_id', '').strip()
+            try:
+                DepartmentsTable.delete_item({'OrgID': org_id, 'DepartmentID': dept_id})
+                messages.success(request, "Department deleted successfully.")
+            except Exception as e:
+                messages.error(request, f"Error deleting department: {e}")
+
+        return redirect('manage_departments')
 
 
 

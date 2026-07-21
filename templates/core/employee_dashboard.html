@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load feature_tags %}
 
 {% block title %}My Dashboard - Lurnexa{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
@@ -104,8 +105,15 @@
 
 
 
+{% has_feature 'leave_management' as show_leave_balances %}
+{% has_feature 'attendance' as show_attendance_shortcut %}
+{% has_feature 'payslips' as show_payslips_shortcut %}
+{% has_feature 'expense_management' as show_expenses_shortcut %}
+{% has_feature 'holiday_calendar' as show_calendar_shortcut %}
+
 <div class="row mb-4">
     <!-- Leave Balance Card -->
+    {% if show_leave_balances %}
     <div class="col-lg-4 mb-4 mb-lg-0">
         <div class="card border-0 shadow-sm h-100 overflow-hidden" style="border-radius: 16px;">
             <div class="card-header border-0 bg-white pt-4 pb-0">
@@ -250,9 +258,10 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Quick Shortcuts Card -->
-    <div class="col-lg-8">
+    <div class="{% if show_leave_balances %}col-lg-8{% else %}col-lg-12{% endif %}">
         <div class="card border-0 shadow-sm" style="border-radius: 16px;">
             <div class="card-header border-0 bg-white pt-4 pb-2">
                 <div class="d-flex align-items-center">
@@ -264,6 +273,7 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
+                    {% if show_attendance_shortcut %}
                     <div class="col-md-4 col-sm-6">
                         <a href="{% url 'attendance_history' %}" class="shortcut-link">
                             <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-blue">
@@ -275,6 +285,8 @@
                             </div>
                         </a>
                     </div>
+                    {% endif %}
+                    {% if show_payslips_shortcut %}
                     <div class="col-md-4 col-sm-6">
                         <a href="{% url 'payslips_view' %}" class="shortcut-link">
                             <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-green">
@@ -286,6 +298,7 @@
                             </div>
                         </a>
                     </div>
+                    {% endif %}
                     <div class="col-md-4 col-sm-6">
                         <a href="{% url 'employee_profile' emp_id=request.user.employee_id %}" class="shortcut-link">
                             <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-info">
@@ -297,6 +310,7 @@
                             </div>
                         </a>
                     </div>
+                    {% if show_expenses_shortcut %}
                     <div class="col-md-4 col-sm-6">
                         <a href="{% url 'expenses_view' %}" class="shortcut-link">
                             <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-orange">
@@ -308,6 +322,7 @@
                             </div>
                         </a>
                     </div>
+                    {% endif %}
                     <div class="col-md-4 col-sm-6">
                         <a href="{% url 'policies' %}" class="shortcut-link">
                             <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-red">
@@ -319,6 +334,7 @@
                             </div>
                         </a>
                     </div>
+                    {% if show_calendar_shortcut %}
                     <div class="col-md-4 col-sm-6">
                         <a href="{% url 'company_calendar' %}" class="shortcut-link">
                             <div class="p-4 border-0 rounded-4 text-center shortcut-card bg-light-purple">
@@ -330,6 +346,7 @@
                             </div>
                         </a>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

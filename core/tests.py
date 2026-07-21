@@ -998,3 +998,94 @@ class BusinessLogicTestSuite(TestCase):
         self.assertFalse(emp_final.get('IsActive'))
         self.assertFalse(user_final.get('IsActive'))
 
+
+class TenantIsolationTestSuite(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.to_cleanup = []
+        
+    def tearDown(self):
+        for table, key in self.to_cleanup:
+            try:
+                table.delete_item(key=key)
+            except Exception:
+                pass
+        super().tearDown()
+
+    def test_tenant_isolation_enforcement(self):
+        """Test that data isolation is enforced between tenants at the DynamoDB TableService layer."""
+        from core.dynamodb_service import EmployeesTable, UsersTable
+        
+        # 1. Create a mock request/user context for Tenant A
+        class MockUser:
+            is_authenticated = True
+            role = 'HR ADMIN'
+            org_id = 'ORG-TEST-A'
+            employee_id = 'EMP-TEST-A'
+            
+        class MockRequest:
+            user = MockUser()
+            
+        # Write some data for Tenant A and Tenant B
+        EmployeesTable.put_item({
+            'EmployeeID': 'EMP-TEST-A',
+            'OrgID': 'ORG-TEST-A',
+            'FirstName': 'TenantA_Employee'
+        })
+        self.to_cleanup.append((EmployeesTable, {'EmployeeID': 'EMP-TEST-A'}))
+        
+        EmployeesTable.put_item({
+            'EmployeeID': 'EMP-TEST-B',
+            'OrgID': 'ORG-TEST-B',
+            'FirstName': 'TenantB_Employee'
+        })
+        self.to_cleanup.append((EmployeesTable, {'EmployeeID': 'EMP-TEST-B'}))
+        
+        # Mock request thread context using a custom local or mock get_current_request
+        from core.middleware import _thread_locals
+        old_request = getattr(_thread_locals, 'request', None)
+        
+        try:
+            # Set request context to Tenant A
+            _thread_locals.request = MockRequest()
+            
+            # Direct lookup (get_item) for Tenant B should return None (blocked)
+            self.assertIsNone(EmployeesTable.get_item({'EmployeeID': 'EMP-TEST-B'}))
+            
+            # Direct lookup (get_item) for Tenant A should succeed
+            self.assertIsNotNone(EmployeesTable.get_item({'EmployeeID': 'EMP-TEST-A'}))
+            
+            # Scan should only return Tenant A's employees
+            scan_results = EmployeesTable.scan()
+            emp_ids = [e['EmployeeID'] for e in scan_results]
+            self.assertIn('EMP-TEST-A', emp_ids)
+            self.assertNotIn('EMP-TEST-B', emp_ids)
+            
+            # 2. Change context to Platform Admin
+            class PlatformAdminUser:
+                is_authenticated = True
+                role = 'Platform Admin'
+                org_id = None
+                
+            class PlatformAdminRequest:
+                user = PlatformAdminUser()
+                
+            _thread_locals.request = PlatformAdminRequest()
+            
+            # Platform Admin should be able to get items from both tenants
+            self.assertIsNotNone(EmployeesTable.get_item({'EmployeeID': 'EMP-TEST-A'}))
+            self.assertIsNotNone(EmployeesTable.get_item({'EmployeeID': 'EMP-TEST-B'}))
+            
+            # Platform Admin scan should see both tenants' employees
+            scan_all = EmployeesTable.scan()
+            all_emp_ids = [e['EmployeeID'] for e in scan_all]
+            self.assertIn('EMP-TEST-A', all_emp_ids)
+            self.assertIn('EMP-TEST-B', all_emp_ids)
+            
+        finally:
+            # Restore request context
+            if old_request:
+                _thread_locals.request = old_request
+            elif hasattr(_thread_locals, 'request'):
+                delattr(_thread_locals, 'request')
+

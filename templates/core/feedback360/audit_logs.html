@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}360 Feedback Audit Logs - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Feedback Audit Logs</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <div>
+                            <h4 class="fw-bold text-dark mb-1"><i class="fa-solid fa-shield-halved text-success me-2"></i>Feedback System Audit Trail</h4>
+                            <p class="text-muted small mb-0">Complete historical security log tracing creation, updates, nominations, and publication operations.</p>
+                        </div>
+                        <span class="badge bg-light text-success border fw-bold" style="padding: 8px 16px; border-radius: 8px;">
+                            {{ logs|length }} Security Events
+                        </span>
+                    </div>
+
+                    <!-- Search / Filter input -->
+                    <div class="mb-3">
+                        <input type="text" id="logSearchInput" onkeyup="filterLogsTable()" class="form-control bg-light border-0 py-2.5 rounded-3" placeholder="Search audit logs by action, user email, details, IP address..." style="max-width: 400px;">
+                    </div>
+
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0 small" id="auditLogsTable">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 py-3">Timestamp</th>
+                                    <th class="border-0 py-3">Action</th>
+                                    <th class="border-0 py-3">Actor Email</th>
+                                    <th class="border-0 py-3">Details / Target</th>
+                                    <th class="border-0 py-3">IP Address</th>
+                                    <th class="border-0 py-3">Browser / Agent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td class="py-3 text-muted" style="white-space: nowrap;">
+                                        {{ log.Timestamp }}
+                                    </td>
+                                    <td class="py-3">
+                                        <span class="badge bg-light text-dark border fw-bold">{{ log.Action }}</span>
+                                    </td>
+                                    <td class="py-3 fw-bold text-dark">
+                                        {{ log.UserEmail }}
+                                    </td>
+                                    <td class="py-3 text-muted" style="max-width: 300px; word-wrap: break-word;">
+                                        {{ log.Details }}
+                                    </td>
+                                    <td class="py-3 text-muted">
+                                        <code>{{ log.IP }}</code>
+                                    </td>
+                                    <td class="py-3 text-muted small" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ log.Browser }}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-shield-halved fs-2 mb-3 d-block text-muted"></i>
+                                        <p class="mb-0 small fw-medium">No audit logs found.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterLogsTable() {
+        const input = document.getElementById('logSearchInput');
+        const filter = input.value.toLowerCase();
+        const table = document.getElementById('auditLogsTable');
+        const tr = table.getElementsByTagName('tr');
+
+        // Loop through all table rows, and hide those who don't match the search query
+        for (let i = 1; i < tr.length; i++) {
+            let match = false;
+            const tds = tr[i].getElementsByTagName('td');
+            for (let j = 0; j < tds.length; j++) {
+                if (tds[j] && tds[j].innerText.toLowerCase().indexOf(filter) > -1) {
+                    match = true;
+                    break;
+                }
+            }
+            if (match) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }
+    }
+</script>
+{% endblock %}

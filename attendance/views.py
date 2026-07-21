@@ -3,12 +3,12 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin
+from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import (
     AttendanceTable, EmployeesTable, LeaveRequestsTable, 
     SettingsTable, WFHRequestsTable, ReportingHierarchyTable, UsersTable
 )
-from core.utils import send_notification, get_local_now, get_local_date
+from core.utils import send_notification, get_local_now, get_local_date, resolve_workflow_step
 import uuid
 from boto3.dynamodb.conditions import Key
 import datetime
@@ -23,7 +23,8 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c * 1000  # distance in meters
 
-class ClockInView(LoginRequiredMixin, View):
+class ClockInView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'attendance'
     def post(self, request):
         now = get_local_now()
         today = now.date().isoformat()
@@ -170,7 +171,8 @@ class ClockInView(LoginRequiredMixin, View):
             
         return redirect('attendance_history')
 
-class ClockOutView(LoginRequiredMixin, View):
+class ClockOutView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'attendance'
     def post(self, request):
         now = get_local_now()
         today = now.date().isoformat()
@@ -235,7 +237,8 @@ class ClockOutView(LoginRequiredMixin, View):
             
         return redirect('attendance_history')
 
-class AttendanceHistoryView(LoginRequiredMixin, TemplateView):
+class AttendanceHistoryView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'attendance'
     template_name = 'attendance/history.html'
 
     def get_context_data(self, **kwargs):
@@ -379,7 +382,8 @@ class AttendanceHistoryView(LoginRequiredMixin, TemplateView):
         
         return context
 
-class ApplyWFHView(LoginRequiredMixin, View):
+class ApplyWFHView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'wfh_requests'
     def post(self, request):
         start_date = request.POST.get('start_date')
         end_date = request.POST.get('end_date')
@@ -421,49 +425,19 @@ class ApplyWFHView(LoginRequiredMixin, View):
                         return redirect('attendance_history')
 
         # 2. Determine Approval Path
-        hierarchy = ReportingHierarchyTable.scan(
-            FilterExpression="EmployeeID = :eid",
-            ExpressionAttributeValues={":eid": user_emp_id}
-        )
-        
-        manager_id = None
-        if hierarchy:
-            manager_id = hierarchy[0].get('ManagerID')
-            
+        org_id = getattr(request.user, 'org_id', None)
         user_role = request.user.role
         
+        status, approver_id, is_final = resolve_workflow_step(
+            employee_id=user_emp_id,
+            org_id=org_id,
+            current_status=None,
+            action='submit',
+            request_type='wfh_request'
+        )
         if user_role == 'Super admin':
-            status = 'Approved' # Self-approved
+            status = 'Approved'
             approver_id = user_emp_id
-        elif user_role == 'HR ADMIN':
-            status = 'Pending Manager Approval' # Super admin is the manager
-            approver_id = manager_id
-            if not approver_id:
-                # Fallback to any Super admin
-                sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin']
-                if sa_users: approver_id = sa_users[0].get('EmployeeID')
-        elif user_role == 'Manager':
-            status = 'Pending HR ADMIN Approval'
-            approver_id = manager_id # Reporting HR
-            if not approver_id:
-                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN']
-                if hr_users: approver_id = hr_users[0].get('EmployeeID')
-        else: # Employee
-            if manager_id:
-                # Check if reporting to HR directly
-                mgr_role = 'Manager'
-                mgr_users = UsersTable.scan(FilterExpression="EmployeeID = :eid", ExpressionAttributeValues={":eid": manager_id})
-                if mgr_users: mgr_role = mgr_users[0].get('Role')
-                
-                if mgr_role == 'HR ADMIN':
-                    status = 'Pending HR ADMIN Approval'
-                else:
-                    status = 'Pending Manager Approval'
-                approver_id = manager_id
-            else:
-                status = 'Pending HR ADMIN Approval'
-                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN']
-                if hr_users: approver_id = hr_users[0].get('EmployeeID')
         
         req_id = str(uuid.uuid4())
         item = {
@@ -497,7 +471,8 @@ class ApplyWFHView(LoginRequiredMixin, View):
         messages.success(request, f"WFH request submitted for {start_date}. Status: {status}")
         return redirect('attendance_history')
 
-class HRAttendanceView(HRRequiredMixin, TemplateView):
+class HRAttendanceView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
+    required_feature = 'attendance'
     template_name = 'attendance/hr_attendance.html'
 
     def get_context_data(self, **kwargs):
@@ -707,7 +682,8 @@ class HRAttendanceView(HRRequiredMixin, TemplateView):
         
         return context
 
-class OfficeTimingSettingsView(HRRequiredMixin, View):
+class OfficeTimingSettingsView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'attendance'
     def post(self, request):
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
@@ -726,7 +702,8 @@ class OfficeTimingSettingsView(HRRequiredMixin, View):
         messages.success(request, "Office timings updated successfully.")
         return redirect('hr_attendance')
 
-class UpdateGeofencingSettingsView(HRRequiredMixin, View):
+class UpdateGeofencingSettingsView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'attendance'
     def post(self, request):
         enabled = request.POST.get('enabled') == 'on'
         latitude = request.POST.get('latitude', '0.0').strip()
@@ -750,7 +727,8 @@ class UpdateGeofencingSettingsView(HRRequiredMixin, View):
 from django.http import HttpResponse
 import csv
 
-class DownloadAttendanceReportView(HRRequiredMixin, View):
+class DownloadAttendanceReportView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'attendance'
     def get(self, request):
         target_date = request.GET.get('date')
         export_all = request.GET.get('export') == 'all'
@@ -879,7 +857,8 @@ class DownloadAttendanceReportView(HRRequiredMixin, View):
             
         return response
 
-class ExportMyAttendanceView(LoginRequiredMixin, View):
+class ExportMyAttendanceView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'attendance'
     def get(self, request):
         eid = request.user.employee_id
         records = AttendanceTable.query(
@@ -914,7 +893,8 @@ class ExportMyAttendanceView(LoginRequiredMixin, View):
             
         return response
 
-class ImportAttendanceView(HRRequiredMixin, View):
+class ImportAttendanceView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'attendance'
     def post(self, request):
         if 'attendance_file' not in request.FILES:
             messages.error(request, "No file uploaded.")

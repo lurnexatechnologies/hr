@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %}Feedback Cycles - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Feedback Cycles</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Configure Cycle (HR Admin Only) -->
+        <div class="col-lg-5 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-arrows-spin text-primary me-2"></i>Configure Feedback Cycle</h5>
+                    {% if request.user.role == 'HR ADMIN' %}
+                        <p class="text-muted small">Establish cycle schedules, rules, evaluation templates, and response weights.</p>
+                        
+                        <form method="POST" action="{% url 'feedback_cycles' %}">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Cycle Name</label>
+                                <input type="text" name="name" class="form-control bg-light border-0 py-2" placeholder="e.g. Annual Appraisal 2026" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Description</label>
+                                <textarea name="description" class="form-control bg-light border-0 py-2" rows="2" placeholder="Brief context..."></textarea>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold">Start Date</label>
+                                    <input type="date" name="start_date" class="form-control bg-light border-0 py-2" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold">End Date</label>
+                                    <input type="date" name="end_date" class="form-control bg-light border-0 py-2" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Evaluation Template</label>
+                                <select name="template_id" class="form-select bg-light border-0 py-2" required>
+                                    <option value="" disabled selected>-- Choose Template --</option>
+                                    {% for temp in templates %}
+                                        <option value="{{ temp.TemplateID }}">{{ temp.Name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <!-- Survey Rules -->
+                            <div class="bg-light p-3 rounded-3 mb-3">
+                                <h6 class="fw-bold small text-dark mb-2"><i class="fa-solid fa-shield-halved me-1"></i> Evaluation Rules</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" name="allow_self" id="chkSelf" checked>
+                                            <label class="form-check-label small" for="chkSelf">Allow Self Review</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" name="allow_peer" id="chkPeer" checked>
+                                            <label class="form-check-label small" for="chkPeer">Allow Peer Review</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" name="allow_upward" id="chkUpward" checked>
+                                            <label class="form-check-label small" for="chkUpward">Allow Upward</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" name="allow_client" id="chkClient">
+                                            <label class="form-check-label small" for="chkClient">Allow Client</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="anonymous" id="chkAnon" checked>
+                                    <label class="form-check-label small fw-bold text-primary" for="chkAnon">Enable Anonymous Feedback</label>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <label class="small text-muted fw-bold">Min Reviewers</label>
+                                        <input type="number" name="min_reviewer" class="form-control form-control-sm border-0 py-1" value="3" min="1">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="small text-muted fw-bold">Max Reviewers</label>
+                                        <input type="number" name="max_reviewer" class="form-control form-control-sm border-0 py-1" value="10" min="2">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Weightages Config -->
+                            <div class="bg-light p-3 rounded-3 mb-3">
+                                <h6 class="fw-bold small text-dark mb-2"><i class="fa-solid fa-weight-hanging me-1"></i> Score Weights (%)</h6>
+                                <div class="row mb-2">
+                                    <div class="col-4">
+                                        <label class="small text-muted">Manager</label>
+                                        <input type="number" name="weight_mgr" class="form-control form-control-sm border-0 py-1" value="40" min="0" max="100">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="small text-muted">Self</label>
+                                        <input type="number" name="weight_self" class="form-control form-control-sm border-0 py-1" value="10" min="0" max="100">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="small text-muted">Peers</label>
+                                        <input type="number" name="weight_peer" class="form-control form-control-sm border-0 py-1" value="25" min="0" max="100">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <label class="small text-muted">Direct Reports</label>
+                                        <input type="number" name="weight_upward" class="form-control form-control-sm border-0 py-1" value="15" min="0" max="100">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="small text-muted">Clients</label>
+                                        <input type="number" name="weight_client" class="form-control form-control-sm border-0 py-1" value="10" min="0" max="100">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Target Employees -->
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold">Target Employees (Select Multiple)</label>
+                                <div class="bg-light p-3 rounded-3" style="max-height: 150px; overflow-y: auto;">
+                                    {% for emp in employees %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="target_employees" value="{{ emp.EmployeeID }}" id="emp_{{ emp.EmployeeID }}">
+                                            <label class="form-check-label small text-dark" for="emp_{{ emp.EmployeeID }}">
+                                                {{ emp.FirstName }} {{ emp.LastName }} ({{ emp.Department }})
+                                            </label>
+                                        </div>
+                                    {% empty %}
+                                        <span class="text-muted small italic">No active employees found</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" style="border-radius: 10px; background: linear-gradient(135deg, #4f46e5, #3b82f6); border: none;">
+                                <i class="fa-solid fa-circle-check me-1"></i> Register Cycle
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-warning border-0 small mb-0 rounded-3">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i> Only <strong>HR Admins</strong> are authorized to configure and run Feedback Cycles.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Cycles List & Controls -->
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-4"><i class="fa-solid fa-folder-open text-primary me-2"></i>Cycle Schedules</h5>
+
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 small fw-bold py-3">Cycle details</th>
+                                    <th class="border-0 small fw-bold py-3">Timelines</th>
+                                    <th class="border-0 small fw-bold py-3">Status</th>
+                                    <th class="border-0 small fw-bold py-3 text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cyc in cycles %}
+                                <tr>
+                                    <td class="py-3">
+                                        <span class="fw-semibold text-dark d-block">{{ cyc.Name }}</span>
+                                        <small class="text-muted">{{ cyc.Description }}</small>
+                                    </td>
+                                    <td class="py-3 text-muted small">
+                                        {{ cyc.StartDate }} to {{ cyc.EndDate }}
+                                    </td>
+                                    <td class="py-3">
+                                        <span class="badge bg-light border text-dark" id="status_badge_{{ cyc.CycleID }}">{{ cyc.Status }}</span>
+                                    </td>
+                                    <td class="py-3 text-end">
+                                        <div class="btn-group">
+                                            {% if cyc.Status == 'Draft' %}
+                                                <button onclick="transitionCycle('{{ cyc.CycleID }}', 'nominate')" class="btn btn-warning btn-sm fw-bold">Nominate</button>
+                                            {% elif cyc.Status == 'Nominated' %}
+                                                <button onclick="transitionCycle('{{ cyc.CycleID }}', 'launch')" class="btn btn-primary btn-sm fw-bold">Launch</button>
+                                            {% elif cyc.Status == 'Active' %}
+                                                <button onclick="transitionCycle('{{ cyc.CycleID }}', 'close')" class="btn btn-danger btn-sm fw-bold">Close</button>
+                                            {% elif cyc.Status == 'Closed' %}
+                                                <button onclick="transitionCycle('{{ cyc.CycleID }}', 'publish')" class="btn btn-success btn-sm fw-bold">Publish</button>
+                                            {% else %}
+                                                <span class="text-muted small italic">Archived</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-arrows-spin fs-2 mb-3 d-block text-muted"></i>
+                                        <p class="mb-0 small fw-medium">No cycles registered yet.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function transitionCycle(cycleId, action) {
+        if (!confirm(`Are you sure you want to transition this cycle state? (${action})`)) return;
+        
+        const formData = new FormData();
+        formData.append('action', action);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(`/okrs/360/cycles/${cycleId}/transition/`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('Cycle state transitioned successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(err => {
+            alert('Request failed. Please try again.');
+        });
+    }
+</script>
+{% endblock %}

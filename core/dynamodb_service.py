@@ -35,19 +35,86 @@ class TableService:
         return get_dynamodb_resource().Table(self.table_name)
 
     def put_item(self, item):
+        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            org_id = None
+            try:
+                from core.middleware import get_current_request
+                request = get_current_request()
+                if request and hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+                    if getattr(request.user, 'role', None) != 'Platform Admin':
+                        org_id = getattr(request.user, 'org_id', None)
+            except Exception:
+                pass
+            if org_id and 'OrgID' not in item:
+                item['OrgID'] = org_id
         return self._get_table().put_item(Item=item)
 
     def get_item(self, key):
-        response = self._get_table().get_item(Key=key)
-        return response.get('Item')
+        item = self._get_table().get_item(Key=key).get('Item')
+        if item and self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            org_id = None
+            try:
+                from core.middleware import get_current_request
+                request = get_current_request()
+                if request and hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+                    if getattr(request.user, 'role', None) != 'Platform Admin':
+                        org_id = getattr(request.user, 'org_id', None)
+            except Exception:
+                pass
+            if org_id and item.get('OrgID') != org_id:
+                return None
+        return item
 
     def delete_item(self, key):
+        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            item = self.get_item(key)
+            if item is None:
+                return None
         return self._get_table().delete_item(Key=key)
         
     def update_item(self, **kwargs):
+        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            key = kwargs.get('Key')
+            if key:
+                item = self.get_item(key)
+                if item is None:
+                    raise ClientError(
+                        {'Error': {'Code': 'ConditionalCheckFailedException', 'Message': 'Access Denied: Tenant Isolation Violation'}},
+                        'UpdateItem'
+                    )
         return self._get_table().update_item(**kwargs)
 
+    def _apply_tenant_isolation(self, kwargs):
+        if self.table_name in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            return kwargs
+
+        org_id = None
+        try:
+            from core.middleware import get_current_request
+            request = get_current_request()
+            if request and hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+                if getattr(request.user, 'role', None) != 'Platform Admin':
+                    org_id = getattr(request.user, 'org_id', None)
+        except Exception:
+            pass
+
+        if org_id:
+            from boto3.dynamodb.conditions import Attr
+            if 'FilterExpression' not in kwargs:
+                kwargs['FilterExpression'] = Attr('OrgID').eq(org_id)
+            else:
+                expr = kwargs['FilterExpression']
+                if isinstance(expr, str):
+                    kwargs['FilterExpression'] = f"({expr}) AND OrgID = :autogen_org_id"
+                    if 'ExpressionAttributeValues' not in kwargs:
+                        kwargs['ExpressionAttributeValues'] = {}
+                    kwargs['ExpressionAttributeValues'][':autogen_org_id'] = org_id
+                else:
+                    kwargs['FilterExpression'] = expr & Attr('OrgID').eq(org_id)
+        return kwargs
+
     def query(self, **kwargs):
+        kwargs = self._apply_tenant_isolation(kwargs)
         table = self._get_table()
         limit = kwargs.get('Limit')
         response = table.query(**kwargs)
@@ -64,6 +131,7 @@ class TableService:
         return items
 
     def scan(self, **kwargs):
+        kwargs = self._apply_tenant_isolation(kwargs)
         table = self._get_table()
         limit = kwargs.get('Limit')
         response = table.scan(**kwargs)
@@ -106,12 +174,55 @@ AssetRequestsTable = TableService('Lurnexa_AssetRequests')
 AppraisalCyclesTable = TableService('Lurnexa_AppraisalCycles')
 AppraisalsTable = TableService('Lurnexa_Appraisals')
 DeviceTokensTable = TableService('Lurnexa_DeviceTokens')
+OrganizationsTable = TableService('Lurnexa_Organizations')
+SubscriptionsTable = TableService('Lurnexa_Subscriptions')
+RolesTable = TableService('Lurnexa_Roles')
+DepartmentsTable = TableService('Lurnexa_Departments')
+PolicyAcknowledgementsTable = TableService('Lurnexa_PolicyAcknowledgements')
+Feedback360Table = TableService('Lurnexa_Feedback360')
+FeedbackCyclesTable = TableService('Lurnexa_FeedbackCycles')
+FeedbackTemplatesTable = TableService('Lurnexa_FeedbackTemplates')
+FeedbackCompetenciesTable = TableService('Lurnexa_FeedbackCompetencies')
+FeedbackQuestionsTable = TableService('Lurnexa_FeedbackQuestions')
+FeedbackReviewAssignmentsTable = TableService('Lurnexa_FeedbackReviewAssignments')
+FeedbackReviewResponsesTable = TableService('Lurnexa_FeedbackReviewResponses')
+FeedbackDevelopmentPlansTable = TableService('Lurnexa_FeedbackDevelopmentPlans')
+FeedbackAuditLogsTable = TableService('Lurnexa_FeedbackAuditLogs')
 
 def initialize_dynamodb_tables():
     """
     Helper function to create all required DynamoDB tables.
     """
     tables_to_create = [
+        {
+            'TableName': 'Lurnexa_Roles',
+            'KeySchema': [{'AttributeName': 'OrgID', 'KeyType': 'HASH'}, {'AttributeName': 'RoleID', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'OrgID', 'AttributeType': 'S'},
+                {'AttributeName': 'RoleID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_Departments',
+            'KeySchema': [{'AttributeName': 'OrgID', 'KeyType': 'HASH'}, {'AttributeName': 'DepartmentID', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'OrgID', 'AttributeType': 'S'},
+                {'AttributeName': 'DepartmentID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_Organizations',
+            'KeySchema': [{'AttributeName': 'OrgID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'OrgID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_Subscriptions',
+            'KeySchema': [{'AttributeName': 'OrgID', 'KeyType': 'HASH'}, {'AttributeName': 'PeriodStart', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'OrgID', 'AttributeType': 'S'},
+                {'AttributeName': 'PeriodStart', 'AttributeType': 'S'}
+            ],
+        },
         {
             'TableName': 'Lurnexa_Users',
             'KeySchema': [{'AttributeName': 'UserID', 'KeyType': 'HASH'}],
@@ -312,6 +423,61 @@ def initialize_dynamodb_tables():
                 {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
                 {'AttributeName': 'DeviceToken', 'AttributeType': 'S'}
             ],
+        },
+        {
+            'TableName': 'Lurnexa_PolicyAcknowledgements',
+            'KeySchema': [{'AttributeName': 'PolicyID', 'KeyType': 'HASH'}, {'AttributeName': 'EmployeeID', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'PolicyID', 'AttributeType': 'S'},
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_Feedback360',
+            'KeySchema': [{'AttributeName': 'FeedbackID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'FeedbackID', 'AttributeType': 'S'}
+            ],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackCycles',
+            'KeySchema': [{'AttributeName': 'CycleID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'CycleID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackTemplates',
+            'KeySchema': [{'AttributeName': 'TemplateID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'TemplateID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackCompetencies',
+            'KeySchema': [{'AttributeName': 'CompetencyID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'CompetencyID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackQuestions',
+            'KeySchema': [{'AttributeName': 'QuestionID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'QuestionID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackReviewAssignments',
+            'KeySchema': [{'AttributeName': 'AssignmentID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'AssignmentID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackReviewResponses',
+            'KeySchema': [{'AttributeName': 'ResponseID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'ResponseID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackDevelopmentPlans',
+            'KeySchema': [{'AttributeName': 'PlanID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'PlanID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_FeedbackAuditLogs',
+            'KeySchema': [{'AttributeName': 'LogID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'LogID', 'AttributeType': 'S'}],
         }
     ]
 

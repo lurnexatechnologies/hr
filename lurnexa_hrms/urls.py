@@ -3,7 +3,9 @@ from django.shortcuts import redirect, render
 
 def index_redirect(request):
     if request.user.is_authenticated:
-        if request.user.role == 'Super admin':
+        if request.user.role == 'Platform Admin':
+            return redirect('platform_dashboard')
+        elif request.user.role == 'Super admin':
             return redirect('super_admin_dashboard')
         elif request.user.role == 'HR ADMIN':
             return redirect('hr_dashboard')

@@ -4,10 +4,10 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin
+from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import PayslipsTable, EmployeesTable, AttendanceTable, LeaveRequestsTable, HolidaysTable, PayrollApprovalsTable, UsersTable, ExpensesTable
 from core.kotak_service import KotakBankService
-from core.utils import safe_float, get_local_date, get_local_now, send_notification
+from core.utils import safe_float, get_local_date, get_local_now, send_notification, resolve_workflow_step
 from boto3.dynamodb.conditions import Key
 import io
 from reportlab.pdfgen import canvas
@@ -294,26 +294,35 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
         "NetPay": Decimal(str(round(net_salary, 2))),
     }
 
-class PayrollRequiredMixin(RoleRequiredMixin):
-    allowed_roles = ['HR ADMIN']
+class PayrollRequiredMixin(object):
     """Verify that the user has unlocked payroll access for the current session."""
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
-        if request.user.role not in self.allowed_roles:
+        user_permissions = getattr(request.user, 'permissions', [])
+        
+        if 'payroll_access' not in user_permissions:
             return redirect('forbidden_403')
+            
         if not request.session.get('payroll_authenticated', False):
             messages.info(request, "Additional authentication required to access Payroll Management.")
             return redirect('payroll_login')
-        return super(RoleRequiredMixin, self).dispatch(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
 
-class PayrollLoginView(HRRequiredMixin, View):
+class PayrollLoginView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'payroll'
     def get(self, request):
+        user_permissions = getattr(request.user, 'permissions', [])
+        if 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
         if request.session.get('payroll_authenticated', False):
             return redirect('manage_payroll')
         return render(request, 'payroll/login.html')
 
     def post(self, request):
+        user_permissions = getattr(request.user, 'permissions', [])
+        if 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
         payroll_id = request.POST.get('payroll_id')
         password = request.POST.get('payroll_password')
         PAYROLL_MANAGER_ID = "PM-ADMIN"
@@ -327,14 +336,19 @@ class PayrollLoginView(HRRequiredMixin, View):
             messages.error(request, "Invalid Payroll Manager credentials. Access Denied.")
             return render(request, 'payroll/login.html')
 
-class PayrollLogoutView(HRRequiredMixin, View):
+class PayrollLogoutView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'payroll'
     def get(self, request):
+        user_permissions = getattr(request.user, 'permissions', [])
+        if 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
         if 'payroll_authenticated' in request.session:
             del request.session['payroll_authenticated']
         messages.success(request, "Payroll section locked successfully.")
         return redirect('payroll_login')
 
-class PayslipsView(LoginRequiredMixin, TemplateView):
+class PayslipsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'payslips'
     template_name = 'payroll/payslips.html'
 
     def get_context_data(self, **kwargs):
@@ -365,7 +379,8 @@ class PayslipsView(LoginRequiredMixin, TemplateView):
             
         return context
 
-class ManagePayrollView(PayrollRequiredMixin, View):
+class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
+    required_feature = 'payroll'
     def get(self, request):
         from core.utils import apply_pending_hikes
         apply_pending_hikes()
@@ -588,10 +603,22 @@ class ManagePayrollView(PayrollRequiredMixin, View):
         except Exception:
             submitter_name = str(request.user.employee_id or 'HR Admin')
         
+        # Resolve dynamic workflow step
+        org_id = getattr(request.user, 'org_id', None)
+        status, approver_id, is_final = resolve_workflow_step(
+            employee_id=request.user.employee_id,
+            org_id=org_id,
+            current_status=None,
+            action='submit',
+            request_type='payroll_approval'
+        )
+
         approval_item = {
+            'OrgID': org_id,
             'RequestID': request_id,
             'MonthYear': month_year,
-            'Status': 'Pending Super Admin Approval',
+            'Status': status,
+            'ApproverID': approver_id,
             'SubmittedBy': submitter_name,
             'SubmittedByID': request.user.employee_id,
             'SubmittedAt': get_local_now().isoformat(),
@@ -602,10 +629,11 @@ class ManagePayrollView(PayrollRequiredMixin, View):
         
         PayrollApprovalsTable.put_item(approval_item)
         
-        messages.success(request, f"Payroll for {len(batch_data)} employees submitted to Super Admin for approval.")
+        messages.success(request, f"Payroll for {len(batch_data)} employees submitted. Status: {status}")
         return redirect('manage_payroll')
 
-class DownloadPayslipView(LoginRequiredMixin, View):
+class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'payslips'
     def get(self, request, month_year, emp_id=None):
         if emp_id and request.user.role == 'HR ADMIN':
              if not request.session.get('payroll_authenticated', False):
@@ -618,6 +646,14 @@ class DownloadPayslipView(LoginRequiredMixin, View):
             
         employee = EmployeesTable.get_item({'EmployeeID': target_emp_id})
         emp_name = f"{employee.get('FirstName', '')} {employee.get('LastName', '')}"
+        
+        org_id = employee.get('OrgID') if employee else None
+        org_name = "Lurnexa"
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                org_name = org.get('Name', 'Lurnexa')
         
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=letter)
@@ -647,8 +683,11 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         except: pass
 
         # 1. Header (Centered without logo)
-        header_text = "LURNEXA"
-        p.setFont(font_bold, 26)
+        header_text = org_name.upper()
+        header_font_size = 26
+        while header_font_size > 14 and p.stringWidth(header_text, font_bold, header_font_size) > (width - 100):
+            header_font_size -= 2
+        p.setFont(font_bold, header_font_size)
         p.setFillColorRGB(0.07, 0.2, 0.45) # Corporate Blue
         p.drawCentredString(width / 2, height - 75, header_text)
         
@@ -817,7 +856,8 @@ class DownloadPayslipView(LoginRequiredMixin, View):
         response['Content-Disposition'] = f'{disposition}; filename="Payslip_{month_year}.pdf"'
         return response
 
-class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
+class PayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'payroll'
     template_name = 'payroll/approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -827,9 +867,15 @@ class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
         filter_month = self.request.GET.get('month', '')
         filter_year = self.request.GET.get('year', '')
 
-        # Use consistent status from manage_payroll logic
-        pending = [r for r in all_requests if r.get('Status') == 'Pending Super Admin Approval']
-        history = [r for r in all_requests if r.get('Status') != 'Pending Super Admin Approval']
+        user_emp_id = self.request.user.employee_id
+        user_role = self.request.user.role
+
+        if user_role == 'Super admin':
+            pending = [r for r in all_requests if r.get('Status', '').startswith('Pending')]
+            history = [r for r in all_requests if not r.get('Status', '').startswith('Pending')]
+        else:
+            pending = [r for r in all_requests if r.get('Status', '').startswith('Pending') and r.get('ApproverID') == user_emp_id]
+            history = [r for r in all_requests if not r.get('Status', '').startswith('Pending') and (r.get('SubmittedByID') == user_emp_id or r.get('ProcessedBy') == user_emp_id)]
         
         if filter_month:
             history = [r for r in history if r.get('MonthYear', '').startswith(f"{filter_month}_")]
@@ -904,7 +950,8 @@ class PayrollApprovalView(SuperAdminRequiredMixin, TemplateView):
 
         return context
 
-class SetPayrollGenerationDateView(SuperAdminRequiredMixin, View):
+class SetPayrollGenerationDateView(FeatureRequiredMixin, SuperAdminRequiredMixin, View):
+    required_feature = 'payroll'
     def post(self, request):
         from core.dynamodb_service import SettingsTable
         
@@ -931,7 +978,8 @@ class SetPayrollGenerationDateView(SuperAdminRequiredMixin, View):
                 
         return redirect('payroll_approval_list')
 
-class UpdateESIConfigView(PayrollRequiredMixin, View):
+class UpdateESIConfigView(FeatureRequiredMixin, PayrollRequiredMixin, View):
+    required_feature = 'payroll'
     def post(self, request):
         from core.dynamodb_service import SettingsTable
         esi_amount = request.POST.get('esi_amount', '').strip()
@@ -954,7 +1002,8 @@ class UpdateESIConfigView(PayrollRequiredMixin, View):
         
         return redirect('manage_payroll')
 
-class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
+class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'payroll'
     def post(self, request, request_id):
         action = request.POST.get('action') # 'approve' or 'reject'
         approval_request = PayrollApprovalsTable.get_item({'RequestID': request_id})
@@ -963,15 +1012,44 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
             messages.error(request, "Approval request not found.")
             return redirect('payroll_approval_list')
             
+        user_emp_id = request.user.employee_id
+        user_role = request.user.role
+        current_approver_id = approval_request.get('ApproverID')
+        
+        if user_role != 'Super admin' and current_approver_id != user_emp_id:
+            messages.error(request, "You are not authorized to approve/reject this payroll request.")
+            return redirect('payroll_approval_list')
+            
+        org_id = getattr(request.user, 'org_id', None)
+        current_status = approval_request.get('Status', 'Pending')
+        
+        new_status, next_approver_id, is_final = resolve_workflow_step(
+            employee_id=approval_request.get('SubmittedByID'),
+            org_id=org_id,
+            current_status=current_status,
+            action=action,
+            request_type='payroll_approval'
+        )
+            
         if action == 'reject':
-            approval_request['Status'] = 'Rejected by Super Admin'
+            approval_request['Status'] = f'Rejected by {user_role}'
             approval_request['ProcessedAt'] = get_local_now().isoformat()
-            approval_request['ProcessedBy'] = request.user.employee_id
+            approval_request['ProcessedBy'] = user_emp_id
+            approval_request['ApproverID'] = None
             PayrollApprovalsTable.put_item(approval_request)
             messages.warning(request, "Payroll request has been rejected.")
             return redirect('payroll_approval_list')
             
         if action == 'approve':
+            if not is_final:
+                approval_request['Status'] = new_status
+                approval_request['ApproverID'] = next_approver_id
+                approval_request['ProcessedAt'] = get_local_now().isoformat()
+                approval_request['ProcessedBy'] = user_emp_id
+                PayrollApprovalsTable.put_item(approval_request)
+                messages.success(request, f"Payroll approved by you. Sent for next stage: {new_status}")
+                return redirect('payroll_approval_list')
+                
             batch_data = approval_request.get('BatchData', [])
             count = 0
             error_count = 0
@@ -986,10 +1064,6 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                     month_year = item['MonthYear']
                     
                     # 1. Create Payslip Record
-                    # Convert stringified decimals back to Decimal for put_item if necessary, 
-                    # but TableService/Boto3 usually handles strings ok if that's what's expected.
-                    # However, process_payroll_logic returns Decimals, so let's stick to that.
-                    
                     final_payslip = {k: Decimal(v) if k in ['NetPay', 'Basic', 'HRA', 'SpecialAllowance', 'PF', 'EmployerPF', 'EmployerEPS', 'EmployerEDLI', 'ESI', 'PT', 'TDS', 'Bonus', 'GrossSalary', 'TotalDeductions', 'AdjustedGross', 'LOPDeduction', 'IncrementAdded', 'BaseSalaryPA', 'NewSalaryPA'] else v for k, v in payslip_data.items()}
                     final_payslip.update({
                         'EmployeeID': emp_id,
@@ -1050,6 +1124,7 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
                     error_count += 1
             
             approval_request['Status'] = 'Approved'
+            approval_request['ApproverID'] = None
             approval_request['ProcessedAt'] = get_local_now().isoformat()
             approval_request['ProcessedBy'] = request.user.employee_id
             PayrollApprovalsTable.put_item(approval_request)
@@ -1059,8 +1134,16 @@ class ProcessPayrollApprovalView(SuperAdminRequiredMixin, View):
         
         return redirect('payroll_approval_list')
 
-class HistoricalPayrollView(HRRequiredMixin, TemplateView):
+class HistoricalPayrollView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'payroll'
     template_name = 'payroll/historical.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        is_super_admin = getattr(request.user, 'role', '') == 'Super admin'
+        user_permissions = getattr(request.user, 'permissions', [])
+        if not is_super_admin and 'historical_payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

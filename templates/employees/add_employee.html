@@ -346,11 +346,9 @@
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-lg bg-light border-0" name="department" required>
                                 <option value="" selected disabled>Select Department</option>
-                                <option value="Engineering">Engineering</option>
-                                <option value="Product">Product</option>
-                                <option value="Sales">Sales</option>
-                                <option value="HR ADMIN">HR ADMIN</option>
-                                <option value="Marketing">Marketing</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept.Name }}">{{ dept.Name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -405,6 +403,7 @@
                                 {% endfor %}
                             </select>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -567,11 +566,9 @@
                                 class="text-danger">*</span></label>
                         <select class="form-select form-select-lg bg-white border" name="department" required>
                             <option value="" selected disabled>Select Department</option>
-                            <option value="Engineering">Engineering</option>
-                            <option value="Product">Product</option>
-                            <option value="Sales">Sales</option>
-                            <option value="HR ADMIN">HR ADMIN</option>
-                            <option value="Marketing">Marketing</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept.Name }}">{{ dept.Name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">

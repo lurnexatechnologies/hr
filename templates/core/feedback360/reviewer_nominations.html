@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+
+{% block title %}Reviewer Nominations - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Reviewer Nominations</li>
+        </ol>
+    </nav>
+
+    <!-- Manager Workspace -->
+    {% if request.user.role == 'Manager' or request.user.role == 'Employee' or request.user.role == 'HR ADMIN' %}
+    <div class="row">
+        <!-- Nomination Form -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-user-plus text-primary me-2"></i>Nominate Reviewer</h5>
+                    <p class="text-muted small">Select a reviewer and map their relationship to the evaluatee.</p>
+                    
+                    <form method="POST" action="{% url 'reviewer_nominations' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Feedback Cycle</label>
+                            <select name="cycle_id" class="form-select bg-light border-0 py-2" required>
+                                <option value="" disabled selected>-- Select Cycle --</option>
+                                {% for cyc in cycles %}
+                                    <option value="{{ cyc.CycleID }}">{{ cyc.Name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">
+                                {% if request.user.role == 'Employee' %}Nominated Employee (Self){% else %}Target Employee / Subordinate{% endif %}
+                            </label>
+                            <select name="reviewee_id" class="form-select bg-light border-0 py-2" required>
+                                {% if request.user.role == 'Employee' %}
+                                    <option value="{{ request.user.employee_id }}" selected>{{ request.user.FirstName }} {{ request.user.LastName }}</option>
+                                {% else %}
+                                    <option value="" disabled selected>-- Select Target --</option>
+                                    {% for nom in nominations %}
+                                        <option value="{{ nom.Employee.EmployeeID }}">{{ nom.Employee.FirstName }} {{ nom.Employee.LastName }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Nominated Reviewer</label>
+                            <select name="reviewer_id" class="form-select bg-light border-0 py-2" required>
+                                <option value="" disabled selected>-- Select Colleague --</option>
+                                {% for emp in employees %}
+                                    {% if emp.EmployeeID != request.user.employee_id %}
+                                        <option value="{{ emp.EmployeeID }}">{{ emp.FirstName }} {{ emp.LastName }} ({{ emp.Designation }})</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-muted small fw-bold">Relationship Mapping</label>
+                            <select name="relationship" class="form-select bg-light border-0 py-2" required>
+                                <option value="Self">Self (Self Evaluation)</option>
+                                <option value="Peer">Peer / Colleague</option>
+                                <option value="DirectReport">Direct Report (Upward Feedback)</option>
+                                <option value="Manager">Manager (Reporting Manager)</option>
+                                <option value="Client">Client / External Partner</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" style="border-radius: 10px; background: linear-gradient(135deg, #4f46e5, #3b82f6); border: none;">
+                            <i class="fa-solid fa-paper-plane me-1"></i> Submit Nomination
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subordinates Nominees Tracking -->
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fa-solid fa-users text-primary me-2"></i>
+                        {% if request.user.role == 'Employee' %}My Nominated Reviewers{% else %}My Subordinate Nominees{% endif %}
+                    </h5>
+
+                    {% for item in nominations %}
+                        <div class="p-3 bg-light rounded-3 mb-3 border">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="fw-bold text-dark d-block fs-6">{{ item.Employee.FirstName }} {{ item.Employee.LastName }}</span>
+                                    <small class="text-muted">{{ item.Cycle.Name }}</small>
+                                </div>
+                                <span class="badge bg-white text-primary border fw-bold">{{ item.NominatedCount }} Nominated</span>
+                            </div>
+                            
+                            <!-- List of nominees -->
+                            <div class="table-responsive bg-white rounded-3 border">
+                                <table class="table table-hover align-middle mb-0 small">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th class="py-2">Nominee</th>
+                                            <th class="py-2">Relationship</th>
+                                            <th class="py-2">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for nominee in item.Nominees %}
+                                        <tr>
+                                            <td class="py-2 fw-semibold text-dark">{{ nominee.ReviewerName }}</td>
+                                            <td class="py-2 text-muted">{{ nominee.Relationship }}</td>
+                                            <td class="py-2">
+                                                <span class="badge bg-light {% if nominee.Status == 'Approved' %}text-success{% elif nominee.Status == 'Rejected' %}text-danger{% else %}text-dark{% endif %} border">{{ nominee.Status }}</span>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="3" class="text-center py-3 text-muted italic">No reviewers nominated yet. Use the left form to nominate.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-people-group fs-2 mb-3"></i>
+                            <p class="mb-0 small fw-medium">
+                                {% if request.user.role == 'Employee' %}No active cycle feedback nominations assigned to you.{% else %}No team subordinates found.{% endif %}
+                            </p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- HR Approval Workspace -->
+    {% if request.user.role == 'HR ADMIN' %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-4"><i class="fa-solid fa-users-gear text-indigo me-2"></i>Reviewer Nominations Approvals</h5>
+                    
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 py-3 small fw-bold">Evaluatee (Reviewee)</th>
+                                    <th class="border-0 py-3 small fw-bold">Nominated Reviewer</th>
+                                    <th class="border-0 py-3 small fw-bold">Relationship</th>
+                                    <th class="border-0 py-3 small fw-bold">Cycle</th>
+                                    <th class="border-0 py-3 small fw-bold text-end">HR Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for target in approvals_pending %}
+                                    {% for nominee in target.Nominees %}
+                                    <tr id="row_{{ nominee.AssignmentID }}">
+                                        <td class="py-3 fw-semibold text-dark">
+                                            {{ nominee.RevieweeName }}
+                                        </td>
+                                        <td class="py-3 text-dark font-medium">
+                                            {{ nominee.ReviewerName }}
+                                            <small class="text-muted d-block">{{ nominee.ReviewerRole }}</small>
+                                        </td>
+                                        <td class="py-3">
+                                            <span class="badge bg-light text-primary border">{{ nominee.Relationship }}</span>
+                                        </td>
+                                        <td class="py-3 text-muted small">
+                                            {{ target.Cycle.Name }}
+                                        </td>
+                                        <td class="py-3 text-end">
+                                            {% if nominee.Status == 'Pending Approval' %}
+                                                <button onclick="decideNomination('{{ nominee.AssignmentID }}', 'approve')" class="btn btn-success btn-sm rounded-pill px-3 fw-bold me-1">Approve</button>
+                                                <button onclick="decideNomination('{{ nominee.AssignmentID }}', 'reject')" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold">Reject</button>
+                                            {% else %}
+                                                <span class="badge bg-light text-success fw-bold border">{{ nominee.Status }}</span>
+                                                <button onclick="decideNomination('{{ nominee.AssignmentID }}', 'delete')" class="btn btn-link text-danger text-decoration-none small ms-2 p-0">Remove</button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="fa-regular fa-square-check fs-2 text-success mb-3 d-block"></i>
+                                        <p class="mb-0 small fw-medium">All nominations reviewed.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    function decideNomination(assignId, action) {
+        const formData = new FormData();
+        formData.append('action', action);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(`/okrs/360/nominations/${assignId}/approve/`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                if (action === 'delete') {
+                    document.getElementById(`row_${assignId}`).remove();
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(err => {
+            alert('Request failed. Please try again.');
+        });
+    }
+</script>
+{% endblock %}

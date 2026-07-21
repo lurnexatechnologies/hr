@@ -3,16 +3,17 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, ManagerRequiredMixin, ApprovedOnboardingMixin
+from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, ManagerRequiredMixin, ApprovedOnboardingMixin, FeatureRequiredMixin
 from core.dynamodb_service import UsersTable, EmployeesTable, LeaveRequestsTable, ReportingHierarchyTable, HolidaysTable
-from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now
+from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now, resolve_workflow_step
 from boto3.dynamodb.conditions import Key
 import datetime
 import uuid
 from django.core.files.storage import default_storage
 
 
-class AddHolidayView(HRRequiredMixin, View):
+class AddHolidayView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'holiday_calendar'
     def post(self, request):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot add holidays.")
@@ -56,7 +57,8 @@ class AddHolidayView(HRRequiredMixin, View):
         messages.success(request, f"Holiday '{name}' added successfully and notifications sent.")
         return redirect('company_calendar')
 
-class DeleteHolidayView(HRRequiredMixin, View):
+class DeleteHolidayView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'holiday_calendar'
     def get(self, request, holiday_id):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot delete holidays.")
@@ -65,7 +67,8 @@ class DeleteHolidayView(HRRequiredMixin, View):
         messages.success(request, "Holiday deleted.")
         return redirect('company_calendar')
 
-class EditHolidayView(HRRequiredMixin, View):
+class EditHolidayView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'holiday_calendar'
     def post(self, request, holiday_id):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot modify holidays.")
@@ -95,7 +98,8 @@ class EditHolidayView(HRRequiredMixin, View):
 
 import json
 
-class GlobalCalendarView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+class GlobalCalendarView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+    required_feature = 'holiday_calendar'
     template_name = 'leave/calendar.html'
 
     def get_context_data(self, **kwargs):
@@ -181,7 +185,8 @@ class GlobalCalendarView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateVi
         context['holidays'] = sorted_holidays
         return context
 
-class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
+class ApplyLeaveView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, View):
+    required_feature = 'leave_management'
     def get(self, request):
         if request.user.role == 'Super admin':
             messages.error(request, "Access Denied: Super admin cannot apply for leaves.")
@@ -223,6 +228,24 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         balance_co_effective = co_details['effective_balance']
         spent_co = co_details['spent_balance']
 
+        # Determine allowed leave types based on Organization settings
+        emp_type = 'Permanent'
+        if employee.get('EmploymentType') == 'Intern':
+            emp_type = 'Intern'
+        elif employee.get('EmploymentStatus') == 'Probation':
+            emp_type = 'Probation'
+
+        allowed_leave_types = None
+        org_id = employee.get('OrgID')
+        if org_id:
+            try:
+                from core.dynamodb_service import OrganizationsTable
+                org = OrganizationsTable.get_item({'OrgID': org_id})
+                if org and 'LeavePolicies' in org and emp_type in org['LeavePolicies']:
+                    allowed_leave_types = org['LeavePolicies'][emp_type].get('AllowedTypes')
+            except Exception as e:
+                print(f"Error fetching org policy in ApplyLeaveView: {e}")
+
         # Default balances if not set
         context = {
             'balance_pl': float(employee.get('Balance_PL') or 0.0) - pending_pl,
@@ -240,6 +263,7 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
             'parental_leave_type': parental_type,
             'gender': gender,
             'is_intern': employee.get('EmploymentType') == 'Intern',
+            'allowed_leave_types': allowed_leave_types,
             'has_marriage_leave': any(l.get('Type') == 'Marriage Leave' and l.get('Status') != 'Rejected' for l in existing_leaves) if not employee.get('AllowSecondMarriage') else False,
             'has_parental_leave': any((l.get('Type') == 'Maternity Leave' or l.get('Type') == 'Paternity Leave') and l.get('Status') != 'Rejected' for l in existing_leaves) if not employee.get('AllowSecondParental') else False
         }
@@ -259,9 +283,31 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         employee = EmployeesTable.get_item({'EmployeeID': user.employee_id})
         if employee:
             refresh_monthly_leaves(employee)
-            if employee.get('EmploymentType') == 'Intern' and leave_type != 'Unpaid Leave':
-                messages.error(request, "Interns can only apply for Unpaid Leave.")
-                return redirect('apply_leave')
+            emp_type = 'Permanent'
+            if employee.get('EmploymentType') == 'Intern':
+                emp_type = 'Intern'
+            elif employee.get('EmploymentStatus') == 'Probation':
+                emp_type = 'Probation'
+
+            allowed_types = None
+            org_id = employee.get('OrgID')
+            if org_id:
+                try:
+                    from core.dynamodb_service import OrganizationsTable
+                    org = OrganizationsTable.get_item({'OrgID': org_id})
+                    if org and 'LeavePolicies' in org and emp_type in org['LeavePolicies']:
+                        allowed_types = org['LeavePolicies'][emp_type].get('AllowedTypes')
+                except Exception as e:
+                    print(f"Error fetching org policy in ApplyLeaveView.post: {e}")
+
+            if allowed_types is not None:
+                if leave_type not in allowed_types:
+                    messages.error(request, f"Leave type '{leave_type}' is not allowed for your employment status.")
+                    return redirect('apply_leave')
+            else:
+                if employee.get('EmploymentType') == 'Intern' and leave_type != 'Unpaid Leave':
+                    messages.error(request, "Interns can only apply for Unpaid Leave.")
+                    return redirect('apply_leave')
             
         user_emp_id = user.employee_id
         
@@ -428,26 +474,15 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
                 return redirect('apply_leave')
 
         # --- Determine Approver based on Hierarchy ---
-        hierarchy = ReportingHierarchyTable.scan(
-            FilterExpression="EmployeeID = :eid",
-            ExpressionAttributeValues={":eid": user_emp_id}
+        org_id = getattr(request.user, 'org_id', None)
+        status, approver_id, is_final = resolve_workflow_step(
+            employee_id=user_emp_id,
+            org_id=org_id,
+            current_status=None,
+            action='submit',
+            request_type='leave_request'
         )
-        
-        approver_id = None
-        approver_role = 'HR ADMIN' # Default fallback
-        
-        if hierarchy:
-            approver_id = hierarchy[0].get('ManagerID')
-            # This is a bit expensive without GSI, but let's assume we can get it
-            # Actually, we can just set the role based on who it's assigned to
-            approver_role = 'Manager' if request.user.role == 'Employee' else 'HR ADMIN'
-        else:
-            # Fallback: Assign to ANY HR if no manager set
-            all_users = UsersTable.scan()
-            hr_users = [u for u in all_users if u.get('Role') == 'HR ADMIN']
-            if hr_users:
-                approver_id = hr_users[0].get('EmployeeID')
-                approver_role = 'HR ADMIN'
+        approver_role = 'HR ADMIN' if status == 'Pending HR ADMIN Approval' else 'Manager'
             
         # --- File Upload Processing ---
         uploaded_file = request.FILES.get('leave_document')
@@ -477,7 +512,7 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
             'Type': leave_type,
             'Reason': reason,
             'DaysCount': str(working_days),
-            'Status': 'Pending',
+            'Status': status,
             'IsHalfDay': is_half_day,
             'HalfDaySession': half_day_session,
             'ApproverRole': approver_role,
@@ -528,7 +563,8 @@ class ApplyLeaveView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         messages.success(request, f"Leave applied successfully for {working_days} working day(s) and sent for approval.")
         return redirect('leave_history')
 
-class LeaveHistoryView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+class LeaveHistoryView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+    required_feature = 'leave_management'
     template_name = 'leave/history.html'
 
     def get_context_data(self, **kwargs):
@@ -584,7 +620,8 @@ class LeaveHistoryView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView
         context['current_filter'] = current_filter
         return context
 
-class LeaveApprovalsView(ManagerRequiredMixin, TemplateView):
+class LeaveApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateView):
+    required_feature = 'leave_management'
     template_name = 'leave/approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -693,7 +730,8 @@ class LeaveApprovalsView(ManagerRequiredMixin, TemplateView):
         context['active_tab'] = self.request.GET.get('tab', 'pending')
         return context
 
-class ApproveLeaveView(ManagerRequiredMixin, View):
+class ApproveLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
+    required_feature = 'leave_management'
     def get(self, request, emp_id, leave_date):
         # Clean inputs
         emp_id = str(emp_id).strip()
@@ -710,9 +748,20 @@ class ApproveLeaveView(ManagerRequiredMixin, View):
             messages.info(request, "This leave request is already approved.")
             return redirect('leave_approvals')
 
-        # 2. Update Employee Balance
+        # Resolve next step based on HierarchyMode
+        org_id = getattr(request.user, 'org_id', None)
+        current_status = leave_request.get('Status', 'Pending')
+        new_status, next_approver_id, is_final = resolve_workflow_step(
+            employee_id=emp_id,
+            org_id=org_id,
+            current_status=current_status,
+            action='approve',
+            request_type='leave_request'
+        )
+
+        # 2. Update Employee Balance ONLY if final approved
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
-        if employee:
+        if new_status == 'Approved' and employee:
             leave_type = leave_request.get('Type', '')
             balance_field = None
             if 'Earned Leave' in leave_type or 'Paid Leave' in leave_type: balance_field = 'Balance_PL'
@@ -741,16 +790,30 @@ class ApproveLeaveView(ManagerRequiredMixin, View):
                     ExpressionAttributeValues={':val': str(new_balance)}
                 )
 
-        # 3. Mark Leave Request as Approved
+        # 3. Update Leave Request Status & Next Approver
+        if next_approver_id:
+            update_expr = "SET #s = :val, ProcessedBy = :pb, ProcessedAt = :d, ApproverID = :approver, ApproverRole = :ar"
+            expr_vals = {
+                ':val': new_status,
+                ':pb': request.user.employee_id,
+                ':d': get_local_now().isoformat(),
+                ':approver': next_approver_id,
+                ':ar': 'HR ADMIN' if new_status == 'Pending HR ADMIN Approval' else 'Manager'
+            }
+        else:
+            update_expr = "SET #s = :val, ProcessedBy = :pb, ProcessedAt = :d, ApproverRole = :ar REMOVE ApproverID"
+            expr_vals = {
+                ':val': new_status,
+                ':pb': request.user.employee_id,
+                ':d': get_local_now().isoformat(),
+                ':ar': 'HR ADMIN' if new_status == 'Pending HR ADMIN Approval' else 'Manager'
+            }
+
         LeaveRequestsTable.update_item(
             Key={'EmployeeID': emp_id, 'LeaveDate': leave_date},
-            UpdateExpression="SET #s = :val, ProcessedBy = :pb, ProcessedAt = :d",
+            UpdateExpression=update_expr,
             ExpressionAttributeNames={'#s': 'Status'},
-            ExpressionAttributeValues={
-                ':val': 'Approved',
-                ':pb': request.user.employee_id,
-                ':d': get_local_now().isoformat()
-            }
+            ExpressionAttributeValues=expr_vals
         )
         
         # --- Send Notification to Employee ---
@@ -759,16 +822,29 @@ class ApproveLeaveView(ManagerRequiredMixin, View):
             leave_type = leave_request.get('Type', 'Leave')
             end_date = leave_request.get('EndDate', leave_date)
             
+            if new_status == 'Approved':
+                title = "Leave Approved"
+                message = f"Your {leave_type} leave from {leave_date} has been fully approved."
+                email_subject = "Leave Request Approved"
+                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been APPROVED.\n\nBest regards,\nLurnexa HR Admin"
+                color = 'success'
+            else:
+                title = f"Leave Approved: {new_status}"
+                message = f"Your {leave_type} leave request from {leave_date} has been approved and moved to the next stage."
+                email_subject = "Leave Request Approved - Next Stage"
+                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been approved and forwarded to: {new_status}.\n\nBest regards,\nLurnexa HR Admin"
+                color = 'primary'
+
             print(f"DEBUG: Calling send_notification for {emp_id} | Email: {employee.get('Email') if employee else 'NONE'} | Type: {leave_type}")
             send_notification(
                 employee_id=emp_id,
-                title="Leave Approved",
-                message=f"Your {leave_type} leave from {leave_date} has been approved.",
+                title=title,
+                message=message,
                 n_type='Leave',
                 icon='fa-calendar-check',
-                color='success',
-                email_subject="Leave Request Approved",
-                email_body=f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been APPROVED.\n\nBest regards,\nLurnexa HR Admin"
+                color=color,
+                email_subject=email_subject,
+                email_body=email_body
             )
             print(f"DEBUG: send_notification call finished for {emp_id}")
         except Exception as e:
@@ -776,10 +852,11 @@ class ApproveLeaveView(ManagerRequiredMixin, View):
             import traceback
             traceback.print_exc()
 
-        messages.success(request, "Leave request approved and balance updated.")
+        messages.success(request, f"Leave request approved. Current status: {new_status}")
         return redirect('leave_approvals')
 
-class RejectLeaveView(ManagerRequiredMixin, View):
+class RejectLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
+    required_feature = 'leave_management'
     def get(self, request, emp_id, leave_date):
         # Clean inputs
         emp_id = str(emp_id).strip()
@@ -819,7 +896,8 @@ class RejectLeaveView(ManagerRequiredMixin, View):
         messages.error(request, "Leave request rejected.")
         return redirect('leave_approvals')
 
-class AdjustLeaveBalanceView(HRRequiredMixin, View):
+class AdjustLeaveBalanceView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'leave_management'
     def post(self, request, emp_id):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot adjust leave balances.")
@@ -888,7 +966,8 @@ class AdjustLeaveBalanceView(HRRequiredMixin, View):
         return redirect('employee_profile', emp_id=emp_id)
 
 
-class EncashEarnedLeaveView(HRRequiredMixin, View):
+class EncashEarnedLeaveView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'leave_management'
     def post(self, request, emp_id):
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot process leave encashments.")

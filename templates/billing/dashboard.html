@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Subscription & Billing - {{ org.Name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .billing-card {
+        background: white;
+        border-radius: 24px;
+        border: 1px solid #e2e8f0;
+        padding: 32px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.02);
+    }
+    .pricing-card {
+        border: 2px solid #e2e8f0;
+        border-radius: 20px;
+        transition: all 0.3s ease;
+        overflow: hidden;
+        background: white;
+    }
+    .pricing-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    .pricing-card.active {
+        border-color: #6366f1;
+        background-color: #f8fafc;
+    }
+    .progress-bar-glow {
+        box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+    .invoice-row {
+        transition: background 0.2s;
+    }
+    .invoice-row:hover {
+        background-color: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 1200px;">
+    <!-- Title Section -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">Subscription & Billing</h2>
+            <p class="text-muted mb-0">Manage plan subscriptions, usage limits, and transaction invoices.</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left Column: Active Subscription & Limits -->
+        <div class="col-lg-4">
+            <div class="billing-card h-100 d-flex flex-column justify-content-between">
+                <div>
+                    <span class="badge bg-indigo-soft text-indigo rounded-pill px-3 py-2 mb-3 text-uppercase fw-bold" style="font-size: 0.75rem;">
+                        Active Subscription
+                    </span>
+                    <h3 class="fw-bold text-dark text-capitalize mb-2">{{ plan }} Plan</h3>
+                    <p class="text-muted small mb-4">Your next renewal date is 1 year from now.</p>
+                    
+                    <hr class="my-4 opacity-10">
+
+                    <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-users-gear me-2 text-indigo"></i>Employee Allocation</h5>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted small">Active Employees</span>
+                        <span class="fw-bold text-dark small">{{ current_employees }} / {{ max_employees }}</span>
+                    </div>
+                    <div class="progress rounded-pill mb-3" style="height: 10px; background-color: #f1f5f9;">
+                        <div class="progress-bar progress-bar-glow rounded-pill bg-indigo dynamic-progress-bar" role="progressbar" 
+                             data-width="{{ usage_pct }}" aria-valuenow="{{ usage_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <p class="text-muted" style="font-size: 0.75rem;">
+                        {% if usage_pct >= 90 %}
+                            <span class="text-danger fw-bold"><i class="fa-solid fa-triangle-exclamation me-1"></i>Running out of seats!</span> Contact us to upgrade your plan.
+                        {% else %}
+                            You are utilizing {{ usage_pct }}% of your plan's employee seats.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Choose/Upgrade Plan -->
+        <div class="col-lg-8">
+            <div class="billing-card h-100">
+                <h4 class="fw-bold text-dark mb-4">Available Tiers & Upgrades</h4>
+                <div class="row g-3">
+                    <!-- Basic Plan Card -->
+                    <div class="col-md-6">
+                        <div class="pricing-card p-4 h-100 d-flex flex-column justify-content-between {% if plan == 'basic' %}active{% endif %}">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="fw-bold text-dark mb-0">Basic</h5>
+                                    {% if plan == 'basic' %}<span class="badge bg-indigo text-white rounded-pill px-2 py-1 small">Current Plan</span>{% endif %}
+                                </div>
+                                <p class="text-muted small mb-3">Strong HR foundation for growing startups.</p>
+                                <ul class="list-unstyled text-muted small mb-4">
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Up to 25 Employees</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Self-Onboarding & Directory</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Leave & Attendance</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Holiday Calendar</li>
+                                </ul>
+                            </div>
+                            {% if plan != 'basic' %}
+                            <a href="mailto:support@lurnexa.com?subject=Plan%20Inquiry%20-%20Basic&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Basic%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
+                            {% else %}
+                            <button class="btn btn-indigo w-100 rounded-pill" disabled>Active</button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Elite Plan Card -->
+                    <div class="col-md-6">
+                        <div class="pricing-card p-4 h-100 d-flex flex-column justify-content-between {% if plan == 'elite' %}active{% endif %}">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="fw-bold text-dark mb-0">Elite</h5>
+                                    {% if plan == 'elite' %}<span class="badge bg-indigo text-white rounded-pill px-2 py-1 small">Current Plan</span>{% endif %}
+                                </div>
+                                <p class="text-muted small mb-3">Advanced workflows and complete team tracking.</p>
+                                <ul class="list-unstyled text-muted small mb-4">
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Up to 100 Employees</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Performance management & OKRs</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Asset allocation & Requests</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Workflow Approvals</li>
+                                </ul>
+                            </div>
+                            {% if plan != 'elite' %}
+                            <a href="mailto:support@lurnexa.com?subject=Plan%20Inquiry%20-%20Elite&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Elite%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
+                            {% else %}
+                            <button class="btn btn-indigo w-100 rounded-pill" disabled>Active</button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Professional Plan Card -->
+                    <div class="col-md-6">
+                        <div class="pricing-card p-4 h-100 d-flex flex-column justify-content-between {% if plan == 'professional' %}active{% endif %}">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="fw-bold text-dark mb-0">Professional</h5>
+                                    {% if plan == 'professional' %}<span class="badge bg-indigo text-white rounded-pill px-2 py-1 small">Current Plan</span>{% endif %}
+                                </div>
+                                <p class="text-muted small mb-3">Complete compliance & integrated payroll automation.</p>
+                                <ul class="list-unstyled text-muted small mb-4">
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Unlimited Employees</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Automated Payroll & Payslips</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Provident Fund Management</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Expense Claim & Approvals</li>
+                                </ul>
+                            </div>
+                            {% if plan != 'professional' %}
+                            <a href="mailto:support@lurnexa.com?subject=Plan%20Inquiry%20-%20Professional&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Professional%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
+                            {% else %}
+                            <button class="btn btn-indigo w-100 rounded-pill" disabled>Active</button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment History / Invoices -->
+    <div class="billing-card mt-4">
+        <h4 class="fw-bold text-dark mb-4">Payment Invoices</h4>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr class="text-muted small uppercase">
+                        <th>Invoice Date</th>
+                        <th>Plan</th>
+                        <th>Amount</th>
+                        <th>Reference ID</th>
+                        <th>Status</th>
+                        <th>Gateway</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr class="invoice-row">
+                        <td class="fw-semibold text-dark">{{ inv.PeriodStart|slice:":10" }}</td>
+                        <td><span class="badge bg-light text-dark rounded-pill text-capitalize px-2 py-1">{{ inv.Plan }}</span></td>
+                        <td class="fw-bold text-dark">₹{{ inv.DisplayAmount }}</td>
+                        <td class="text-muted small">{{ inv.TransactionID }}</td>
+                        <td><span class="badge bg-success-soft text-success rounded-pill px-2 py-1"><i class="fa-solid fa-circle-check me-1"></i>Paid</span></td>
+                        <td>{{ inv.Gateway }}</td>
+                        <td>
+                            <a href="{% url 'billing_invoice_detail' inv.PeriodStart %}" target="_blank" class="btn btn-sm btn-light rounded-pill">
+                                <i class="fa-solid fa-file-invoice me-1"></i>View
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="fa-solid fa-file-invoice-dollar fs-1 d-block mb-2 text-muted-soft"></i>
+                            No payments processed yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.dynamic-progress-bar').forEach(bar => {
+            bar.style.width = bar.dataset.width + '%';
+        });
+    });
+</script>
+{% endblock %}

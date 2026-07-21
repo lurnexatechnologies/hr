@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load feature_tags %}
 
 {% block title %}{% if request.user.role == 'Super admin' %}Super Admin Dashboard{% else %}HR Dashboard{% endif %} - Lurnexa{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
@@ -94,8 +95,14 @@
     </div>
 </div>
 
+{% has_feature 'employee_directory' as show_directory_stats %}
+{% has_feature 'attendance' as show_attendance_stats %}
+{% has_feature 'leave_management' as show_leave_stats %}
+{% has_feature 'wfh_requests' as show_wfh_stats %}
+
 <!-- Stats Row -->
 <div class="row g-3 mb-4">
+    {% if show_directory_stats %}
     <div class="col-6 col-lg-6 col-xl-3">
         <div class="card h-100 shadow-sm border-0 stats-card mb-0">
             <div class="card-body stats-card-body p-3">
@@ -111,6 +118,9 @@
             </div>
         </div>
     </div>
+    {% endif %}
+    
+    {% if show_attendance_stats %}
     <div class="col-6 col-lg-6 col-xl-3">
         <div class="card h-100 shadow-sm border-0 stats-card mb-0">
             <div class="card-body stats-card-body p-3">
@@ -126,6 +136,9 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
+    {% if show_leave_stats %}
     <div class="col-6 col-lg-6 col-xl-3">
         <div class="card h-100 shadow-sm border-0 stats-card mb-0">
             <div class="card-body stats-card-body p-3">
@@ -141,6 +154,9 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
+    {% if show_wfh_stats %}
     <div class="col-6 col-lg-6 col-xl-3">
         <div class="card h-100 shadow-sm border-0 stats-card mb-0">
             <div class="card-body stats-card-body p-3">
@@ -156,6 +172,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <div class="row">
@@ -164,19 +181,28 @@
         <div class="card h-100 shadow-sm border-0">
             <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-dark">Analytics Dashboard</h5>
+                {% has_feature 'attendance' as show_att_chart %}
+                {% has_feature 'leave_management' as show_leave_chart %}
+                {% has_feature 'payroll' as show_payroll_chart %}
                 <ul class="nav nav-pills card-header-pills" id="chartTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active btn-sm py-1 px-3" id="dept-tab" data-bs-toggle="pill" data-bs-target="#dept-tab-pane" type="button" role="tab" aria-controls="dept-tab-pane" aria-selected="true">Departments</button>
                     </li>
+                    {% if show_att_chart %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link btn-sm py-1 px-3" id="attendance-tab" data-bs-toggle="pill" data-bs-target="#attendance-tab-pane" type="button" role="tab" aria-controls="attendance-tab-pane" aria-selected="false">Attendance Trend</button>
                     </li>
+                    {% endif %}
+                    {% if show_leave_chart %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link btn-sm py-1 px-3" id="leave-tab" data-bs-toggle="pill" data-bs-target="#leave-tab-pane" type="button" role="tab" aria-controls="leave-tab-pane" aria-selected="false">Leaves</button>
                     </li>
+                    {% endif %}
+                    {% if show_payroll_chart and 'payroll_access' in request.user.permissions %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link btn-sm py-1 px-3" id="payroll-tab" data-bs-toggle="pill" data-bs-target="#payroll-tab-pane" type="button" role="tab" aria-controls="payroll-tab-pane" aria-selected="false">Payroll Payout</button>
                     </li>
+                    {% endif %}
                 </ul>
             </div>
             <div class="card-body">
@@ -186,21 +212,27 @@
                             <canvas id="deptChart"></canvas>
                         </div>
                     </div>
+                    {% if show_att_chart %}
                     <div class="tab-pane fade" id="attendance-tab-pane" role="tabpanel" aria-labelledby="attendance-tab" tabindex="0">
                         <div class="chart-container" style="position: relative; height: 320px; width: 100%;">
                             <canvas id="attendanceChart"></canvas>
                         </div>
                     </div>
+                    {% endif %}
+                    {% if show_leave_chart %}
                     <div class="tab-pane fade" id="leave-tab-pane" role="tabpanel" aria-labelledby="leave-tab" tabindex="0">
                         <div class="chart-container" style="position: relative; height: 320px; width: 100%;">
                             <canvas id="leaveChart"></canvas>
                         </div>
                     </div>
+                    {% endif %}
+                    {% if show_payroll_chart and 'payroll_access' in request.user.permissions %}
                     <div class="tab-pane fade" id="payroll-tab-pane" role="tabpanel" aria-labelledby="payroll-tab" tabindex="0">
                         <div class="chart-container" style="position: relative; height: 320px; width: 100%;">
                             <canvas id="payrollChart"></canvas>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -364,94 +396,106 @@
     const attendanceValues = JSON.parse(document.getElementById('attendance-values').textContent || '[]');
 
     // 1. Dept Chart (Bar)
-    const ctxDept = document.getElementById('deptChart').getContext('2d');
-    new Chart(ctxDept, {
-        type: 'bar',
-        data: {
-            labels: deptLabels,
-            datasets: [{
-                label: 'Employees',
-                data: deptValues,
-                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'],
-                borderRadius: 8
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#f0f2f5' }, ticks: { stepSize: 1 } },
-                x: { grid: { display: false } }
+    const ctxDeptEl = document.getElementById('deptChart');
+    if (ctxDeptEl) {
+        const ctxDept = ctxDeptEl.getContext('2d');
+        new Chart(ctxDept, {
+            type: 'bar',
+            data: {
+                labels: deptLabels,
+                datasets: [{
+                    label: 'Employees',
+                    data: deptValues,
+                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'],
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#f0f2f5' }, ticks: { stepSize: 1 } },
+                    x: { grid: { display: false } }
+                }
             }
-        }
-    });
+        });
+    }
 
     // 2. Attendance Chart (Line)
-    const ctxAtt = document.getElementById('attendanceChart').getContext('2d');
-    new Chart(ctxAtt, {
-        type: 'line',
-        data: {
-            labels: attendanceLabels,
-            datasets: [{
-                label: 'Present count',
-                data: attendanceValues,
-                borderColor: '#1cc88a',
-                backgroundColor: 'rgba(28, 200, 138, 0.1)',
-                fill: true,
-                tension: 0.3,
-                borderWidth: 3,
-                pointRadius: 4,
-                pointBackgroundColor: '#1cc88a'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#f0f2f5' }, ticks: { stepSize: 1 } },
-                x: { grid: { display: false } }
+    const ctxAttEl = document.getElementById('attendanceChart');
+    if (ctxAttEl) {
+        const ctxAtt = ctxAttEl.getContext('2d');
+        new Chart(ctxAtt, {
+            type: 'line',
+            data: {
+                labels: attendanceLabels,
+                datasets: [{
+                    label: 'Present count',
+                    data: attendanceValues,
+                    borderColor: '#1cc88a',
+                    backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#1cc88a'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#f0f2f5' }, ticks: { stepSize: 1 } },
+                    x: { grid: { display: false } }
+                }
             }
-        }
-    });
+        });
+    }
 
     // 3. Leave Chart (Doughnut)
-    const ctxLeave = document.getElementById('leaveChart').getContext('2d');
-    new Chart(ctxLeave, {
-        type: 'doughnut',
-        data: {
-            labels: leaveLabels.length ? leaveLabels : ['No leaves approved yet'],
-            datasets: [{
-                data: leaveValues.length ? leaveValues : [1],
-                backgroundColor: leaveLabels.length ? ['#f6c23e', '#e74a3b', '#36b9cc', '#4e73df'] : ['#e3e6f0'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'right' } }
-        }
-    });
+    const ctxLeaveEl = document.getElementById('leaveChart');
+    if (ctxLeaveEl) {
+        const ctxLeave = ctxLeaveEl.getContext('2d');
+        new Chart(ctxLeave, {
+            type: 'doughnut',
+            data: {
+                labels: leaveLabels.length ? leaveLabels : ['No leaves approved yet'],
+                datasets: [{
+                    data: leaveValues.length ? leaveValues : [1],
+                    backgroundColor: leaveLabels.length ? ['#f6c23e', '#e74a3b', '#36b9cc', '#4e73df'] : ['#e3e6f0'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right' } }
+            }
+        });
+    }
 
     // 4. Payroll Chart (Polar Area)
-    const ctxPayroll = document.getElementById('payrollChart').getContext('2d');
-    new Chart(ctxPayroll, {
-        type: 'polarArea',
-        data: {
-            labels: payrollLabels,
-            datasets: [{
-                data: payrollValues,
-                backgroundColor: ['rgba(78, 115, 223, 0.7)', 'rgba(28, 200, 138, 0.7)', 'rgba(54, 185, 204, 0.7)', 'rgba(246, 194, 62, 0.7)', 'rgba(231, 74, 59, 0.7)'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'right' } }
-        }
-    });
+    const ctxPayrollEl = document.getElementById('payrollChart');
+    if (ctxPayrollEl) {
+        const ctxPayroll = ctxPayrollEl.getContext('2d');
+        new Chart(ctxPayroll, {
+            type: 'polarArea',
+            data: {
+                labels: payrollLabels,
+                datasets: [{
+                    data: payrollValues,
+                    backgroundColor: ['rgba(78, 115, 223, 0.7)', 'rgba(28, 200, 138, 0.7)', 'rgba(54, 185, 204, 0.7)', 'rgba(246, 194, 62, 0.7)', 'rgba(231, 74, 59, 0.7)'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right' } }
+            }
+        });
+    }
 </script>
 {% endblock %}

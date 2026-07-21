@@ -147,6 +147,26 @@
                                             <span class="fw-bold text-dark">{{ employee.Gender|default:"-" }}</span>
                                         </div>
                                     </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded-4 border-0 h-100 d-flex flex-column justify-content-between">
+                                            <small class="text-muted d-block smaller fw-bold mb-1">SHOW BIRTHDAY DATE</small>
+                                            <div class="d-flex align-items-center mt-1">
+                                                {% if request.user.employee_id == employee.EmployeeID or request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+                                                    <form method="POST" action="{% url 'toggle_birthday_visibility' employee.EmployeeID %}" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <div class="btn-group btn-group-sm rounded-pill overflow-hidden border" role="group" style="background: white;">
+                                                            <button type="submit" name="show_birthday" value="on" class="btn btn-sm py-1 px-3 fw-bold {% if employee.ShowBirthday != 'off' %}btn-primary text-white{% else %}btn-light text-muted{% endif %}" style="font-size: 0.75rem;">On</button>
+                                                            <button type="submit" name="show_birthday" value="off" class="btn btn-sm py-1 px-3 fw-bold {% if employee.ShowBirthday == 'off' %}btn-primary text-white{% else %}btn-light text-muted{% endif %}" style="font-size: 0.75rem;">Off</button>
+                                                        </div>
+                                                    </form>
+                                                {% else %}
+                                                    <span class="badge {% if employee.ShowBirthday != 'off' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill px-3 py-2 smaller">
+                                                        {% if employee.ShowBirthday != 'off' %}On{% else %}Off{% endif %}
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

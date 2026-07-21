@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Competency Library - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Competency Library</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Add Competency Form -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-brain text-indigo me-2" style="color: #6366f1;"></i>Add Competency</h5>
+                    <p class="text-muted small">Configure a core behavioral competency that employees will be evaluated against.</p>
+                    
+                    <form method="POST" action="{% url 'feedback_competencies' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Competency Name</label>
+                            <input type="text" name="name" class="form-control bg-light border-0 py-2" placeholder="e.g. Communication" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Description</label>
+                            <textarea name="description" class="form-control bg-light border-0 py-2" rows="3" placeholder="Define this competency..." required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Default Weight (1-100)</label>
+                            <input type="number" name="weight" min="1" max="100" class="form-control bg-light border-0 py-2" value="10" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Behavior Indicators (Comma Separated)</label>
+                            <textarea name="indicators" class="form-control bg-light border-0 py-2" rows="3" placeholder="e.g. Listens actively, Speaks clearly, Writes concise emails"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" style="border-radius: 10px; background: linear-gradient(135deg, #4f46e5, #3b82f6); border: none;">
+                            <i class="fa-solid fa-plus me-1"></i> Add Competency
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Competency List -->
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold mb-0"><i class="fa-solid fa-list-check text-indigo me-2" style="color: #6366f1;"></i>Configured Competencies</h5>
+                        <span class="badge bg-light text-dark fw-bold border-0" style="padding: 6px 12px; border-radius: 8px;">
+                            {{ competencies|length }} Total
+                        </span>
+                    </div>
+
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 small fw-bold py-3">Competency</th>
+                                    <th class="border-0 small fw-bold py-3">Description</th>
+                                    <th class="border-0 small fw-bold py-3">Weight</th>
+                                    <th class="border-0 small fw-bold py-3">Indicators</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for comp in competencies %}
+                                <tr>
+                                    <td class="py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="icon-sm bg-indigo-light rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background-color: #f3e8ff;">
+                                                <i class="fa-solid fa-brain text-indigo" style="color: #a855f7;"></i>
+                                            </div>
+                                            <span class="fw-semibold text-dark">{{ comp.Name }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 text-muted small" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ comp.Description }}
+                                    </td>
+                                    <td class="py-3 fw-bold text-dark">
+                                        {{ comp.Weight }}%
+                                    </td>
+                                    <td class="py-3">
+                                        {% for indicator in comp.BehaviorIndicators %}
+                                            <span class="badge bg-light text-dark border small mb-1 d-inline-block">{{ indicator }}</span>
+                                        {% empty %}
+                                            <span class="text-muted small italic">None configured</span>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-brain fs-2 mb-3 d-block text-muted"></i>
+                                        <p class="mb-0 small fw-medium">No competencies created yet.</p>
+                                        <p class="text-muted small mb-0">Define organizational expectations in the left panel.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

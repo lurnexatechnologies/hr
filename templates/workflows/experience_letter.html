@@ -86,12 +86,12 @@
     <div class="letter-container">
         <div class="header">
             <div style="display: inline-block; vertical-align: middle; text-align: right;">
-                <span class="company-name" style="vertical-align: middle;">LURNEXA</span>
+                <span class="company-name" style="vertical-align: middle;">{{ org_name }}</span>
             </div>
             <div class="company-address" style="margin-top: 5px;">
                 123 Business Avenue, Tech Hub<br>
                 Software Park, Hyderabad - 500081<br>
-                contact@lurnexa.com | www.lurnexa.com
+                contact@{{ org_name|lower }}.com | www.{{ org_name|lower }}.com
             </div>
         </div>
 
@@ -102,7 +102,7 @@
         </div>
 
         <div class="content">
-            <p>This is to certify that <strong>{% if employee.Gender|lower == 'male' %}Mr.{% elif employee.Gender|lower == 'female' %}Ms.{% else %}Mr./Ms.{% endif %} {{ employee.FirstName }} {{ employee.LastName }}</strong> was employed with <strong>Lurnexa</strong>. {% if employee.Gender|lower == 'male' %}He{% elif employee.Gender|lower == 'female' %}She{% else %}He/She{% endif %} served the organization from <strong>{{ joined_date_fmt }}</strong> to <strong>{{ lwd_fmt }}</strong>.</p>
+            <p>This is to certify that <strong>{% if employee.Gender|lower == 'male' %}Mr.{% elif employee.Gender|lower == 'female' %}Ms.{% else %}Mr./Ms.{% endif %} {{ employee.FirstName }} {{ employee.LastName }}</strong> was employed with <strong>{{ org_name }}</strong>. {% if employee.Gender|lower == 'male' %}He{% elif employee.Gender|lower == 'female' %}She{% else %}He/She{% endif %} served the organization from <strong>{{ joined_date_fmt }}</strong> to <strong>{{ lwd_fmt }}</strong>.</p>
 
             <p>During {% if employee.Gender|lower == 'male' %}his{% elif employee.Gender|lower == 'female' %}her{% else %}his/her{% endif %} tenure with us, {% if employee.Gender|lower == 'male' %}Mr.{% elif employee.Gender|lower == 'female' %}Ms.{% else %}Mr./Ms.{% endif %} {{ employee.FirstName }} {{ employee.LastName }} was designated as <strong>{{ employee.Designation }}</strong> in the <strong>{{ employee.Department }}</strong> department. Throughout {% if employee.Gender|lower == 'male' %}his{% elif employee.Gender|lower == 'female' %}her{% else %}his/her{% endif %} employment, {% if employee.Gender|lower == 'male' %}he{% elif employee.Gender|lower == 'female' %}she{% else %}he/she{% endif %} demonstrated outstanding professionalism, dedication, and a strong work ethic. {% if employee.Gender|lower == 'male' %}His{% elif employee.Gender|lower == 'female' %}Her{% else %}His/Her{% endif %} contributions have been highly valued by the team and management alike.</p>
 
@@ -112,7 +112,7 @@
         </div>
 
         <div class="closing">
-            For <strong>Lurnexa</strong>,
+            For <strong>{{ org_name }}</strong>,
         </div>
 
         <div class="signature-section">
@@ -125,7 +125,7 @@
             {% endif %}
             <div class="signature-line"></div>
             <div class="signatory-name">Human Resources Department</div>
-            <div class="signatory-title">Lurnexa HR Management</div>
+            <div class="signatory-title">{{ org_name }} HR Management</div>
         </div>
 
         <div class="footer">

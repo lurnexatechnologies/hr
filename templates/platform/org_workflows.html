@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Departments & Workflows - {{ org.Name }} - Lurnexa{% endblock %}
+{% block nav_platform_orgs %}{% if request.user.role == 'Platform Admin' %}active{% endif %}{% endblock %}
+{% block nav_workflows %}{% if request.user.role == 'Super admin' %}active{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --platform-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        --purple-glow: rgba(124, 58, 237, 0.15);
+    }
+
+    .org-header {
+        background: var(--platform-gradient);
+        border-radius: 20px;
+        padding: 30px;
+        color: white;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 25px rgba(79, 70, 229, 0.12);
+    }
+
+    .card-custom {
+        border: none;
+        border-radius: 20px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+        margin-bottom: 30px;
+        overflow: hidden;
+    }
+
+    .card-header-custom {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 20px 24px;
+        font-weight: 700;
+        color: #1e1b4b;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .step-badge {
+        background-color: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        padding: 8px 16px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        position: relative;
+        transition: all 0.2s;
+    }
+
+    .step-badge:hover {
+        background-color: #fee2e2;
+        color: #ef4444;
+        border-color: #fca5a5;
+        cursor: pointer;
+    }
+
+    .step-arrow {
+        color: #cbd5e1;
+        font-size: 1.1rem;
+        margin: 0 8px;
+        align-self: center;
+    }
+
+    .workflow-chain-container {
+        min-height: 56px;
+        border: 2px dashed #cbd5e1;
+        border-radius: 16px;
+        padding: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        background-color: #fafafa;
+        align-items: center;
+    }
+
+    .role-section-title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-action-custom {
+        border-radius: 12px;
+        padding: 8px 16px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .btn-action-custom:hover {
+        transform: translateY(-1px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb & Navigation -->
+    {% if request.user.role == 'Platform Admin' %}
+    <div class="mb-4">
+        <a href="{% url 'platform_org_list' %}" class="btn btn-outline-secondary rounded-pill px-3">
+            <i class="fa-solid fa-arrow-left me-1"></i> Back to Organizations
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Header Details -->
+    <div class="org-header d-flex justify-content-between align-items-center">
+        <div>
+            <span class="badge text-uppercase bg-white text-indigo fw-bold mb-2 px-3 py-1.5 rounded-pill">{{ org.Plan }} Plan</span>
+            <h1 class="h3 fw-bold mb-1">{{ org.Name }}</h1>
+            <p class="mb-0 opacity-75 small"><i class="fa-solid fa-id-card me-1"></i> Org ID: <strong>{{ org.OrgID }}</strong></p>
+        </div>
+        {% if request.user.role == 'Platform Admin' %}
+        <div class="text-end">
+            <a href="{% url 'platform_edit_org' org.OrgID %}" class="btn btn-light rounded-pill px-4 fw-semibold text-indigo">
+                <i class="fa-solid fa-gear me-1"></i> Settings
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Alert Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show rounded-4 mb-4 shadow-sm" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Left: Department Management -->
+        <div class="col-lg-4">
+            <div class="card-custom">
+                <div class="card-header-custom">
+                    <span><i class="fa-solid fa-sitemap me-2 text-indigo"></i>Manage Departments</span>
+                </div>
+                <div class="card-body p-4">
+                    {% if not is_platform_admin %}
+                    <!-- Create Department Form -->
+                    <form method="post" class="mb-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_department">
+                        <div class="mb-3">
+                            <label class="form-label">Department Name</label>
+                            <input type="text" name="department_name" class="form-control" placeholder="e.g. Customer Support" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description (Optional)</label>
+                            <textarea name="department_desc" class="form-control" rows="2" placeholder="Brief details about department operations..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-indigo w-100 rounded-pill py-2">
+                            <i class="fa-solid fa-plus me-1"></i> Add Department
+                        </button>
+                    </form>
+
+                    <hr class="my-4 opacity-10">
+                    {% endif %}
+
+                    <!-- Departments List -->
+                    <h6 class="fw-bold text-dark mb-3">Existing Departments</h6>
+                    {% if departments %}
+                        <div class="list-group rounded-3">
+                            {% for dept in departments %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center border-0 border-bottom px-2 py-3 bg-transparent">
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ dept.Name }}</div>
+                                        <div class="text-muted small">{{ dept.Description|default:"No description" }}</div>
+                                    </div>
+                                    {% if not is_platform_admin %}
+                                    <form method="post" onsubmit="return confirm('Are you sure you want to delete this department?');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_department">
+                                        <input type="hidden" name="department_id" value="{{ dept.DepartmentID }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 rounded-circle" title="Delete Department">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4 bg-light rounded-4">
+                            <i class="fa-solid fa-folder-open text-muted fs-3 mb-2 d-block"></i>
+                            <span class="text-muted small">No departments created yet.</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Custom Workflows Configuration -->
+        <div class="col-lg-8">
+            <form method="post" id="workflowForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_workflows">
+
+                <!-- Tab Header for Request Types -->
+                <div class="card-custom">
+                    <div class="card-header-custom bg-white">
+                        <span><i class="fa-solid fa-diagram-project me-2 text-indigo"></i>Custom Workflow Rules</span>
+                        {% if not is_platform_admin %}
+                        <button type="submit" class="btn btn-primary rounded-pill px-4">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Save Workflow Configuration
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-body p-4">
+                        <ul class="nav nav-pills nav-fill mb-4 bg-light p-1.5 rounded-pill" id="workflowTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active rounded-pill fw-bold" id="leaves-tab" data-bs-toggle="pill" data-bs-target="#leaves-workflow" type="button" role="tab">
+                                    <i class="fa-solid fa-calendar-minus me-1"></i> Leave Requests
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link rounded-pill fw-bold" id="expenses-tab" data-bs-toggle="pill" data-bs-target="#expenses-workflow" type="button" role="tab">
+                                    <i class="fa-solid fa-receipt me-1"></i> Expense Claims
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link rounded-pill fw-bold" id="wfh-tab" data-bs-toggle="pill" data-bs-target="#wfh-workflow" type="button" role="tab">
+                                    <i class="fa-solid fa-house-laptop me-1"></i> WFH Requests
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link rounded-pill fw-bold" id="payroll-tab" data-bs-toggle="pill" data-bs-target="#payroll-workflow" type="button" role="tab">
+                                    <i class="fa-solid fa-file-invoice-dollar me-1"></i> Payroll Approvals
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="workflowTabContent">
+                            <!-- Leaves Workflow Tab -->
+                            <div class="tab-pane fade show active" id="leaves-workflow" role="tabpanel">
+                                {% for role in roles_list %}
+                                    <div class="mb-4 p-3 border rounded-4 bg-white shadow-sm">
+                                        <div class="role-section-title">
+                                            <i class="fa-solid fa-user-tie text-indigo"></i> When submitted by: <span class="text-indigo">{{ role }}</span>
+                                        </div>
+                                        <div class="row g-2 align-items-center mb-3">
+                                            <div class="{% if is_platform_admin %}col-12{% else %}col-md-7{% endif %}">
+                                                <!-- Serialized list of steps -->
+                                                <input type="hidden" id="leave_request_{{ role }}_input" name="leave_request_{{ role }}" value="">
+                                                <div id="leave_request_{{ role }}_container" class="workflow-chain-container">
+                                                    <!-- Javascript will populate steps here -->
+                                                </div>
+                                            </div>
+                                            {% if not is_platform_admin %}
+                                            <div class="col-md-5 d-flex gap-2">
+                                                <select id="leave_request_{{ role }}_select" class="form-select form-select-sm rounded-3" style="min-width: 140px;">
+                                                    {% for approver in approvers_pool %}
+                                                        <option value="{{ approver }}">{{ approver }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <button type="button" class="btn btn-indigo btn-action-custom text-nowrap" onclick="addWorkflowStep('leave_request', '{{ role }}')">
+                                                    <i class="fa-solid fa-plus"></i> Add
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-action-custom text-nowrap" onclick="clearWorkflowSteps('leave_request', '{{ role }}')">
+                                                    Clear
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Expenses Workflow Tab -->
+                            <div class="tab-pane fade" id="expenses-workflow" role="tabpanel">
+                                {% for role in roles_list %}
+                                    <div class="mb-4 p-3 border rounded-4 bg-white shadow-sm">
+                                        <div class="role-section-title">
+                                            <i class="fa-solid fa-user-tie text-indigo"></i> When submitted by: <span class="text-indigo">{{ role }}</span>
+                                        </div>
+                                        <div class="row g-2 align-items-center mb-3">
+                                            <div class="{% if is_platform_admin %}col-12{% else %}col-md-7{% endif %}">
+                                                <input type="hidden" id="expense_claim_{{ role }}_input" name="expense_claim_{{ role }}" value="">
+                                                <div id="expense_claim_{{ role }}_container" class="workflow-chain-container">
+                                                    <!-- Javascript will populate steps here -->
+                                                </div>
+                                            </div>
+                                            {% if not is_platform_admin %}
+                                            <div class="col-md-5 d-flex gap-2">
+                                                <select id="expense_claim_{{ role }}_select" class="form-select form-select-sm rounded-3" style="min-width: 140px;">
+                                                    {% for approver in approvers_pool %}
+                                                        <option value="{{ approver }}">{{ approver }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <button type="button" class="btn btn-indigo btn-action-custom text-nowrap" onclick="addWorkflowStep('expense_claim', '{{ role }}')">
+                                                    <i class="fa-solid fa-plus"></i> Add
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-action-custom text-nowrap" onclick="clearWorkflowSteps('expense_claim', '{{ role }}')">
+                                                    Clear
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- WFH Workflow Tab -->
+                            <div class="tab-pane fade" id="wfh-workflow" role="tabpanel">
+                                {% for role in roles_list %}
+                                    <div class="mb-4 p-3 border rounded-4 bg-white shadow-sm">
+                                        <div class="role-section-title">
+                                            <i class="fa-solid fa-user-tie text-indigo"></i> When submitted by: <span class="text-indigo">{{ role }}</span>
+                                        </div>
+                                        <div class="row g-2 align-items-center mb-3">
+                                            <div class="{% if is_platform_admin %}col-12{% else %}col-md-7{% endif %}">
+                                                <input type="hidden" id="wfh_request_{{ role }}_input" name="wfh_request_{{ role }}" value="">
+                                                <div id="wfh_request_{{ role }}_container" class="workflow-chain-container">
+                                                    <!-- Javascript will populate steps here -->
+                                                </div>
+                                            </div>
+                                            {% if not is_platform_admin %}
+                                            <div class="col-md-5 d-flex gap-2">
+                                                <select id="wfh_request_{{ role }}_select" class="form-select form-select-sm rounded-3" style="min-width: 140px;">
+                                                    {% for approver in approvers_pool %}
+                                                        <option value="{{ approver }}">{{ approver }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <button type="button" class="btn btn-indigo btn-action-custom text-nowrap" onclick="addWorkflowStep('wfh_request', '{{ role }}')">
+                                                    <i class="fa-solid fa-plus"></i> Add
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-action-custom text-nowrap" onclick="clearWorkflowSteps('wfh_request', '{{ role }}')">
+                                                    Clear
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Payroll Workflow Tab -->
+                            <div class="tab-pane fade" id="payroll-workflow" role="tabpanel">
+                                <div class="mb-4 p-3 border rounded-4 bg-white shadow-sm">
+                                    <div class="role-section-title">
+                                        <i class="fa-solid fa-user-tie text-indigo"></i> When submitted by: <span class="text-indigo">HR ADMIN</span>
+                                    </div>
+                                    <div class="row g-2 align-items-center mb-3">
+                                        <div class="{% if is_platform_admin %}col-12{% else %}col-md-7{% endif %}">
+                                            <input type="hidden" id="payroll_approval_HR ADMIN_input" name="payroll_approval_HR ADMIN" value="">
+                                            <div id="payroll_approval_HR ADMIN_container" class="workflow-chain-container">
+                                                <!-- Javascript will populate steps here -->
+                                            </div>
+                                        </div>
+                                        {% if not is_platform_admin %}
+                                        <div class="col-md-5 d-flex gap-2">
+                                            <select id="payroll_approval_HR ADMIN_select" class="form-select form-select-sm rounded-3" style="min-width: 140px;">
+                                                {% for approver in approvers_pool %}
+                                                    <option value="{{ approver }}">{{ approver }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <button type="button" class="btn btn-indigo btn-action-custom text-nowrap" onclick="addWorkflowStep('payroll_approval', 'HR ADMIN')">
+                                                <i class="fa-solid fa-plus"></i> Add
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-action-custom text-nowrap" onclick="clearWorkflowSteps('payroll_approval', 'HR ADMIN')">
+                                                Clear
+                                            </button>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script id="workflow-rules-data" type="application/json">
+    {{ workflow_rules_json|safe }}
+</script>
+
+<script>
+    // Initialize standard dynamic workflows data model
+    const workflows = {
+        leave_request: {
+            Employee: [],
+            Manager: [],
+            'HR ADMIN': [],
+            'Super admin': []
+        },
+        expense_claim: {
+            Employee: [],
+            Manager: [],
+            'HR ADMIN': [],
+            'Super admin': []
+        },
+        wfh_request: {
+            Employee: [],
+            Manager: [],
+            'HR ADMIN': [],
+            'Super admin': []
+        },
+        payroll_approval: {
+            Employee: [],
+            Manager: [],
+            'HR ADMIN': [],
+            'Super admin': []
+        }
+    };
+
+    // Load initial configuration from server if exists
+    try {
+        const dataEl = document.getElementById('workflow-rules-data');
+        if (dataEl && dataEl.textContent.trim()) {
+            const serverRules = JSON.parse(dataEl.textContent);
+            for (const type in serverRules) {
+                if (workflows[type]) {
+                    for (const role in serverRules[type]) {
+                        workflows[type][role] = serverRules[type][role] || [];
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error parsing workflow rules JSON:", e);
+    }
+
+    function renderWorkflow(type, role) {
+        const steps = workflows[type][role];
+        const container = document.getElementById(`${type}_${role}_container`);
+        const inputField = document.getElementById(`${type}_${role}_input`);
+        
+        if (!container || !inputField) return;
+        
+        container.innerHTML = '';
+        inputField.value = steps.join(',');
+
+        if (steps.length === 0) {
+            container.innerHTML = '<span class="text-muted small italic">Approve immediately (No workflow steps)</span>';
+            return;
+        }
+
+        const isPlatformAdmin = "{{ is_platform_admin|yesno:'true,false' }}" === "true";
+        steps.forEach((step, idx) => {
+            const stepEl = document.createElement('div');
+            stepEl.className = 'step-badge';
+            if (isPlatformAdmin) {
+                stepEl.innerHTML = `<span class="small text-muted me-1">#${idx+1}</span> ${step}`;
+                stepEl.style.cursor = 'default';
+                stepEl.style.pointerEvents = 'none';
+            } else {
+                stepEl.innerHTML = `<span class="small text-muted me-1">#${idx+1}</span> ${step} <i class="fa-solid fa-circle-xmark small text-danger-light"></i>`;
+                stepEl.onclick = () => removeWorkflowStep(type, role, idx);
+            }
+            container.appendChild(stepEl);
+
+            if (idx < steps.length - 1) {
+                const arrowEl = document.createElement('div');
+                arrowEl.className = 'step-arrow';
+                arrowEl.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+                container.appendChild(arrowEl);
+            }
+        });
+    }
+
+    function addWorkflowStep(type, role) {
+        const select = document.getElementById(`${type}_${role}_select`);
+        const val = select.value;
+        if (val) {
+            workflows[type][role].push(val);
+            renderWorkflow(type, role);
+        }
+    }
+
+    function removeWorkflowStep(type, role, index) {
+        workflows[type][role].splice(index, 1);
+        renderWorkflow(type, role);
+    }
+
+    function clearWorkflowSteps(type, role) {
+        workflows[type][role] = [];
+        renderWorkflow(type, role);
+    }
+
+    // Initial render
+    document.addEventListener("DOMContentLoaded", () => {
+        const types = ['leave_request', 'expense_claim', 'wfh_request', 'payroll_approval'];
+        const roles = ['Employee', 'Manager', 'HR ADMIN', 'Super admin'];
+        
+        types.forEach(t => {
+            roles.forEach(r => {
+                renderWorkflow(t, r);
+            });
+        });
+    });
+</script>
+{% endblock %}

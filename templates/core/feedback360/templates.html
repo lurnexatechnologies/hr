@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}Evaluation Templates - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Evaluation Templates</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Configure Template Form (Super Admin Only) -->
+        <div class="col-lg-5 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-file-invoice text-primary me-2"></i>Configure Evaluation Template</h5>
+                    {% if request.user.role == 'Super admin' %}
+                        <p class="text-muted small">Design template survey instruments mapped to competencies and questions.</p>
+                        
+                        <form method="POST" action="{% url 'feedback_templates' %}">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Template Name</label>
+                                <input type="text" name="name" class="form-control bg-light border-0 py-2" placeholder="e.g. Annual Executive Review" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Description</label>
+                                <textarea name="description" class="form-control bg-light border-0 py-2" rows="2" placeholder="Describe the purpose of this template..."></textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Map Competencies (Select Multiple)</label>
+                                <div class="bg-light p-3 rounded-3" style="max-height: 150px; overflow-y: auto;">
+                                    {% for comp in competencies %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="competency_ids" value="{{ comp.CompetencyID }}" id="comp_{{ comp.CompetencyID }}">
+                                            <label class="form-check-label small text-dark" for="comp_{{ comp.CompetencyID }}">
+                                                {{ comp.Name }}
+                                            </label>
+                                        </div>
+                                    {% empty %}
+                                        <span class="text-muted small italic">No competencies defined</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold">Map Questions (Select Multiple)</label>
+                                <div class="bg-light p-3 rounded-3" style="max-height: 200px; overflow-y: auto;">
+                                    {% for q in questions %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="question_ids" value="{{ q.QuestionID }}" id="q_{{ q.QuestionID }}">
+                                            <label class="form-check-label small text-dark" for="q_{{ q.QuestionID }}">
+                                                [{{ q.Category }}] {{ q.QuestionText }}
+                                            </label>
+                                        </div>
+                                    {% empty %}
+                                        <span class="text-muted small italic">No questions defined</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" style="border-radius: 10px; background: linear-gradient(135deg, #4f46e5, #3b82f6); border: none;">
+                                <i class="fa-solid fa-square-check me-1"></i> Create Template
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-warning border-0 small mb-0 rounded-3">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i> Under enterprise constraints, only a <strong>Super Admin</strong> can register or modify assessment templates.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates List -->
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold mb-0"><i class="fa-solid fa-folder-open text-primary me-2"></i>Active Templates</h5>
+                        <span class="badge bg-light text-dark fw-bold border-0" style="padding: 6px 12px; border-radius: 8px;">
+                            {{ templates|length }} Total
+                        </span>
+                    </div>
+
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 small fw-bold py-3">Template Name</th>
+                                    <th class="border-0 small fw-bold py-3">Competencies Included</th>
+                                    <th class="border-0 small fw-bold py-3">Questions Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for temp in templates %}
+                                <tr>
+                                    <td class="py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="icon-sm bg-primary-light rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background-color: #e0f2fe;">
+                                                <i class="fa-solid fa-file-signature text-primary" style="color: #0284c7;"></i>
+                                            </div>
+                                            <div>
+                                                <span class="fw-semibold text-dark d-block">{{ temp.Name }}</span>
+                                                <small class="text-muted">{{ temp.Description }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 fw-bold text-dark">
+                                        {{ temp.Competencies|length }} mapped
+                                    </td>
+                                    <td class="py-3 text-muted small">
+                                        {{ temp.Questions|length }} questions
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center py-5 text-muted">
+                                        <i class="fa-regular fa-folder-open fs-2 mb-3 d-block text-muted"></i>
+                                        <p class="mb-0 small fw-medium">No evaluation templates found.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

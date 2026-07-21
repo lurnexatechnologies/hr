@@ -23,6 +23,7 @@ urlpatterns = [
     path('documents/letters/', views.EmployeeLettersView.as_view(), name='employee_letters'),
     path('documents/letters/<str:letter_id>/print/', views.PrintLetterView.as_view(), name='print_letter'),
     path('verify-password/', views.VerifyPasswordView.as_view(), name='verify_password'),
+    path('profile/<str:emp_id>/toggle-birthday/', views.ToggleBirthdayVisibilityView.as_view(), name='toggle_birthday_visibility'),
     path('profile/<str:emp_id>/certificates/upload/', views.UploadCertificateView.as_view(), name='upload_certificate'),
     path('certificates/approvals/', views.CertificateApprovalsView.as_view(), name='certificate_approvals'),
     path('certificates/<str:emp_id>/<str:cert_id>/action/', views.CertificateActionView.as_view(), name='certificate_action'),

@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+
+{% block title %}360° Feedback Report - Lurnexa{% endblock %}
+
+{% block extra_css %}
+<style>
+    .score-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #4f46e5 0%, #3b82f6 100%);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(79, 70, 229, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Feedback Report</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Left: Summary Stats & Radar Chart -->
+        <div class="col-lg-5 mb-4">
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4 text-center">
+                    <span class="badge bg-light text-primary border mb-3 fw-bold">360° Performance Report</span>
+                    <h4 class="fw-bold text-dark mb-1">{{ employee.FirstName }} {{ employee.LastName }}</h4>
+                    <p class="text-muted small mb-4">{{ employee.Designation }} | {{ employee.Department }}</p>
+
+                    <!-- Circular score -->
+                    <div class="d-flex justify-content-center mb-4">
+                        <div class="score-circle">
+                            <span class="fs-2 fw-extrabold">{{ overall_score }}</span>
+                            <small class="opacity-80" style="font-size: 0.75rem;">Scale 1.0 - 5.0</small>
+                        </div>
+                    </div>
+                    
+                    <h6 class="fw-bold text-dark">Overall Weighted Feedback Score</h6>
+                    <p class="text-muted small">Aggregated based on organizational role weightage mappings.</p>
+                </div>
+            </div>
+
+            <!-- Radar chart card -->
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold text-dark mb-4"><i class="fa-solid fa-chart-radar text-primary me-2"></i>Competency Radar</h5>
+                    <div style="height: 320px;">
+                        <canvas id="competencyRadarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Competency Scores Table & Remarks -->
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold text-dark mb-4"><i class="fa-solid fa-list-check text-indigo me-2"></i>Competency Assessment Matrix</h5>
+                    
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="py-3">Competency</th>
+                                    {% for r_type in relationship_types %}
+                                        <th class="py-3 text-center">{{ r_type }}</th>
+                                    {% endfor %}
+                                    <th class="py-3 text-center bg-light fw-bold text-indigo">Weighted</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for comp_name, scores in comp_scores.items %}
+                                <tr>
+                                    <td class="py-3 fw-bold text-dark">{{ comp_name }}</td>
+                                    {% for r_type in relationship_types %}
+                                        <td class="py-3 text-center text-muted">
+                                            {% for k, v in scores.items %}
+                                                {% if k == r_type %}
+                                                    {{ v }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                    {% endfor %}
+                                    <td class="py-3 text-center fw-extrabold text-indigo bg-light-indigo" style="background-color: #f5f3ff;">
+                                        {{ scores.Weighted }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feedbacks and Comments -->
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-comments text-success me-2"></i>Qualitative Remarks</h5>
+                    
+                    <div class="d-flex flex-column gap-3">
+                        {% for comment in comments %}
+                        <div class="p-3 bg-light rounded-3 border-start border-success border-4">
+                            <p class="text-dark small mb-2 italic">"{{ comment.Text }}"</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted" style="font-size:0.75rem;">Source: <strong>{{ comment.Role }}</strong></small>
+                                <span class="badge bg-white text-success border small">{{ comment.Relationship }}</span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted small">No qualitative comments submitted yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Employee Acknowledgment -->
+            {% if request.user.employee_id == employee.EmployeeID and not plan.EmployeeAcknowledged %}
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px; background-color: #fef3c7;">
+                <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-1"><i class="fa-solid fa-signature me-1"></i> Acknowledge Report</h6>
+                        <p class="text-muted small mb-0">Confirm that you have reviewed your 360 feedback and competency scores.</p>
+                    </div>
+                    <button onclick="acknowledgeReport('{{ cycle.CycleID }}')" class="btn btn-warning fw-bold rounded-pill px-4 shadow-sm mt-2 mt-sm-0">Acknowledge</button>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Development Plan (Manager / Subordinate view) -->
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-graduation-cap text-info me-2"></i>Development Plan Goals</h5>
+                        {% if plan.EmployeeAcknowledged %}
+                            <span class="badge bg-success-light text-success border fw-bold"><i class="fa-solid fa-check me-1"></i> Acknowledged</span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Goal List -->
+                    <div class="d-flex flex-column gap-3 mb-4">
+                        {% for goal in plan.Goals %}
+                        <div class="p-3 bg-light rounded-3">
+                            <h6 class="fw-bold text-dark small mb-1">{{ goal.ActionItem }}</h6>
+                            <div class="row small text-muted">
+                                <div class="col-6"><strong>Timeline:</strong> {{ goal.Timeline }}</div>
+                                <div class="col-6"><strong>Support:</strong> {{ goal.SupportNeeded }}</div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="alert alert-light text-muted small border mb-0 text-center py-4">
+                            <i class="fa-solid fa-list-check d-block fs-3 mb-2"></i>
+                            No development goals listed.
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Add Goal (Manager View Only) -->
+                    {% if request.user.role == 'Manager' and employee.EmployeeID != request.user.employee_id %}
+                    <form method="POST" action="{% url 'create_development_plan' cycle.CycleID employee.EmployeeID %}">
+                        {% csrf_token %}
+                        <h6 class="fw-bold text-dark mb-3 small"><i class="fa-solid fa-plus me-1"></i> Add Development Goal</h6>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Action Item / Competency Target</label>
+                            <input type="text" name="action_item" class="form-control form-control-sm bg-light border-0" placeholder="e.g. Enroll in Advanced Presentation Skills class" required>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold">Timeline / Due Date</label>
+                                <input type="text" name="timeline" class="form-control form-control-sm bg-light border-0" placeholder="e.g. Q3 2026" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold">Support Required</label>
+                                <input type="text" name="support_needed" class="form-control form-control-sm bg-light border-0" placeholder="e.g. Course fee sponsorship">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-info btn-sm text-white fw-bold rounded-pill px-4">Save Goal</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function acknowledgeReport(cycleId) {
+        if (!confirm('Acknowledge this 360 feedback report card?')) return;
+        
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(`/okrs/360/report/${cycleId}/acknowledge/`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(err => {
+            alert('Request failed.');
+        });
+    }
+
+    // Chart.js Radar Chart
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('competencyRadarChart');
+        if (!ctx) return;
+
+        // Parse labels and values
+        const labels = [];
+        const datasets = [];
+
+        {% for comp_name, scores in comp_scores.items %}
+            labels.push("{{ comp_name }}");
+        {% endfor %}
+
+        // Create datasets for each relationship type
+        const relationshipTypes = [{% for r in relationship_types %}"{{ r }}",{% endfor %}];
+        
+        const colors = [
+            'rgba(79, 70, 229, 0.2)', // Purple
+            'rgba(59, 130, 246, 0.2)', // Blue
+            'rgba(16, 185, 129, 0.2)', // Green
+            'rgba(245, 158, 11, 0.2)'  // Amber
+        ];
+        const borderColors = [
+            'rgba(79, 70, 229, 1)',
+            'rgba(59, 130, 246, 1)',
+            'rgba(16, 185, 129, 1)',
+            'rgba(245, 158, 11, 1)'
+        ];
+
+        relationshipTypes.forEach((rel, index) => {
+            const dataVals = [];
+            {% for comp_name, scores in comp_scores.items %}
+                var scoreVal = null;
+                {% for k, v in scores.items %}
+                    if ("{{ k }}" === rel) {
+                        scoreVal = parseFloat("{{ v }}") || 0;
+                    }
+                {% endfor %}
+                dataVals.push(scoreVal);
+            {% endfor %}
+
+            datasets.push({
+                label: rel,
+                data: dataVals,
+                backgroundColor: colors[index % colors.length],
+                borderColor: borderColors[index % borderColors.length],
+                pointBackgroundColor: borderColors[index % borderColors.length],
+                borderWidth: 2
+            });
+        });
+
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { display: true },
+                        suggestedMin: 1.0,
+                        suggestedMax: 5.0
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

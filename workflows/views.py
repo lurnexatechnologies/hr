@@ -3,13 +3,13 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import LoginRequiredMixin, ApprovedOnboardingMixin, ManagerRequiredMixin, HRRequiredMixin
+from auth_custom.mixins import LoginRequiredMixin, ApprovedOnboardingMixin, ManagerRequiredMixin, HRRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import (
     UsersTable, EmployeesTable, LeaveRequestsTable, AttendanceTable, 
     PayslipsTable, ExpensesTable, ResignationsTable, 
     ReportingHierarchyTable, LoginHistoryTable, WFHRequestsTable
 )
-from core.utils import save_uploaded_file, send_notification, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64, get_local_date, get_local_now
+from core.utils import save_uploaded_file, send_notification, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64, get_local_date, get_local_now, resolve_workflow_step
 from boto3.dynamodb.conditions import Key
 import datetime
 import uuid
@@ -92,7 +92,8 @@ def save_employee_letter_if_not_exists(emp_id, letter_type, html_content):
     except Exception as e:
         print(f"Error saving employee letter to table: {e}")
 
-class ExpensesView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
+class ExpensesView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, View):
+    required_feature = 'expense_management'
     def get(self, request):
         records = ExpensesTable.query(KeyConditionExpression=Key('EmployeeID').eq(request.user.employee_id))
         sorted_records = sorted(records, key=lambda x: x.get('Date', ''), reverse=True)
@@ -115,54 +116,25 @@ class ExpensesView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
         
         user_emp_id = request.user.employee_id
         
-        # Determine Hierarchy
+        user_role = request.user.role
+        org_id = getattr(request.user, 'org_id', None)
+        status, approver_id, is_final = resolve_workflow_step(
+            employee_id=user_emp_id,
+            org_id=org_id,
+            current_status=None,
+            action='submit',
+            request_type='expense_claim'
+        )
+        if user_role == 'Super admin':
+            status = 'Approved'
+            approver_id = user_emp_id
+
+        # Determine manager_id for reference
         hierarchy = ReportingHierarchyTable.scan(
             FilterExpression="EmployeeID = :eid",
             ExpressionAttributeValues={":eid": user_emp_id}
         )
-        
-        manager_id = None
-        if hierarchy:
-            manager_id = hierarchy[0].get('ManagerID')
-        
-        # Determine the initial status and approver based on roles
-        user_role = request.user.role
-        manager_role = None
-        if manager_id:
-            # Check manager's role in UsersTable
-            mgr_users = UsersTable.scan(
-                FilterExpression="EmployeeID = :eid",
-                ExpressionAttributeValues={":eid": manager_id}
-            )
-            if mgr_users:
-                manager_role = mgr_users[0].get('Role')
-
-        if user_role == 'Super admin':
-            status = 'Approved' # Self-approved
-            approver_id = user_emp_id
-        elif user_role == 'HR ADMIN':
-            status = 'Pending Manager Approval' # Super admin is the manager
-            approver_id = manager_id
-            if not approver_id:
-                sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin']
-                if sa_users: approver_id = sa_users[0].get('EmployeeID')
-        elif user_role == 'Manager':
-            status = 'Pending HR ADMIN Approval'
-            approver_id = manager_id
-            if not approver_id:
-                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN']
-                if hr_users: approver_id = hr_users[0].get('EmployeeID')
-        else: # Employee
-            if manager_role == 'HR ADMIN':
-                status = 'Pending HR ADMIN Approval'
-                approver_id = manager_id
-            elif manager_id:
-                status = 'Pending Manager Approval'
-                approver_id = manager_id
-            else:
-                status = 'Pending HR ADMIN Approval'
-                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN']
-                if hr_users: approver_id = hr_users[0].get('EmployeeID')
+        manager_id = hierarchy[0].get('ManagerID') if hierarchy else None
 
         receipt_name = None
         if receipt:
@@ -201,7 +173,8 @@ class ExpensesView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
 
 
 
-class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
+class ResignationView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, View):
+    required_feature = 'resignation_workflow'
     def get(self, request):
         record = ResignationsTable.get_item({'EmployeeID': request.user.employee_id})
         
@@ -288,7 +261,8 @@ class ResignationView(LoginRequiredMixin, ApprovedOnboardingMixin, View):
             
         return redirect('resignation_view')
 
-class ExpenseApprovalsView(ManagerRequiredMixin, TemplateView):
+class ExpenseApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateView):
+    required_feature = 'expense_management'
     template_name = 'workflows/expense_approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -385,7 +359,8 @@ class ExpenseApprovalsView(ManagerRequiredMixin, TemplateView):
         context['active_tab'] = self.request.GET.get('tab', 'pending')
         return context
 
-class ApproveExpenseView(ManagerRequiredMixin, View):
+class ApproveExpenseView(FeatureRequiredMixin, ManagerRequiredMixin, View):
+    required_feature = 'expense_management'
     def get(self, request, emp_id, req_id):
         user_role = request.user.role
         expense = ExpensesTable.get_item({'EmployeeID': emp_id, 'RequestID': req_id})
@@ -403,10 +378,20 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
         )
         applicant_role = applicant_users[0].get('Role') if applicant_users else 'Employee'
         
-        if user_role in ['HR ADMIN', 'Super admin']:
-            new_status = 'Approved'
+        org_id = getattr(request.user, 'org_id', None)
+        current_status = expense.get('Status', 'Pending')
+        new_status, next_approver_id, is_final = resolve_workflow_step(
+            employee_id=emp_id,
+            org_id=org_id,
+            current_status=current_status,
+            action='approve',
+            request_type='expense_claim'
+        )
+
+        if new_status == 'Approved':
+            msg = "Expense claim fully approved."
             est_date = (get_local_date() + datetime.timedelta(days=2)).isoformat()
-            update_expr = "SET #s = :s, ApprovedByHR = :u, HRApprovalDate = :d, PaymentStatus = :ps, EstimatedTransferDate = :etd, ProcessedBy = :pb"
+            update_expr = "SET #s = :s, ApprovedByHR = :u, HRApprovalDate = :d, PaymentStatus = :ps, EstimatedTransferDate = :etd, ProcessedBy = :pb REMOVE ApproverID"
             expr_vals = {
                 ':s': new_status,
                 ':u': request.user.employee_id,
@@ -416,24 +401,18 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
                 ':pb': request.user.employee_id
             }
         else:
-            # Manager Approval
-            if applicant_role == 'HR ADMIN':
-                new_status = 'Approved'
-                msg = "Expense claim fully approved. (Manager approval is final for HR)"
-                est_date = (get_local_date() + datetime.timedelta(days=2)).isoformat()
-                update_expr = "SET #s = :s, ApprovedByManager = :u, ManagerApprovalDate = :d, PaymentStatus = :ps, EstimatedTransferDate = :etd, ProcessedBy = :pb"
+            msg = f"Expense claim approved by you. Moved to: {new_status}."
+            if next_approver_id:
+                update_expr = "SET #s = :s, ApprovedByManager = :u, ManagerApprovalDate = :d, ProcessedBy = :pb, ApproverID = :approver"
                 expr_vals = {
                     ':s': new_status,
                     ':u': request.user.employee_id,
                     ':d': get_local_date().isoformat(),
-                    ':ps': 'Scheduled',
-                    ':etd': est_date,
-                    ':pb': request.user.employee_id
+                    ':pb': request.user.employee_id,
+                    ':approver': next_approver_id
                 }
             else:
-                new_status = 'Manager Approved'
-                msg = "Expense claim approved by you. Sent to HR for final approval."
-                update_expr = "SET #s = :s, ApprovedByManager = :u, ManagerApprovalDate = :d, ProcessedBy = :pb"
+                update_expr = "SET #s = :s, ApprovedByManager = :u, ManagerApprovalDate = :d, ProcessedBy = :pb REMOVE ApproverID"
                 expr_vals = {
                     ':s': new_status,
                     ':u': request.user.employee_id,
@@ -452,30 +431,24 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
         emp_name = f"{employee.get('FirstName')} {employee.get('LastName')}" if employee else emp_id
         
-        if user_role in ['HR ADMIN', 'Super admin']:
+        if new_status == 'Approved':
             notif_title = "Expense Fully Approved"
-            notif_msg = f"Your expense claim of ₹{expense.get('Amount')} has been fully approved by HR."
+            notif_msg = f"Your expense claim of ₹{expense.get('Amount')} has been fully approved."
             email_subj = "Expense Claim Fully Approved"
-            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been fully approved by HR and will be processed soon.\n\nBest regards,\nLurnexa HR Admin"
+            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been fully approved.\n\nBest regards,\nLurnexa HR Admin"
         else:
-            if applicant_role == 'HR ADMIN':
-                notif_title = "Expense Fully Approved"
-                notif_msg = f"Your expense claim of ₹{expense.get('Amount')} has been fully approved by your manager."
-                email_subj = "Expense Claim Fully Approved"
-                email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been fully approved by your manager and will be processed soon.\n\nBest regards,\nLurnexa HR Admin"
-            else:
-                notif_title = "Expense Manager Approved"
-                notif_msg = f"Your expense claim of ₹{expense.get('Amount')} was approved by your manager and sent to HR."
-                email_subj = "Expense Claim Manager Approval"
-                email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been approved by your manager and is now pending final HR approval.\n\nBest regards,\nLurnexa HR Admin"
+            notif_title = f"Expense Approved: {new_status}"
+            notif_msg = f"Your expense claim of ₹{expense.get('Amount')} was approved and forwarded to the next stage."
+            email_subj = "Expense Claim Approved"
+            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been approved and moved to: {new_status}.\n\nBest regards,\nLurnexa HR Admin"
             
         send_notification(
             employee_id=emp_id,
             title=notif_title,
             message=notif_msg,
             n_type='Expense',
-            icon='fa-check-double' if user_role in ['HR ADMIN', 'Super admin'] else 'fa-user-check',
-            color='success' if user_role in ['HR ADMIN', 'Super admin'] else 'primary',
+            icon='fa-check-double' if new_status == 'Approved' else 'fa-user-check',
+            color='success' if new_status == 'Approved' else 'primary',
             email_subject=email_subj,
             email_body=email_body
         )
@@ -483,7 +456,8 @@ class ApproveExpenseView(ManagerRequiredMixin, View):
         messages.success(request, msg)
         return redirect('expense_approvals')
 
-class RejectExpenseView(ManagerRequiredMixin, View):
+class RejectExpenseView(FeatureRequiredMixin, ManagerRequiredMixin, View):
+    required_feature = 'expense_management'
     def get(self, request, emp_id, req_id):
         ExpensesTable.update_item(
             Key={'EmployeeID': emp_id, 'RequestID': req_id},
@@ -516,7 +490,8 @@ class RejectExpenseView(ManagerRequiredMixin, View):
         messages.error(request, "Expense request rejected.")
         return redirect('expense_approvals')
 
-class ProcessPaymentView(HRRequiredMixin, View):
+class ProcessPaymentView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'expense_management'
     def get(self, request, emp_id, req_id):
         ExpensesTable.update_item(
             Key={'EmployeeID': emp_id, 'RequestID': req_id},
@@ -547,7 +522,8 @@ class ProcessPaymentView(HRRequiredMixin, View):
         messages.success(request, "Payment processed and employee notified.")
         return redirect(f"{reverse('expense_approvals')}?tab=history")
 
-class ResignationApprovalsView(HRRequiredMixin, TemplateView):
+class ResignationApprovalsView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
+    required_feature = 'resignation_workflow'
     template_name = 'workflows/resignation_approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -699,7 +675,8 @@ class ResignationApprovalsView(HRRequiredMixin, TemplateView):
         
         return context
 
-class ProcessResignationView(HRRequiredMixin, View):
+class ProcessResignationView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'resignation_workflow'
     def get(self, request, emp_id, action):
         if action == 'approve':
             from core.dynamodb_service import AssetsTable
@@ -800,7 +777,8 @@ class ProcessResignationView(HRRequiredMixin, View):
             
         return redirect('resignation_approvals')
 
-class DeleteEmployeeView(HRRequiredMixin, View):
+class DeleteEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'resignation_workflow'
     def get(self, request, emp_id):
         emp = EmployeesTable.get_item({'EmployeeID': emp_id})
         if not emp:
@@ -827,7 +805,8 @@ class DeleteEmployeeView(HRRequiredMixin, View):
         messages.success(request, f"All data for employee {emp_id} has been permanently deleted.")
         return redirect('resignation_approvals')
 
-class WFHApprovalsView(ManagerRequiredMixin, TemplateView):
+class WFHApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateView):
+    required_feature = 'wfh_requests'
     template_name = 'workflows/wfh_approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -870,23 +849,12 @@ class WFHApprovalsView(ManagerRequiredMixin, TemplateView):
                         continue
                 except: pass
 
-            if user_role == 'Super admin':
-                if w.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                    pending.append(w)
-                elif status in ['Approved', 'Rejected']:
+            if status in ['Approved', 'Rejected']:
+                if user_role in ['Super admin', 'HR ADMIN'] or w['EmployeeID'] == user_emp_id or w.get('ProcessedBy') == user_emp_id:
                     history.append(w)
-            elif user_role == 'HR ADMIN':
-                if status == 'Pending HR ADMIN Approval':
+            elif status and status.startswith('Pending'):
+                if w.get('ApproverID') == user_emp_id or user_role == 'Super admin':
                     pending.append(w)
-                elif w.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                    pending.append(w)
-                elif status in ['Approved', 'Rejected']:
-                    history.append(w)
-            else: # Manager
-                if w.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                    pending.append(w)
-                elif w.get('ApproverID') == user_emp_id and status != 'Pending Manager Approval':
-                    history.append(w)
         
         context['departments'] = sorted(list(set(e.get('Department') for e in all_employees if e.get('Department'))))
 
@@ -914,30 +882,48 @@ class WFHApprovalsView(ManagerRequiredMixin, TemplateView):
         context['active_tab'] = self.request.GET.get('tab', 'pending')
         return context
 
-class ApproveWFHView(ManagerRequiredMixin, View):
+class ApproveWFHView(FeatureRequiredMixin, ManagerRequiredMixin, View):
+    required_feature = 'wfh_requests'
     def get(self, request, emp_id, req_id):
         user_role = request.user.role
         wfh = WFHRequestsTable.get_item({'EmployeeID': emp_id, 'RequestID': req_id})
         if not wfh: return redirect('wfh_approvals')
         
-        new_status = 'Approved'
-        msg = "WFH request fully approved."
-        employee = EmployeesTable.get_item({'EmployeeID': emp_id})
-        if user_role not in ['HR ADMIN', 'Super admin'] and wfh.get('OriginalRole') not in ['HR ADMIN', 'Super admin']:
-            new_status = 'Pending HR ADMIN Approval'
-            msg = "Approved by you. Sent to HR."
+        org_id = getattr(request.user, 'org_id', None)
+        current_status = wfh.get('Status', 'Pending')
+        
+        new_status, next_approver_id, is_final = resolve_workflow_step(
+            employee_id=emp_id,
+            org_id=org_id,
+            current_status=current_status,
+            action='approve',
+            request_type='wfh_request'
+        )
+        msg = "WFH request fully approved." if new_status == 'Approved' else f"Approved by you. Sent for next stage: {new_status}"
         
         # Always update the status in DynamoDB
-        WFHRequestsTable.update_item(
-            Key={'EmployeeID': emp_id, 'RequestID': req_id}, 
-            UpdateExpression="SET #s = :val, ApprovedBy = :u, ApprovalDate = :d, ProcessedBy = :pb", 
-            ExpressionAttributeNames={'#s': 'Status'}, 
-            ExpressionAttributeValues={
+        if next_approver_id:
+            update_expr = "SET #s = :val, ApprovedBy = :u, ApprovalDate = :d, ProcessedBy = :pb, ApproverID = :approver"
+            expr_vals = {
+                ':val': new_status, 
+                ':u': request.user.employee_id, 
+                ':d': get_local_date().isoformat(),
+                ':pb': request.user.employee_id,
+                ':approver': next_approver_id
+            }
+        else:
+            update_expr = "SET #s = :val, ApprovedBy = :u, ApprovalDate = :d, ProcessedBy = :pb REMOVE ApproverID"
+            expr_vals = {
                 ':val': new_status, 
                 ':u': request.user.employee_id, 
                 ':d': get_local_date().isoformat(),
                 ':pb': request.user.employee_id
             }
+        WFHRequestsTable.update_item(
+            Key={'EmployeeID': emp_id, 'RequestID': req_id}, 
+            UpdateExpression=update_expr, 
+            ExpressionAttributeNames={'#s': 'Status'}, 
+            ExpressionAttributeValues=expr_vals
         )
         
         if new_status == 'Approved':
@@ -984,7 +970,8 @@ class ApproveWFHView(ManagerRequiredMixin, View):
         messages.success(request, msg)
         return redirect('wfh_approvals')
 
-class RejectWFHView(ManagerRequiredMixin, View):
+class RejectWFHView(FeatureRequiredMixin, ManagerRequiredMixin, View):
+    required_feature = 'wfh_requests'
     def get(self, request, emp_id, req_id):
         WFHRequestsTable.update_item(Key={'EmployeeID': emp_id, 'RequestID': req_id}, UpdateExpression="SET #s = :val, RejectedBy = :u, RejectionDate = :d, ProcessedBy = :pb", ExpressionAttributeNames={'#s': 'Status'}, ExpressionAttributeValues={':val': 'Rejected', ':u': request.user.employee_id, ':d': get_local_date().isoformat(), ':pb': request.user.employee_id})
         # Notify Employee
@@ -1005,7 +992,8 @@ class RejectWFHView(ManagerRequiredMixin, View):
         messages.error(request, "Rejected.")
         return redirect('wfh_approvals')
 
-class GenerateExperienceLetterView(HRRequiredMixin, TemplateView):
+class GenerateExperienceLetterView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
+    required_feature = 'resignation_workflow'
     template_name = 'workflows/experience_letter.html'
 
     def get(self, request, *args, **kwargs):
@@ -1035,6 +1023,14 @@ class GenerateExperienceLetterView(HRRequiredMixin, TemplateView):
         context['today'] = get_local_date().strftime('%B %d, %Y')
         context['logo_base64'] = get_lurnexa_logo_base64()
         context['signature_stamp_base64'] = get_authorized_signature_stamp_base64()
+        org_id = employee.get('OrgID')
+        org_name = "Lurnexa"
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                org_name = org.get('Name', 'Lurnexa')
+        context['org_name'] = org_name
         try:
             context['joined_date_fmt'] = datetime.datetime.strptime(employee['JoinedDate'], '%Y-%m-%d').strftime('%B %d, %Y')
         except Exception:
@@ -1047,7 +1043,8 @@ class GenerateExperienceLetterView(HRRequiredMixin, TemplateView):
 
 
 
-class GeneratePFLetterView(HRRequiredMixin, TemplateView):
+class GeneratePFLetterView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
+    required_feature = 'resignation_workflow'
     template_name = 'workflows/pf_letter.html'
 
     def get(self, request, *args, **kwargs):
@@ -1077,6 +1074,14 @@ class GeneratePFLetterView(HRRequiredMixin, TemplateView):
         context['today'] = get_local_date().strftime('%B %d, %Y')
         context['logo_base64'] = get_lurnexa_logo_base64()
         context['signature_stamp_base64'] = get_authorized_signature_stamp_base64()
+        org_id = employee.get('OrgID')
+        org_name = "Lurnexa"
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                org_name = org.get('Name', 'Lurnexa')
+        context['org_name'] = org_name
         try:
             context['lwd_fmt'] = datetime.datetime.strptime(resignation['LastWorkingDay'], '%Y-%m-%d').strftime('%B %d, %Y')
         except Exception:

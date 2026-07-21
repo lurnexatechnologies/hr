@@ -2,13 +2,20 @@ from django.shortcuts import render, redirect
 from django.views import View
 from django.contrib import messages
 from django.core.paginator import Paginator
-from auth_custom.mixins import HRRequiredMixin
+from auth_custom.mixins import LoginRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import EmployeesTable, PayslipsTable
 from core.utils import get_local_date
 import datetime
 import calendar
 
-class PFManagementView(HRRequiredMixin, View):
+class PFManagementView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'pf_management'
+    def dispatch(self, request, *args, **kwargs):
+        user_permissions = getattr(request.user, 'permissions', [])
+        if 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
+        return super().dispatch(request, *args, **kwargs)
+
     def get(self, request):
         # Default to current month/year if not provided
         today = get_local_date()
@@ -104,7 +111,14 @@ class PFManagementView(HRRequiredMixin, View):
             'month_year': month_year
         })
 
-class UpdatePFDetailsView(HRRequiredMixin, View):
+class UpdatePFDetailsView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'pf_management'
+    def dispatch(self, request, *args, **kwargs):
+        user_permissions = getattr(request.user, 'permissions', [])
+        if 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
+        return super().dispatch(request, *args, **kwargs)
+
     def post(self, request, emp_id):
         pf_number = request.POST.get('pf_number', '').strip().upper()
         uan_number = request.POST.get('uan_number', '').strip()
@@ -140,7 +154,14 @@ class UpdatePFDetailsView(HRRequiredMixin, View):
             return redirect(f"/payroll/pf/management/?month={month}&year={year}")
         return redirect('pf_management')
 
-class MarkPFPaidView(HRRequiredMixin, View):
+class MarkPFPaidView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'pf_management'
+    def dispatch(self, request, *args, **kwargs):
+        user_permissions = getattr(request.user, 'permissions', [])
+        if 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
+        return super().dispatch(request, *args, **kwargs)
+
     def post(self, request, emp_id):
         month_year = request.POST.get('month_year')
         status = request.POST.get('status') == 'true'

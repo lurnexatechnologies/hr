@@ -5,11 +5,11 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, HRAdminOnlyMixin, ApprovedOnboardingMixin
+from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, HRAdminOnlyMixin, ApprovedOnboardingMixin, FeatureRequiredMixin
 from core.dynamodb_service import (
     EmployeesTable, UsersTable, ReportingHierarchyTable, OnboardingTokensTable,
     LeaveRequestsTable, AttendanceTable, PayslipsTable, ExpensesTable,
-    ResignationsTable, LoginHistoryTable, NotificationsTable
+    ResignationsTable, LoginHistoryTable, NotificationsTable, DepartmentsTable
 )
 from core.utils import save_uploaded_file, send_notification, safe_float, get_local_date, get_local_now
 import uuid
@@ -61,7 +61,18 @@ def get_managers_list(for_role=None):
                 })
     return managers_list
 
-class EmployeeDirectoryView(HRRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+def get_departments_list(org_id):
+    try:
+        depts = DepartmentsTable.scan(
+            FilterExpression="OrgID = :oid",
+            ExpressionAttributeValues={":oid": org_id}
+        )
+        return sorted(depts, key=lambda x: x.get('Name', '').lower())
+    except Exception:
+        return []
+
+class EmployeeDirectoryView(FeatureRequiredMixin, HRRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+    required_feature = 'employee_directory'
     template_name = 'employees/directory.html'
 
     def get_context_data(self, **kwargs):
@@ -155,7 +166,8 @@ class EmployeeDirectoryView(HRRequiredMixin, ApprovedOnboardingMixin, TemplateVi
         context['query'] = self.request.GET.get('q', '')
         return context
 
-class ExEmployeeDirectoryView(HRRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+class ExEmployeeDirectoryView(FeatureRequiredMixin, HRRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+    required_feature = 'alumni_management'
     template_name = 'employees/ex_directory.html'
 
     def get_context_data(self, **kwargs):
@@ -207,7 +219,8 @@ class ExEmployeeDirectoryView(HRRequiredMixin, ApprovedOnboardingMixin, Template
         context['query'] = self.request.GET.get('q', '')
         return context
 
-class MyTeamView(LoginRequiredMixin, TemplateView):
+class MyTeamView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'employee_directory'
     template_name = 'employees/team.html'
 
     def get_context_data(self, **kwargs):
@@ -316,7 +329,8 @@ class MyTeamView(LoginRequiredMixin, TemplateView):
         context['query'] = query
         return context
 
-class EmployeeProfileView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+class EmployeeProfileView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'employees/profile.html'
 
     def get(self, request, emp_id, *args, **kwargs):
@@ -419,17 +433,50 @@ class EmployeeProfileView(LoginRequiredMixin, ApprovedOnboardingMixin, TemplateV
             ]
         })
 
-class AddEmployeeView(HRRequiredMixin, View):
+
+class ToggleBirthdayVisibilityView(LoginRequiredMixin, View):
+    def post(self, request, emp_id):
+        if request.user.employee_id != emp_id and request.user.role not in ['HR ADMIN', 'Super admin']:
+            messages.error(request, "Permission denied.")
+            return redirect('employee_profile', emp_id=emp_id)
+            
+        show_birthday = request.POST.get('show_birthday', 'on')
+        if show_birthday not in ['on', 'off']:
+            show_birthday = 'on'
+            
+        try:
+            EmployeesTable.update_item(
+                Key={'EmployeeID': emp_id},
+                UpdateExpression="SET ShowBirthday = :val",
+                ExpressionAttributeValues={':val': show_birthday}
+            )
+            messages.success(request, f"Birthday visibility turned {show_birthday.upper()}.")
+        except Exception as e:
+            messages.error(request, f"Error updating birthday visibility: {e}")
+            
+        return redirect('employee_profile', emp_id=emp_id)
+
+
+class AddEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def get(self, request):
         managers = get_managers_list(for_role='Employee')
+        departments = get_departments_list(request.user.org_id)
         return render(request, 'employees/add_employee.html', {
-            'managers': managers
+            'managers': managers,
+            'departments': departments
         })
 
     def post(self, request):
         # Super admin view-only restriction
         if request.user.role == 'Super admin':
             messages.error(request, "Super admin has view-only access and cannot add new employees.")
+            return redirect('employee_directory')
+
+        from core.utils import can_add_employee
+        allowed, msg = can_add_employee(getattr(request.user, 'org_id', None))
+        if not allowed:
+            messages.error(request, msg)
             return redirect('employee_directory')
 
         first_name = request.POST.get('first_name')
@@ -479,9 +526,9 @@ class AddEmployeeView(HRRequiredMixin, View):
 
         import re
         if role == 'Super admin':
-            sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin']
+            sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin' and u.get('OrgID') == request.user.org_id]
             if sa_users:
-                messages.error(request, "Only one Super admin can exist in the system.")
+                messages.error(request, "Only one Super admin can exist in this organization.")
                 return redirect('add_employee')
 
         # --- Age Validation (Min 21) ---
@@ -545,13 +592,19 @@ class AddEmployeeView(HRRequiredMixin, View):
         
         hashed_pw = bcrypt.hashpw('Password@123'.encode('utf-8')[:72], bcrypt.gensalt()).decode('utf-8')
         
+        permissions = []
+        if getattr(request.user, 'role', '') == 'Super admin' and request.POST.get('payroll_access') == 'on':
+            permissions.append('payroll_access')
+
         user_item = {
             'UserID': user_id,
             'Email': email,
             'Role': role,
             'PasswordHash': hashed_pw,
             'EmployeeID': employee_id,
-            'IsActive': True
+            'IsActive': True,
+            'OrgID': request.user.org_id,
+            'Permissions': permissions
         }
         UsersTable.put_item(user_item)
         
@@ -572,6 +625,7 @@ class AddEmployeeView(HRRequiredMixin, View):
             'Shift': shift,
             'Designation': designation,
             'EmploymentType': employment_type,
+            'OrgID': request.user.org_id,
             'InternshipPeriod': internship_period,
             'EmploymentStatus': employment_status,
             'ProbationPeriod': probation_period,
@@ -643,7 +697,8 @@ class AddEmployeeView(HRRequiredMixin, View):
         messages.success(request, f"Employee {first_name} {last_name} created successfully with ID {employee_id}.")
         return redirect('employee_directory')
 
-class EditEmployeeView(HRRequiredMixin, View):
+class EditEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def get(self, request, emp_id):
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
         if not employee:
@@ -675,12 +730,16 @@ class EditEmployeeView(HRRequiredMixin, View):
                 return redirect('employee_profile', emp_id=emp_id)
 
         managers = get_managers_list(for_role=system_role)
+        user_permissions = user_record.get('Permissions', []) if user_record else []
         
+        departments = get_departments_list(request.user.org_id)
         return render(request, 'employees/edit_employee.html', {
             'employee': employee,
             'system_role': system_role,
             'managers': managers,
-            'current_manager_id': current_manager_id
+            'current_manager_id': current_manager_id,
+            'user_permissions': user_permissions,
+            'departments': departments
         })
 
     def post(self, request, emp_id):
@@ -809,9 +868,9 @@ class EditEmployeeView(HRRequiredMixin, View):
         # --- Single Super Admin Constraint ---
         new_role = request.POST.get('role')
         if new_role == 'Super admin':
-            sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin']
+            sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin' and u.get('OrgID') == employee.get('OrgID')]
             if sa_users and sa_users[0].get('EmployeeID') != emp_id:
-                messages.error(request, "Only one Super admin can exist in the system.")
+                messages.error(request, "Only one Super admin can exist in this organization.")
                 return redirect('edit_employee', emp_id)
 
         if new_emp_id and new_emp_id != emp_id:
@@ -848,6 +907,17 @@ class EditEmployeeView(HRRequiredMixin, View):
                     user['EmployeeID'] = new_emp_id
                     user['Email'] = update_data.get('Email')
                     user['Role'] = request.POST.get('role')
+                    
+                    # Update permissions override
+                    perms = user.get('Permissions', [])
+                    if not isinstance(perms, list): perms = []
+                    if getattr(request.user, 'role', '') == 'Super admin':
+                        if request.POST.get('payroll_access') == 'on':
+                            if 'payroll_access' not in perms: perms.append('payroll_access')
+                        else:
+                            if 'payroll_access' in perms: perms.remove('payroll_access')
+                    user['Permissions'] = perms
+                    
                     UsersTable.put_item(user)
 
             # 3. Update Reporting Hierarchy (Manage subordinates & manager links)
@@ -920,6 +990,17 @@ class EditEmployeeView(HRRequiredMixin, View):
                 if user:
                     user['Email'] = update_data.get('Email')
                     user['Role'] = request.POST.get('role')
+                    
+                    # Update permissions override
+                    perms = user.get('Permissions', [])
+                    if not isinstance(perms, list): perms = []
+                    if getattr(request.user, 'role', '') == 'Super admin':
+                        if request.POST.get('payroll_access') == 'on':
+                            if 'payroll_access' not in perms: perms.append('payroll_access')
+                        else:
+                            if 'payroll_access' in perms: perms.remove('payroll_access')
+                    user['Permissions'] = perms
+                    
                     UsersTable.put_item(user)
 
             # Update Manager link
@@ -942,7 +1023,8 @@ class EditEmployeeView(HRRequiredMixin, View):
             messages.success(request, f"Profile for {employee['FirstName']} updated.")
             return redirect('employee_profile', emp_id=emp_id)
 
-class DownloadSampleCSVView(HRRequiredMixin, View):
+class DownloadSampleCSVView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'onboarding'
     def get(self, request):
         import csv
         from django.http import HttpResponse
@@ -968,8 +1050,15 @@ class DownloadSampleCSVView(HRRequiredMixin, View):
         
         return response
 
-class BulkOnboardingLinkView(HRRequiredMixin, View):
+class BulkOnboardingLinkView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'onboarding'
     def post(self, request):
+        from core.utils import can_add_employee
+        allowed, msg = can_add_employee(getattr(request.user, 'org_id', None))
+        if not allowed:
+            messages.error(request, msg)
+            return redirect('add_employee')
+
         if 'onboarding_file' not in request.FILES:
             messages.error(request, "No file uploaded.")
             return redirect('add_employee')
@@ -992,6 +1081,14 @@ class BulkOnboardingLinkView(HRRequiredMixin, View):
             
             header = next(csv_data, None)
             
+            org_id = getattr(request.user, 'org_id', None)
+            org_name = "Lurnexa"
+            if org_id:
+                from core.dynamodb_service import OrganizationsTable
+                org = OrganizationsTable.get_item({'OrgID': org_id})
+                if org:
+                    org_name = org.get('Name', 'Lurnexa')
+            
             success_count = 0
             
             for row in csv_data:
@@ -1007,6 +1104,12 @@ class BulkOnboardingLinkView(HRRequiredMixin, View):
                 employment_status = row[6].strip() or 'Full Time'
                 role = row[7].strip() or 'Employee'
                 joining_date = row[8].strip() or get_local_date().isoformat()
+                
+                if role == 'Super admin':
+                    sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin' and u.get('OrgID') == request.user.org_id]
+                    if sa_users:
+                        messages.warning(request, f"Skipped onboarding invitation for {target_email} with Super admin role, as a Super admin already exists for this organization.")
+                        continue
                 
                 employee_id = f"TEMP-{uuid.uuid4().hex[:8].upper()}"
                 token = str(uuid.uuid4())
@@ -1027,12 +1130,13 @@ class BulkOnboardingLinkView(HRRequiredMixin, View):
                     'ProbationPeriod': '0',
                     'ManagerID': '',
                     'JoinedDate': joining_date,
-                    'Used': False
+                    'Used': False,
+                    'OrgID': request.user.org_id
                 })
                 
                 link = request.build_absolute_uri(f'/employees/self-onboarding/{token}/')
                 
-                subject = 'Welcome to Lurnexa - Your Onboarding Link'
+                subject = f'Welcome to {org_name} - Your Onboarding Link'
                 message = f"""Hello,
 
 Welcome to the team! To complete your onboarding process, please click the link below and fill in your details:
@@ -1042,7 +1146,7 @@ Welcome to the team! To complete your onboarding process, please click the link 
 Please note: This link can only be used once.
 
 Best Regards,
-HR Team, Lurnexa"""
+HR Team, {org_name}"""
                 
                 try:
                     send_mail(
@@ -1062,9 +1166,24 @@ HR Team, Lurnexa"""
             
         return redirect('add_employee')
 
-class GenerateOnboardingLinkView(HRRequiredMixin, View):
+class GenerateOnboardingLinkView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'onboarding'
     def post(self, request):
+        from core.utils import can_add_employee
+        allowed, msg = can_add_employee(getattr(request.user, 'org_id', None))
+        if not allowed:
+            messages.error(request, msg)
+            return redirect('add_employee')
+
         target_email = request.POST.get('target_email')
+        role = request.POST.get('role')
+        
+        if role == 'Super admin':
+            sa_users = [u for u in UsersTable.scan() if u.get('Role') == 'Super admin' and u.get('OrgID') == request.user.org_id]
+            if sa_users:
+                messages.error(request, "Only one Super admin can exist in this organization.")
+                return redirect('add_employee')
+
         employee_id = f"TEMP-{uuid.uuid4().hex[:8].upper()}"
         
         if not target_email:
@@ -1089,14 +1208,23 @@ class GenerateOnboardingLinkView(HRRequiredMixin, View):
             'ManagerID': request.POST.get('manager_id'),
             'JoinedDate': request.POST.get('joining_date'),
             'FullTimeDate': '' if request.POST.get('employment_type') == 'Intern' else (request.POST.get('fulltime_date') or request.POST.get('joining_date')),
-            'Used': False
+            'Used': False,
+            'OrgID': request.user.org_id
         })
         
         # Build absolute URL
         link = request.build_absolute_uri(f'/employees/self-onboarding/{token}/')
         
+        org_id = getattr(request.user, 'org_id', None)
+        org_name = "Lurnexa"
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                org_name = org.get('Name', 'Lurnexa')
+
         # Send Email
-        subject = 'Welcome to Lurnexa - Your Onboarding Link'
+        subject = f'Welcome to {org_name} - Your Onboarding Link'
         message = f"""
         Hello,
 
@@ -1107,7 +1235,7 @@ class GenerateOnboardingLinkView(HRRequiredMixin, View):
         Please note: This link can only be used once.
 
         Best Regards,
-        HR Team, Lurnexa
+        HR Team, {org_name}
         """
         try:
             send_mail(
@@ -1121,10 +1249,12 @@ class GenerateOnboardingLinkView(HRRequiredMixin, View):
         except Exception as e:
             messages.warning(request, f"Link generated but email failed to send: {str(e)}")
 
+        departments = get_departments_list(request.user.org_id)
         return render(request, 'employees/add_employee.html', {
             'onboarding_link': link,
             'target_email': target_email,
-            'managers': get_managers_list()
+            'managers': get_managers_list(),
+            'departments': departments
         })
 class SelfOnboardingView(View):
     def get(self, request, token):
@@ -1132,6 +1262,21 @@ class SelfOnboardingView(View):
         if not token_data or token_data.get('Used'):
             return render(request, 'core/error.html', {'message': 'This link has already been used or is invalid.'})
         
+        # Check employee limit
+        org_id = token_data.get('OrgID')
+        org_name = "Lurnexa"
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                org_name = org.get('Name', 'Lurnexa')
+
+        if org_id:
+            from core.utils import can_add_employee
+            allowed, msg = can_add_employee(org_id)
+            if not allowed:
+                return render(request, 'core/error.html', {'message': msg})
+
         # Check Expiration (24 Hours)
         created_at_str = token_data.get('CreatedAt')
         if created_at_str:
@@ -1145,17 +1290,59 @@ class SelfOnboardingView(View):
             except Exception as e:
                 print(f"Error checking token expiration: {e}")
 
+        # Fetch approved onboarding policies for this organization
+        onboarding_policies = []
+        try:
+            from core.dynamodb_service import PoliciesTable
+            all_p = PoliciesTable.scan(
+                FilterExpression="OrgID = :oid AND ApprovalStatus = :status",
+                ExpressionAttributeValues={':oid': org_id, ':status': 'Approved'}
+            )
+            onboarding_policies = [p for p in all_p if p.get('IsOnboardingPolicy') is True]
+        except Exception as e:
+            print(f"Error fetching onboarding policies: {e}")
+
         return render(request, 'employees/self_onboarding.html', {
             'token': token,
             'target_email': token_data.get('TargetEmail'),
             'assigned_id': token_data.get('EmployeeID'),
-            'token_data': token_data
+            'token_data': token_data,
+            'onboarding_policies': onboarding_policies,
+            'org_name': org_name
         })
 
     def post(self, request, token):
         token_data = OnboardingTokensTable.get_item({'Token': token})
         if not token_data or token_data.get('Used'):
             return render(request, 'core/error.html', {'message': 'This link has already been used or is invalid.'})
+
+        org_id = token_data.get('OrgID')
+        org_name = "Lurnexa"
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                org_name = org.get('Name', 'Lurnexa')
+
+        # Check employee limit
+        org_id = token_data.get('OrgID')
+        if org_id:
+            from core.utils import can_add_employee
+            allowed, msg = can_add_employee(org_id)
+            if not allowed:
+                return render(request, 'core/error.html', {'message': msg})
+
+        # Fetch onboarding policies for re-renders on error
+        onboarding_policies = []
+        try:
+            from core.dynamodb_service import PoliciesTable
+            all_p = PoliciesTable.scan(
+                FilterExpression="OrgID = :oid AND ApprovalStatus = :status",
+                ExpressionAttributeValues={':oid': org_id, ':status': 'Approved'}
+            )
+            onboarding_policies = [p for p in all_p if p.get('IsOnboardingPolicy') is True]
+        except Exception as e:
+            print(f"Error fetching onboarding policies: {e}")
 
         # Check Expiration (24 Hours)
         created_at_str = token_data.get('CreatedAt')
@@ -1175,7 +1362,7 @@ class SelfOnboardingView(View):
             email = token_data.get('TargetEmail')
         if not email:
             messages.error(request, "Email is missing from the request.")
-            return render(request, 'employees/self_onboarding.html', {'token': token})
+            return render(request, 'employees/self_onboarding.html', {'token': token, 'onboarding_policies': onboarding_policies, 'org_name': org_name})
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         dob = request.POST.get('dob')
@@ -1186,12 +1373,12 @@ class SelfOnboardingView(View):
 
         if not aadhar_number or not aadhar_number.isdigit() or len(aadhar_number) != 12:
             messages.error(request, "Invalid Aadhar Number. It must be exactly 12 digits.")
-            return render(request, 'employees/self_onboarding.html', {'token': token})
+            return render(request, 'employees/self_onboarding.html', {'token': token, 'onboarding_policies': onboarding_policies, 'org_name': org_name})
 
         import re
         if not pan_number or not re.match(r'^[A-Z0-9]{10}$', pan_number):
             messages.error(request, "Invalid PAN Number. It must be exactly 10 alphanumeric characters.")
-            return render(request, 'employees/self_onboarding.html', {'token': token})
+            return render(request, 'employees/self_onboarding.html', {'token': token, 'onboarding_policies': onboarding_policies, 'org_name': org_name})
 
         # --- Age Validation (Min 21) ---
         if dob:
@@ -1200,8 +1387,8 @@ class SelfOnboardingView(View):
                 today = get_local_date()
                 age = today.year - dob_dt.year - ((today.month, today.day) < (dob_dt.month, dob_dt.day))
                 if age < 21:
-                    messages.error(request, f"Onboarding failed: You must be at least 21 years old to join Lurnexa (Current age: {age}).")
-                    return render(request, 'employees/self_onboarding.html', {'token': token})
+                    messages.error(request, f"Onboarding failed: You must be at least 21 years old to join {org_name} (Current age: {age}).")
+                    return render(request, 'employees/self_onboarding.html', {'token': token, 'onboarding_policies': onboarding_policies, 'org_name': org_name})
             except ValueError:
                 pass
 
@@ -1212,7 +1399,7 @@ class SelfOnboardingView(View):
         )
         if existing_user:
             messages.error(request, "User with this email already exists.")
-            return render(request, 'employees/self_onboarding.html', {'token': token})
+            return render(request, 'employees/self_onboarding.html', {'token': token, 'onboarding_policies': onboarding_policies, 'org_name': org_name})
 
         phone = request.POST.get('phone')
         if phone:
@@ -1222,7 +1409,7 @@ class SelfOnboardingView(View):
             )
             if existing_phone:
                 messages.error(request, f"Phone number {phone} is already registered.")
-                return render(request, 'employees/self_onboarding.html', {'token': token})
+                return render(request, 'employees/self_onboarding.html', {'token': token, 'onboarding_policies': onboarding_policies, 'org_name': org_name})
 
         user_id = str(uuid.uuid4())
         # Use the employee_id assigned by HR in the token
@@ -1236,13 +1423,13 @@ class SelfOnboardingView(View):
         
         if password != confirm_password:
             messages.error(request, "Passwords do not match.")
-            return render(request, 'employees/self_onboarding.html', {'token': token, 'target_email': email, 'assigned_id': token_data.get('EmployeeID')})
+            return render(request, 'employees/self_onboarding.html', {'token': token, 'target_email': email, 'assigned_id': token_data.get('EmployeeID'), 'onboarding_policies': onboarding_policies, 'org_name': org_name})
 
         # Stricter Password Policy: Min 8 chars, Uppercase, Lowercase, Number, Special Char
         password_regex = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$'
         if not re.match(password_regex, password):
             messages.error(request, "Password is too weak. It must be at least 8 characters long and include uppercase letters, lowercase letters, numbers, and special characters.")
-            return render(request, 'employees/self_onboarding.html', {'token': token, 'target_email': email, 'assigned_id': token_data.get('EmployeeID')})
+            return render(request, 'employees/self_onboarding.html', {'token': token, 'target_email': email, 'assigned_id': token_data.get('EmployeeID'), 'onboarding_policies': onboarding_policies, 'org_name': org_name})
 
         hashed_pw = bcrypt.hashpw(password.encode('utf-8')[:72], bcrypt.gensalt()).decode('utf-8')
 
@@ -1252,7 +1439,8 @@ class SelfOnboardingView(View):
             'Role': token_data.get('Role', 'Employee'),
             'PasswordHash': hashed_pw,
             'EmployeeID': employee_id,
-            'IsActive': True
+            'IsActive': True,
+            'OrgID': token_data.get('OrgID')
         }
         UsersTable.put_item(user_item)
 
@@ -1267,6 +1455,7 @@ class SelfOnboardingView(View):
             'InternshipPeriod': token_data.get('InternshipPeriod', '0'),
             'EmploymentStatus': token_data.get('EmploymentStatus', 'Full Time'),
             'ProbationPeriod': token_data.get('ProbationPeriod', '0'),
+            'OrgID': token_data.get('OrgID'),
             'Department': token_data.get('Department'),
             'Shift': token_data.get('Shift', 'Day Shift'),
             'SalaryPA': token_data.get('SalaryPA'),
@@ -1325,6 +1514,21 @@ class SelfOnboardingView(View):
         }
         EmployeesTable.put_item(employee_item)
 
+        # Auto-acknowledge onboarding policies
+        try:
+            from core.dynamodb_service import PolicyAcknowledgementsTable
+            for p in onboarding_policies:
+                ack_item = {
+                    'PolicyID': p['PolicyID'],
+                    'EmployeeID': employee_id,
+                    'OrgID': org_id,
+                    'AcknowledgedAt': get_local_now().isoformat(),
+                    'OnboardingSign': True
+                }
+                PolicyAcknowledgementsTable.put_item(ack_item)
+        except Exception as e:
+            print(f"Error auto-acknowledging onboarding policies: {e}")
+
         # Handle Reporting Hierarchy
         manager_id = token_data.get('ManagerID')
         if manager_id:
@@ -1356,7 +1560,7 @@ class SelfOnboardingView(View):
         try:
             from django.core.mail import send_mail
             from django.conf import settings
-            subject = 'Onboarding Details Submitted Successfully'
+            subject = f'Onboarding Details Submitted Successfully to {org_name}'
             message = f"""Hello {employee_item['FirstName']},
 
 You have successfully submitted your details for the onboarding process.
@@ -1364,7 +1568,7 @@ Our HR team will now check and approve your onboarding process.
 We will notify you once it's approved or if any further action is required from your side.
 
 Best Regards,
-HR Team, Lurnexa
+HR Team, {org_name}
 """
             send_mail(
                 subject,
@@ -1380,7 +1584,8 @@ HR Team, Lurnexa
             'message': 'Onboarding details submitted! Your documents are now under HR review. You will be able to access the portal once approved.'
         })
 
-class OnboardingRequestsView(HRAdminOnlyMixin, TemplateView):
+class OnboardingRequestsView(FeatureRequiredMixin, HRAdminOnlyMixin, TemplateView):
+    required_feature = 'onboarding'
     template_name = 'employees/onboarding_requests.html'
 
     def get_context_data(self, **kwargs):
@@ -1390,7 +1595,8 @@ class OnboardingRequestsView(HRAdminOnlyMixin, TemplateView):
         context['rejected_requests'] = [e for e in all_employees if e.get('OnboardingStatus') == 'Rejected']
         return context
 
-class ReviewOnboardingView(HRAdminOnlyMixin, TemplateView):
+class ReviewOnboardingView(FeatureRequiredMixin, HRAdminOnlyMixin, TemplateView):
+    required_feature = 'onboarding'
     template_name = 'employees/review_onboarding.html'
 
     def get_context_data(self, **kwargs):
@@ -1410,7 +1616,8 @@ class ReviewOnboardingView(HRAdminOnlyMixin, TemplateView):
         ]
         return context
 
-class ApproveOnboardingActionView(HRAdminOnlyMixin, View):
+class ApproveOnboardingActionView(FeatureRequiredMixin, HRAdminOnlyMixin, View):
+    required_feature = 'onboarding'
     def post(self, request, emp_id):
         import json
         action = request.POST.get('action') # 'approve' or 'reject'
@@ -1489,12 +1696,19 @@ class ApproveOnboardingActionView(HRAdminOnlyMixin, View):
         # --- Send Notification to Employee ---
         emp_email = employee.get('Email')
         if emp_email:
+            org_id = employee.get('OrgID')
+            org_name = "Lurnexa"
+            if org_id:
+                from core.dynamodb_service import OrganizationsTable
+                org = OrganizationsTable.get_item({'OrgID': org_id})
+                if org:
+                    org_name = org.get('Name', 'Lurnexa')
             if action == 'approve' and employee['OnboardingStatus'] == 'Approved':
-                email_subj = "Onboarding Approved - Welcome to Lurnexa!"
-                email_body = f"Hi {employee['FirstName']},\n\nCongratulations! Your onboarding details and documents have been verified and approved. You can now log in to the Lurnexa HR Admin portal using your credentials.\n\nLink: {request.build_absolute_uri('/')}\n\nWelcome to the team!\n\nBest regards,\nLurnexa HR Admin"
+                email_subj = f"Onboarding Approved - Welcome to {org_name}!"
+                email_body = f"Hi {employee['FirstName']},\n\nCongratulations! Your onboarding details and documents have been verified and approved. You can now log in to the {org_name} HR Admin portal using your credentials.\n\nLink: {request.build_absolute_uri('/')}\n\nWelcome to the team!\n\nBest regards,\n{org_name} HR Admin"
             elif action == 'reject' or employee['OnboardingStatus'] == 'Rejected':
                 email_subj = "Onboarding Update - Action Required"
-                email_body = f"Hi {employee['FirstName']},\n\nYour onboarding submission requires some updates. Please log in to the onboarding status page to review the feedback and re-submit your details or documents.\n\nReason/Feedback: {reason}\n\nBest regards,\nLurnexa HR Admin"
+                email_body = f"Hi {employee['FirstName']},\n\nYour onboarding submission requires some updates. Please log in to the onboarding status page to review the feedback and re-submit your details or documents.\n\nReason/Feedback: {reason}\n\nBest regards,\n{org_name} HR Admin"
             
             try:
                 send_notification(
@@ -1512,7 +1726,8 @@ class ApproveOnboardingActionView(HRAdminOnlyMixin, View):
         
         return redirect('onboarding_requests')
 
-class OnboardingStatusView(LoginRequiredMixin, TemplateView):
+class OnboardingStatusView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'onboarding'
     template_name = 'employees/onboarding_status.html'
 
     def get_context_data(self, **kwargs):
@@ -1531,7 +1746,8 @@ class OnboardingStatusView(LoginRequiredMixin, TemplateView):
         ]
         return context
 
-class ReuploadDocumentsView(LoginRequiredMixin, View):
+class ReuploadDocumentsView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'onboarding'
     def post(self, request):
         emp_id = request.user.employee_id
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
@@ -1579,7 +1795,8 @@ class ReuploadDocumentsView(LoginRequiredMixin, View):
         
         return redirect('onboarding_status')
 
-class ToggleActiveStatusView(HRRequiredMixin, View):
+class ToggleActiveStatusView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def get(self, request, emp_id):
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
         if not employee:
@@ -1651,7 +1868,8 @@ class ToggleActiveStatusView(HRRequiredMixin, View):
             return redirect(referer)
         return redirect('employee_directory')
 
-class MoveToExEmployeeView(HRRequiredMixin, View):
+class MoveToExEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'alumni_management'
     def get(self, request, emp_id):
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
         if not employee:
@@ -1690,7 +1908,8 @@ class MoveToExEmployeeView(HRRequiredMixin, View):
             return redirect(referer)
         return redirect('employee_directory')
 
-class DeleteEmployeeView(HRRequiredMixin, View):
+class DeleteEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'employee_directory'
     def post(self, request, emp_id):
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
         if not employee:
@@ -1763,7 +1982,8 @@ class DeleteEmployeeView(HRRequiredMixin, View):
             
         return redirect('employee_directory')
 
-class EmployeeLettersView(LoginRequiredMixin, TemplateView):
+class EmployeeLettersView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'hr_letters'
     template_name = 'documents/employee_letters.html'
 
     def get_context_data(self, **kwargs):
@@ -1783,7 +2003,8 @@ class EmployeeLettersView(LoginRequiredMixin, TemplateView):
             
         return context
 
-class PrintLetterView(LoginRequiredMixin, View):
+class PrintLetterView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'hr_letters'
     def get(self, request, letter_id):
         from core.dynamodb_service import EmployeeLettersTable
         from boto3.dynamodb.conditions import Key
@@ -1832,7 +2053,8 @@ class PrintLetterView(LoginRequiredMixin, View):
             raise Http404("Letter not found.")
 
 
-class VerifyPasswordView(LoginRequiredMixin, View):
+class VerifyPasswordView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def post(self, request):
         from django.http import JsonResponse
         from django.contrib.auth.hashers import check_password
@@ -1876,7 +2098,8 @@ class VerifyPasswordView(LoginRequiredMixin, View):
             return JsonResponse({'valid': False, 'error': 'Incorrect password'})
 
 
-class UploadCertificateView(LoginRequiredMixin, View):
+class UploadCertificateView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def post(self, request, emp_id):
         import os
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
@@ -1949,7 +2172,8 @@ class UploadCertificateView(LoginRequiredMixin, View):
         return redirect(f"/employees/profile/{emp_id}/?tab=cert")
 
 
-class CertificateApprovalsView(HRAdminOnlyMixin, TemplateView):
+class CertificateApprovalsView(FeatureRequiredMixin, HRAdminOnlyMixin, TemplateView):
+    required_feature = 'ess_portal'
     template_name = 'employees/certificate_approvals.html'
 
     def get_context_data(self, **kwargs):
@@ -1980,7 +2204,8 @@ class CertificateApprovalsView(HRAdminOnlyMixin, TemplateView):
         return context
 
 
-class CertificateActionView(HRAdminOnlyMixin, View):
+class CertificateActionView(FeatureRequiredMixin, HRAdminOnlyMixin, View):
+    required_feature = 'ess_portal'
     def post(self, request, emp_id, cert_id):
         action = request.POST.get('action') # 'approve' or 'reject'
         reason = request.POST.get('reason', '').strip()
@@ -2037,7 +2262,8 @@ class CertificateActionView(HRAdminOnlyMixin, View):
         return redirect('certificate_approvals')
 
 
-class DeleteCertificateView(LoginRequiredMixin, View):
+class DeleteCertificateView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'ess_portal'
     def post(self, request, emp_id, cert_id):
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})
         if not employee:
@@ -2080,7 +2306,8 @@ class DeleteCertificateView(LoginRequiredMixin, View):
         return redirect(f"/employees/profile/{emp_id}/?tab=cert")
 
 
-class AssetManagementView(HRRequiredMixin, TemplateView):
+class AssetManagementView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
+    required_feature = 'asset_management'
     template_name = 'employees/assets.html'
 
     def get_context_data(self, **kwargs):
@@ -2140,7 +2367,8 @@ class AssetManagementView(HRRequiredMixin, TemplateView):
         ]
         return context
 
-class AddAssetView(HRRequiredMixin, View):
+class AddAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request):
         from core.dynamodb_service import AssetsTable
         import uuid
@@ -2173,7 +2401,8 @@ class AddAssetView(HRRequiredMixin, View):
             
         return redirect('asset_management')
 
-class AllocateAssetView(HRRequiredMixin, View):
+class AllocateAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request, asset_id):
         from core.dynamodb_service import AssetsTable, EmployeesTable
         from core.utils import get_local_date
@@ -2228,7 +2457,8 @@ class AllocateAssetView(HRRequiredMixin, View):
         except Exception as e:
             messages.error(request, f"Error allocating asset: {e}")
 
-class ReturnAssetView(HRRequiredMixin, View):
+class ReturnAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request, asset_id):
         from core.dynamodb_service import AssetsTable
         
@@ -2289,7 +2519,8 @@ class ReturnAssetView(HRRequiredMixin, View):
             messages.error(request, f"Error returning asset: {e}")
         return redirect('asset_management')
 
-class UpdateAssetConditionView(HRRequiredMixin, View):
+class UpdateAssetConditionView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request, asset_id):
         from core.dynamodb_service import AssetsTable
         asset = AssetsTable.get_item({'AssetID': asset_id})
@@ -2307,7 +2538,8 @@ class UpdateAssetConditionView(HRRequiredMixin, View):
                 messages.error(request, f"Error updating condition: {e}")
         return redirect('asset_management')
 
-class DeleteAssetView(HRRequiredMixin, View):
+class DeleteAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request, asset_id):
         from core.dynamodb_service import AssetsTable
         asset = AssetsTable.get_item({'AssetID': asset_id})
@@ -2326,7 +2558,8 @@ class DeleteAssetView(HRRequiredMixin, View):
             messages.error(request, f"Error deleting asset: {e}")
         return redirect('asset_management')
 
-class MyAssetsView(LoginRequiredMixin, TemplateView):
+class MyAssetsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'asset_management'
     template_name = 'employees/my_assets.html'
 
     def get_context_data(self, **kwargs):
@@ -2357,7 +2590,8 @@ class MyAssetsView(LoginRequiredMixin, TemplateView):
         context['laptop_count'] = sum(1 for a in my_assets if a.get('Category') in ('Laptop', 'Mobile'))
         return context
 
-class RaiseAssetRequestView(LoginRequiredMixin, View):
+class RaiseAssetRequestView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request):
         from core.dynamodb_service import AssetsTable, AssetRequestsTable, EmployeesTable, UsersTable
         from core.utils import get_local_date
@@ -2419,7 +2653,8 @@ class RaiseAssetRequestView(LoginRequiredMixin, View):
             
         return redirect('my_assets')
 
-class HandleAssetRequestView(HRRequiredMixin, View):
+class HandleAssetRequestView(FeatureRequiredMixin, HRRequiredMixin, View):
+    required_feature = 'asset_management'
     def post(self, request, request_id):
         from core.dynamodb_service import AssetRequestsTable, AssetsTable
         

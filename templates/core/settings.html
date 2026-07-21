@@ -14,6 +14,7 @@
                     
                     <form method="POST" enctype="multipart/form-data">
                         {% csrf_token %}
+                        <input type="hidden" name="action" value="update_profile">
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold">First Name</label>
@@ -97,6 +98,464 @@
                     </form>
                 </div>
             </div>
+
+            {% if request.user.role == 'Super admin' %}
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold d-flex align-items-center gap-2 mb-0">
+                            <i class="fa-solid fa-fingerprint text-primary"></i> Biometric Device API Settings
+                        </h5>
+                        <button type="button" id="edit-biometric-btn" class="btn btn-sm btn-outline-primary px-3" style="border-radius: 8px;">
+                            <i class="fa-solid fa-pen me-1"></i> Edit
+                        </button>
+                    </div>
+                    <p class="text-muted small mb-4">Manage connection details for biometric authentication devices. Changes here will instantly apply to all attendance logs synced for your organization.</p>
+                    
+                    <!-- View Mode -->
+                    <div id="biometric-view-mode">
+                        <div class="mb-0">
+                            <label class="form-label text-muted small fw-bold d-block">Status</label>
+                            {% if biometric_settings.Enabled %}
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div id="biometric-edit-mode" style="display: none;">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_biometric">
+                            
+                            <div class="form-check form-switch mb-4">
+                                <input class="form-check-input" type="checkbox" name="biometric_enabled" id="biometricEnabled" {% if biometric_settings.Enabled %}checked{% endif %}>
+                                <label class="form-check-label fw-bold text-muted small" for="biometricEnabled">Enable Biometric Integration</label>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold">API Endpoint URL</label>
+                                    <input type="url" name="biometric_api_url" class="form-control bg-light border-0 py-2" value="{{ biometric_settings.APIURL|default:'' }}" placeholder="https://api.biometric-device.com/v1" style="border-radius: 8px;">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold">API Key / Access Token</label>
+                                    <div class="position-relative">
+                                        <input type="password" name="biometric_api_key" id="biometric_api_key" class="form-control bg-light border-0 py-2" value="{{ biometric_settings.APIKey|default:'' }}" placeholder="••••••••" style="padding-right: 45px; border-radius: 8px;">
+                                        <button type="button" class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2" onclick="togglePasswordVisibility('biometric_api_key', this)" style="z-index: 10; margin-top: -1px;">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold">Biometric Device ID / Serial Number</label>
+                                <input type="text" name="biometric_device_id" class="form-control bg-light border-0 py-2" value="{{ biometric_settings.DeviceID|default:'' }}" placeholder="e.g. BIO-DEV-98765" style="border-radius: 8px;">
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light px-4" id="cancel-biometric-btn" style="border-radius: 8px;">Cancel</button>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8);">Save Biometric Settings</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if request.user.role == 'Super admin' %}
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold d-flex align-items-center gap-2 mb-0">
+                            <i class="fa-solid fa-building-columns text-primary"></i> Bank API Settings
+                        </h5>
+                        <button type="button" id="edit-bank-btn" class="btn btn-sm btn-outline-primary px-3" style="border-radius: 8px;">
+                            <i class="fa-solid fa-pen me-1"></i> Edit
+                        </button>
+                    </div>
+                    <p class="text-muted small mb-4">Configure integrated banking credentials for payment processing. Changes here will instantly apply to payroll and payout services.</p>
+                    
+                    <!-- View Mode -->
+                    <div id="bank-view-mode">
+                        <div class="mb-0">
+                            <label class="form-label text-muted small fw-bold d-block">Status</label>
+                            {% if bank_settings.Enabled %}
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div id="bank-edit-mode" style="display: none;">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_bank">
+                            
+                            <div class="form-check form-switch mb-4">
+                                <input class="form-check-input" type="checkbox" name="bank_enabled" id="bankEnabled" {% if bank_settings.Enabled %}checked{% endif %}>
+                                <label class="form-check-label fw-bold text-muted small" for="bankEnabled">Enable Bank Integration</label>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold">API Endpoint URL</label>
+                                    <input type="url" name="bank_api_url" class="form-control bg-light border-0 py-2" value="{{ bank_settings.APIURL|default:'' }}" placeholder="https://api.bank.com/v1" style="border-radius: 8px;">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold">Client ID / Merchant ID</label>
+                                    <input type="text" name="bank_client_id" class="form-control bg-light border-0 py-2" value="{{ bank_settings.ClientID|default:'' }}" placeholder="e.g. CLIENT-12345" style="border-radius: 8px;">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold">API Key / Access Token</label>
+                                <div class="position-relative">
+                                    <input type="password" name="bank_api_key" id="bank_api_key" class="form-control bg-light border-0 py-2" value="{{ bank_settings.APIKey|default:'' }}" placeholder="••••••••" style="padding-right: 45px; border-radius: 8px;">
+                                    <button type="button" class="btn position-absolute top-50 end-0 translate-middle-y border-0 bg-transparent text-muted me-2" onclick="togglePasswordVisibility('bank_api_key', this)" style="z-index: 10; margin-top: -1px;">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light px-4" id="cancel-bank-btn" style="border-radius: 8px;">Cancel</button>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8);">Save Bank Settings</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold d-flex align-items-center gap-2 mb-0">
+                            <i class="fa-solid fa-calendar-check text-primary"></i> Leave Policies Customization
+                        </h5>
+                        <button type="button" id="edit-leave-btn" class="btn btn-sm btn-outline-primary px-3" style="border-radius: 8px;">
+                            <i class="fa-solid fa-pen me-1"></i> Edit
+                        </button>
+                    </div>
+                    <p class="text-muted small mb-4">Configure custom leave types and default annual limits for each employment status type.</p>
+                    
+                    <!-- View Mode -->
+                    <div id="leave-view-mode">
+                        <div class="row g-4">
+                            {% for emp_type, policy in leave_policies.items %}
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded-3 h-100 border">
+                                    <h6 class="fw-bold text-primary mb-3">{{ emp_type }} Type</h6>
+                                    <div class="small mb-2"><strong>SL Limit:</strong> {{ policy.SL_Limit }} days</div>
+                                    <div class="small mb-2"><strong>CL Limit:</strong> {{ policy.CL_Limit }} days</div>
+                                    <div class="small mb-3"><strong>PL Limit:</strong> {{ policy.PL_Limit }} days</div>
+                                    <div class="text-muted small fw-bold mb-1">Allowed Types:</div>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% for t in policy.AllowedTypes %}
+                                        <span class="badge bg-primary bg-opacity-10 text-primary rounded" style="font-size: 0.7rem;">{{ t }}</span>
+                                        {% empty %}
+                                        <span class="text-muted small">None</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div id="leave-edit-mode" style="display: none;">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_leave_policies">
+                            
+                            <div class="row g-4 mb-4">
+                                {% for emp_type, policy in leave_policies.items %}
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-light rounded-3 border h-100">
+                                        <h6 class="fw-bold text-primary mb-3">{{ emp_type }} Settings</h6>
+                                        
+                                        <div class="mb-2">
+                                            <label class="form-label text-muted small fw-bold">SL Annual Limit</label>
+                                            <input type="number" step="0.5" name="{{ emp_type }}_SL_Limit" class="form-control form-control-sm" value="{{ policy.SL_Limit }}" required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label text-muted small fw-bold">CL Annual Limit</label>
+                                            <input type="number" step="0.5" name="{{ emp_type }}_CL_Limit" class="form-control form-control-sm" value="{{ policy.CL_Limit }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small fw-bold">PL Annual Limit</label>
+                                            <input type="number" step="0.5" name="{{ emp_type }}_PL_Limit" class="form-control form-control-sm" value="{{ policy.PL_Limit }}" required>
+                                        </div>
+                                        
+                                        <label class="form-label text-muted small fw-bold d-block mb-2">Allowed Leave Types</label>
+                                        <div class="allowed-types-checklist">
+                                            {% with allowed_types=policy.AllowedTypes %}
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Earned Leave (EL)" id="{{ emp_type }}_el" {% if "Earned Leave (EL)" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_el">Earned Leave (EL)</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Sick Leave (SL)" id="{{ emp_type }}_sl" {% if "Sick Leave (SL)" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_sl">Sick Leave (SL)</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Casual Leave (CL)" id="{{ emp_type }}_cl" {% if "Casual Leave (CL)" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_cl">Casual Leave (CL)</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Compensatory Off (Comp Off)" id="{{ emp_type }}_co" {% if "Compensatory Off (Comp Off)" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_co">Compensatory Off</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Marriage Leave" id="{{ emp_type }}_marriage" {% if "Marriage Leave" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_marriage">Marriage Leave</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Maternity Leave" id="{{ emp_type }}_maternity" {% if "Maternity Leave" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_maternity">Maternity Leave</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Paternity Leave" id="{{ emp_type }}_paternity" {% if "Paternity Leave" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_paternity">Paternity Leave</label>
+                                            </div>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="{{ emp_type }}_AllowedTypes" value="Unpaid Leave" id="{{ emp_type }}_unpaid" {% if "Unpaid Leave" in allowed_types %}checked{% endif %}>
+                                                <label class="form-check-label small" for="{{ emp_type }}_unpaid">Unpaid Leave</label>
+                                            </div>
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light px-4" id="cancel-leave-btn" style="border-radius: 8px;">Cancel</button>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8);">Save Leave Policies</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold d-flex align-items-center gap-2 mb-0">
+                            <i class="fa-solid fa-receipt text-primary"></i> Tax & PF Configuration
+                        </h5>
+                        <button type="button" id="edit-tax-btn" class="btn btn-sm btn-outline-primary px-3" style="border-radius: 8px;">
+                            <i class="fa-solid fa-pen me-1"></i> Edit
+                        </button>
+                    </div>
+                    <p class="text-muted small mb-4">Manage statutory settings for payroll calculation, including standard percentage contributions and regimes.</p>
+                    
+                    <!-- View Mode -->
+                    <div id="tax-view-mode">
+                        <div class="row g-3">
+                            <div class="col-md-6 border-end">
+                                <h6 class="fw-bold mb-3"><i class="fa-solid fa-percentage text-muted me-1"></i> Provident Fund (PF) Settings</h6>
+                                <div class="mb-2">
+                                    <label class="text-muted small d-block">PF Calculation</label>
+                                    {% if tax_pf_settings.PFEnabled %}
+                                        <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                                    {% endif %}
+                                </div>
+                                <div class="mb-2">
+                                    <label class="text-muted small d-block">Employee Contribution %</label>
+                                    <span class="fw-bold text-dark">{{ tax_pf_settings.EmployeePFPercent }}%</span>
+                                </div>
+                                <div>
+                                    <label class="text-muted small d-block">Employer Contribution %</label>
+                                    <span class="fw-bold text-dark">{{ tax_pf_settings.EmployerPFPercent }}%</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 ps-md-4">
+                                <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-muted me-1"></i> Tax & TDS Settings</h6>
+                                <div class="mb-2">
+                                    <label class="text-muted small d-block">TDS Calculation</label>
+                                    {% if tax_pf_settings.TDSEnabled %}
+                                        <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                                    {% endif %}
+                                </div>
+                                <div class="mb-2">
+                                    <label class="text-muted small d-block">Standard Tax Regime</label>
+                                    <span class="fw-bold text-dark">{{ tax_pf_settings.TaxRegime }}</span>
+                                </div>
+                                <div>
+                                    <label class="text-muted small d-block">Standard Deduction</label>
+                                    <span class="fw-bold text-dark">₹{{ tax_pf_settings.TaxStandardDeduction|floatformat:0 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div id="tax-edit-mode" style="display: none;">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_tax_pf">
+                            
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6 border-end">
+                                    <h6 class="fw-bold mb-3"><i class="fa-solid fa-percentage text-muted me-1"></i> Provident Fund (PF) Settings</h6>
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" name="pf_enabled" id="pfEnabled" {% if tax_pf_settings.PFEnabled %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold text-muted small" for="pfEnabled">Enable PF Calculation</label>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted small fw-bold">Employee Contribution %</label>
+                                        <input type="number" step="0.1" name="employee_pf_percent" class="form-control" value="{{ tax_pf_settings.EmployeePFPercent }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted small fw-bold">Employer Contribution %</label>
+                                        <input type="number" step="0.1" name="employer_pf_percent" class="form-control" value="{{ tax_pf_settings.EmployerPFPercent }}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 ps-md-4">
+                                    <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-muted me-1"></i> Tax & TDS Settings</h6>
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" name="tds_enabled" id="tdsEnabled" {% if tax_pf_settings.TDSEnabled %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold text-muted small" for="tdsEnabled">Enable Tax Calculation</label>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted small fw-bold">Standard Tax Regime</label>
+                                        <select name="tax_regime" class="form-select">
+                                            <option value="New Regime" {% if tax_pf_settings.TaxRegime == 'New Regime' %}selected{% endif %}>New Regime (FY 2024-25)</option>
+                                            <option value="Old Regime" {% if tax_pf_settings.TaxRegime == 'Old Regime' %}selected{% endif %}>Old Regime</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted small fw-bold">Standard Deduction Amount</label>
+                                        <input type="number" step="1000" name="tax_standard_deduction" class="form-control" value="{{ tax_pf_settings.TaxStandardDeduction }}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light px-4" id="cancel-tax-btn" style="border-radius: 8px;">Cancel</button>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8);">Save Tax & PF Settings</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold d-flex align-items-center gap-2 mb-0">
+                            <i class="fa-solid fa-user-gear text-primary"></i> Designated Payroll Officer / Manager
+                        </h5>
+                        <button type="button" id="edit-payroll-manager-btn" class="btn btn-sm btn-outline-primary px-3" style="border-radius: 8px;">
+                            <i class="fa-solid fa-pen me-1"></i> Edit
+                        </button>
+                    </div>
+                    <p class="text-muted small mb-4">Appoint a specific employee to manage payroll, view historical payroll, and handle PF management for your organization.</p>
+                    
+                    <!-- View Mode -->
+                    <div id="payroll-manager-view-mode">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold d-block">Payroll Management Access</label>
+                                {% if org.PayrollManagerUserID %}
+                                    {% for u in org_users %}
+                                        {% if org.PayrollManagerUserID == u.UserID %}
+                                            <span class="fw-bold text-dark">{{ u.Email }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">None appointed</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold d-block">PF Management Access</label>
+                                {% if org.PFManagerUserID %}
+                                    {% for u in org_users %}
+                                        {% if org.PFManagerUserID == u.UserID %}
+                                            <span class="fw-bold text-dark">{{ u.Email }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">None appointed</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold d-block">Historical Payroll Access</label>
+                                {% if org.HistoricalPayrollManagerUserID %}
+                                    {% for u in org_users %}
+                                        {% if org.HistoricalPayrollManagerUserID == u.UserID %}
+                                            <span class="fw-bold text-dark">{{ u.Email }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">None appointed</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div id="payroll-manager-edit-mode" style="display: none;">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_payroll_manager">
+                            
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold">Payroll Management Access</label>
+                                    <select name="payroll_manager_user_id" class="form-select bg-light border-0 py-2" style="border-radius: 8px;">
+                                        <option value="">-- None --</option>
+                                        {% for u in org_users %}
+                                        <option value="{{ u.UserID }}" {% if org.PayrollManagerUserID == u.UserID %}selected{% endif %}>
+                                            {{ u.Email }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold">PF Management Access</label>
+                                    <select name="pf_manager_user_id" class="form-select bg-light border-0 py-2" style="border-radius: 8px;">
+                                        <option value="">-- None --</option>
+                                        {% for u in org_users %}
+                                        <option value="{{ u.UserID }}" {% if org.PFManagerUserID == u.UserID %}selected{% endif %}>
+                                            {{ u.Email }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold">Historical Payroll Access</label>
+                                    <select name="historical_payroll_manager_user_id" class="form-select bg-light border-0 py-2" style="border-radius: 8px;">
+                                        <option value="">-- None --</option>
+                                        {% for u in org_users %}
+                                        <option value="{{ u.UserID }}" {% if org.HistoricalPayrollManagerUserID == u.UserID %}selected{% endif %}>
+                                            {{ u.Email }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light px-4" id="cancel-payroll-manager-btn" style="border-radius: 8px;">Cancel</button>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8);">Save Appointed Officers</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         
         <div class="col-12 col-xl-4">
@@ -307,5 +766,107 @@ function validateSettingsPassword() {
         confirmInput.setCustomValidity('Passwords do not match');
     }
 }
+
+// Biometric & Bank View/Edit toggles
+document.addEventListener('DOMContentLoaded', function() {
+    // Biometric Toggle
+    const bioEditBtn = document.getElementById('edit-biometric-btn');
+    const bioCancelBtn = document.getElementById('cancel-biometric-btn');
+    const bioViewMode = document.getElementById('biometric-view-mode');
+    const bioEditMode = document.getElementById('biometric-edit-mode');
+
+    if (bioEditBtn && bioCancelBtn && bioViewMode && bioEditMode) {
+        bioEditBtn.addEventListener('click', function() {
+            bioViewMode.style.display = 'none';
+            bioEditMode.style.display = 'block';
+            bioEditBtn.style.display = 'none';
+        });
+
+        bioCancelBtn.addEventListener('click', function() {
+            bioViewMode.style.display = 'block';
+            bioEditMode.style.display = 'none';
+            bioEditBtn.style.display = 'inline-block';
+        });
+    }
+
+    // Bank Toggle
+    const bankEditBtn = document.getElementById('edit-bank-btn');
+    const bankCancelBtn = document.getElementById('cancel-bank-btn');
+    const bankViewMode = document.getElementById('bank-view-mode');
+    const bankEditMode = document.getElementById('bank-edit-mode');
+
+    if (bankEditBtn && bankCancelBtn && bankViewMode && bankEditMode) {
+        bankEditBtn.addEventListener('click', function() {
+            bankViewMode.style.display = 'none';
+            bankEditMode.style.display = 'block';
+            bankEditBtn.style.display = 'none';
+        });
+
+        bankCancelBtn.addEventListener('click', function() {
+            bankViewMode.style.display = 'block';
+            bankEditMode.style.display = 'none';
+            bankEditBtn.style.display = 'inline-block';
+        });
+    }
+    // Leave Policies Toggle
+    const leaveEditBtn = document.getElementById('edit-leave-btn');
+    const leaveCancelBtn = document.getElementById('cancel-leave-btn');
+    const leaveViewMode = document.getElementById('leave-view-mode');
+    const leaveEditMode = document.getElementById('leave-edit-mode');
+
+    if (leaveEditBtn && leaveCancelBtn && leaveViewMode && leaveEditMode) {
+        leaveEditBtn.addEventListener('click', function() {
+            leaveViewMode.style.display = 'none';
+            leaveEditMode.style.display = 'block';
+            leaveEditBtn.style.display = 'none';
+        });
+
+        leaveCancelBtn.addEventListener('click', function() {
+            leaveViewMode.style.display = 'block';
+            leaveEditMode.style.display = 'none';
+            leaveEditBtn.style.display = 'inline-block';
+        });
+    }
+
+    // Tax/PF Toggle
+    const taxEditBtn = document.getElementById('edit-tax-btn');
+    const taxCancelBtn = document.getElementById('cancel-tax-btn');
+    const taxViewMode = document.getElementById('tax-view-mode');
+    const taxEditMode = document.getElementById('tax-edit-mode');
+
+    if (taxEditBtn && taxCancelBtn && taxViewMode && taxEditMode) {
+        taxEditBtn.addEventListener('click', function() {
+            taxViewMode.style.display = 'none';
+            taxEditMode.style.display = 'block';
+            taxEditBtn.style.display = 'none';
+        });
+
+        taxCancelBtn.addEventListener('click', function() {
+            taxViewMode.style.display = 'block';
+            taxEditMode.style.display = 'none';
+            taxEditBtn.style.display = 'inline-block';
+        });
+    }
+
+    // Payroll Manager Toggle
+    const pmEditBtn = document.getElementById('edit-payroll-manager-btn');
+    const pmCancelBtn = document.getElementById('cancel-payroll-manager-btn');
+    const pmViewMode = document.getElementById('payroll-manager-view-mode');
+    const pmEditMode = document.getElementById('payroll-manager-edit-mode');
+
+    if (pmEditBtn && pmCancelBtn && pmViewMode && pmEditMode) {
+        pmEditBtn.addEventListener('click', function() {
+            pmViewMode.style.display = 'none';
+            pmEditMode.style.display = 'block';
+            pmEditBtn.style.display = 'none';
+        });
+
+        pmCancelBtn.addEventListener('click', function() {
+            pmViewMode.style.display = 'block';
+            pmEditMode.style.display = 'none';
+            pmEditBtn.style.display = 'inline-block';
+        });
+    }
+});
 </script>
 {% endblock %}

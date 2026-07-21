@@ -5,7 +5,9 @@ class DynamoUser:
         self.email = data.get('Email')
         role_raw = data.get('Role', 'Employee').strip()
         role_upper = role_raw.upper()
-        if role_upper in ['SUPER ADMIN', 'SUPERADMIN']:
+        if role_upper in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+            self.role = 'Platform Admin'
+        elif role_upper in ['SUPER ADMIN', 'SUPERADMIN']:
             self.role = 'Super admin'
         elif role_upper in ['HR ADMIN', 'HRADMIN', 'HR']:
             self.role = 'HR ADMIN'
@@ -18,12 +20,24 @@ class DynamoUser:
         self.is_anonymous = False
         
         # Additional fields
-        self.employee_id = data.get('EmployeeID')
+        self.employee_id = data.get('EmployeeID') or data.get('UserID')
         self.first_name = data.get('FirstName', '')
         self.last_name = data.get('LastName', '')
         self.passport_photo = data.get('PassportPhoto')
         self.onboarding_status = data.get('OnboardingStatus', 'Approved') # Default to Approved for existing employees
         self.rejection_reason = data.get('RejectionReason', '')
+
+        # Multi-tenant fields
+        self.org_id = data.get('OrgID')
+        self.plan = None        # Set by middleware
+        self.features = []      # Set by middleware
+        self.org = {}           # Set by middleware
+        self.permissions = []   # Set by middleware
+
+    def has_perm(self, perm):
+        if self.role in ['Platform Admin', 'Super admin']:
+            return True
+        return perm in getattr(self, 'permissions', [])
 
     @property
     def employee(self):

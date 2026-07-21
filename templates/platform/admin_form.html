@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Setup Org Super Admin - Lurnexa{% endblock %}
+{% block nav_platform_orgs %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: white;
+        border-radius: 24px;
+        border: 1px solid #f1f5f9;
+        padding: 40px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 750px;">
+    <!-- Back button -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <a href="{% url 'platform_org_list' %}" class="btn btn-sm btn-light rounded-pill px-3 mb-2">
+                <i class="fa-solid fa-arrow-left me-1"></i>Back to List
+            </a>
+            <h2 class="fw-bold text-dark mb-0">Setup Organization Admin</h2>
+            <p class="text-muted mb-0">Create the initial Super Admin account for <span class="fw-bold text-indigo">{{ org.Name }}</span> ({{ org.OrgID }})</p>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show rounded-4 mb-4 shadow-sm" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Form -->
+    <form method="post" action="{% url 'platform_create_org_admin' org.OrgID %}">
+        {% csrf_token %}
+        <div class="form-container">
+            <div class="bg-light p-4 rounded-4 border mb-4">
+                <h6 class="fw-bold text-secondary mb-2" id="role-info-title"><i class="fa-solid fa-circle-info me-2 text-primary"></i>Super Admin Privileges</h6>
+                <p class="small text-muted mb-0" id="role-info-text">
+                    This user will receive full administrative control over this organization tenant, allowing them to define employee structures, onboard new personnel, process attendance/leaves, and configure company policies.
+                </p>
+            </div>
+
+            <h5 class="fw-bold text-indigo mb-4"><i class="fa-solid fa-user-shield me-2"></i>Account Details</h5>
+            
+            <div class="row g-3">
+                <div class="col-md-12 mb-2">
+                    <label class="form-label fw-bold">Administrative Role</label>
+                    <select name="role" id="role-selector" class="form-select rounded-3">
+                        <option value="Super admin" selected>Super Admin (Full Tenant Control)</option>
+                        <option value="HR ADMIN">HR Admin (HR & Operations Control)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">First Name</label>
+                    <input type="text" name="first_name" class="form-control rounded-3" placeholder="e.g. John" required>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Last Name</label>
+                    <input type="text" name="last_name" class="form-control rounded-3" placeholder="e.g. Doe" required>
+                </div>
+                
+                <div class="col-md-12">
+                    <label class="form-label fw-bold">Email Address / User ID</label>
+                    <input type="email" name="email" class="form-control rounded-3" placeholder="e.g. admin@acmecorp.com" required>
+                    <div class="form-text" id="email-help-text">This will be used as the login email address for this tenant's Super Admin.</div>
+                </div>
+                
+                <div class="col-md-12 mb-4">
+                    <label class="form-label fw-bold">Password</label>
+                    <input type="password" name="password" class="form-control rounded-3" placeholder="••••••••" minlength="6" required>
+                </div>
+            </div>
+
+            <!-- Submit buttons -->
+            <div class="d-flex justify-content-end gap-3">
+                <a href="{% url 'platform_org_list' %}" class="btn btn-light rounded-pill px-4">Cancel</a>
+                <button type="submit" class="btn btn-primary rounded-pill px-5" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none;">
+                    Create Administrator
+                </button>
+            </div>
+            
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const roleSelector = document.getElementById('role-selector');
+                    const infoTitle = document.getElementById('role-info-title');
+                    const infoText = document.getElementById('role-info-text');
+                    const emailHelp = document.getElementById('email-help-text');
+                    
+                    roleSelector.addEventListener('change', function() {
+                        if (this.value === 'Super admin') {
+                            infoTitle.innerHTML = '<i class="fa-solid fa-circle-info me-2 text-primary"></i>Super Admin Privileges';
+                            infoText.textContent = 'This user will receive full administrative control over this organization tenant, allowing them to define employee structures, onboard new personnel, process attendance/leaves, and configure company policies.';
+                            emailHelp.textContent = "This will be used as the login email address for this tenant's Super Admin.";
+                        } else {
+                            infoTitle.innerHTML = '<i class="fa-solid fa-circle-info me-2 text-primary"></i>HR Admin Privileges';
+                            infoText.textContent = 'This user will receive HR Admin privileges over this organization tenant, focusing on employee records, onboarding, leave/attendance processing, and typical daily HR operations.';
+                            emailHelp.textContent = "This will be used as the login email address for this tenant's HR Admin.";
+                        }
+                    });
+                });
+            </script>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -100,7 +100,7 @@
     <div class="letter-container">
          <div class="header">
             <div style="display: inline-block; vertical-align: middle; text-align: right;">
-                <span class="company-name" style="vertical-align: middle;">LURNEXA</span>
+                <span class="company-name" style="vertical-align: middle;">{{ org_name }}</span>
             </div>
             <div style="font-size: 12px; color: black; margin-top: 5px;">HR & Payroll Department</div>
         </div>
@@ -109,7 +109,7 @@
 
         <div class="content">
             <p><strong>To,</strong></p>
-            <p>This is to certify the Provident Fund details of <strong>{% if employee.Gender|lower == 'male' %}Mr.{% elif employee.Gender|lower == 'female' %}Ms.{% else %}Mr./Ms.{% endif %} {{ employee.FirstName }} {{ employee.LastName }}</strong> who has been relieved from {% if employee.Gender|lower == 'male' %}his{% elif employee.Gender|lower == 'female' %}her{% else %}his/her{% endif %} services at <strong>Lurnexa</strong> on <strong>{{ lwd_fmt }}</strong>.</p>
+            <p>This is to certify the Provident Fund details of <strong>{% if employee.Gender|lower == 'male' %}Mr.{% elif employee.Gender|lower == 'female' %}Ms.{% else %}Mr./Ms.{% endif %} {{ employee.FirstName }} {{ employee.LastName }}</strong> who has been relieved from {% if employee.Gender|lower == 'male' %}his{% elif employee.Gender|lower == 'female' %}her{% else %}his/her{% endif %} services at <strong>{{ org_name }}</strong> on <strong>{{ lwd_fmt }}</strong>.</p>
         </div>
 
         <table class="info-table" style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 25px; background-color: #ffffff; border: 1px solid #000000; border-radius: 12px;">
@@ -151,7 +151,7 @@
             {% endif %}
             <div class="signature-line"></div>
             <div class="signatory-name">Authorized Signatory</div>
-            <div style="color: black; font-size: 14px;">Payroll & Compliance, Lurnexa</div>
+            <div style="color: black; font-size: 14px;">Payroll & Compliance, {{ org_name }}</div>
         </div>
     </div>
 </body>

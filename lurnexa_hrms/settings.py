@@ -55,6 +55,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'auth_custom.middleware.DynamoDBAuthMiddleware',
+    'auth_custom.middleware.PolicyAcknowledgmentMiddleware',
     'auth_custom.middleware.SessionTimeoutMiddleware',
     'payroll.middleware.PayrollSecurityMiddleware',
     'core.middleware.MaxUploadSizeMiddleware',

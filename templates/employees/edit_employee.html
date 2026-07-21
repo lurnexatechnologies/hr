@@ -349,14 +349,10 @@
                             <label class="form-label fw-semibold small text-uppercase text-muted">Department <span
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-lg bg-light border-0" name="department" required>
-                                <option value="Engineering" {% if employee.Department == 'Engineering' %}selected{% endif %}>Engineering</option>
-                                <option value="Product" {% if employee.Department == 'Product' %}selected{% endif %}>
-                                    Product</option>
-                                <option value="Sales" {% if employee.Department == 'Sales' %}selected{% endif %}>Sales
-                                </option>
-                                <option value="HR ADMIN" {% if employee.Department == 'HR ADMIN' %}selected{% endif %}>HR ADMIN</option>
-                                <option value="Marketing" {% if employee.Department == 'Marketing' %}selected{% endif %}>
-                                    Marketing</option>
+                                <option value="" disabled>Select Department</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept.Name }}" {% if employee.Department == dept.Name %}selected{% endif %}>{{ dept.Name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -453,6 +449,7 @@
                                 {% endfor %}
                             </select>
                         </div>
+
                     </div>
                 </div>
             </div>

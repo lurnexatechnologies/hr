@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Platform Billing Management - Lurnexa{% endblock %}
+{% block nav_platform_billing %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .metric-card {
+        background: white;
+        border-radius: 20px;
+        border: 1px solid #f1f5f9;
+        padding: 24px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.02);
+    }
+    .transaction-row {
+        transition: background 0.2s;
+    }
+    .transaction-row:hover {
+        background-color: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 1200px;">
+    <!-- Title -->
+    <div class="mb-4">
+        <h2 class="fw-bold text-dark mb-1">Platform Revenue & Billing</h2>
+        <p class="text-muted mb-0">Monitor global system revenue, plan subscription records, and multi-tenant invoices.</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="metric-card d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small d-block mb-1">Total Platform Revenue</span>
+                    <h3 class="fw-bold text-dark mb-0">₹{{ total_revenue }}</h3>
+                </div>
+                <div class="rounded-pill p-3 bg-success-soft text-success">
+                    <i class="fa-solid fa-money-bill-trend-up fs-4"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="metric-card d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small d-block mb-1">Active Tenants</span>
+                    <h3 class="fw-bold text-dark mb-0">{{ orgs_count }}</h3>
+                </div>
+                <div class="rounded-pill p-3 bg-indigo-soft text-indigo">
+                    <i class="fa-solid fa-building fs-4"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="metric-card d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small d-block mb-1">Total Transactions Logged</span>
+                    <h3 class="fw-bold text-dark mb-0">{{ subscriptions|length }}</h3>
+                </div>
+                <div class="rounded-pill p-3 bg-warning-soft text-warning">
+                    <i class="fa-solid fa-receipt fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Logs table -->
+    <div class="metric-card">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="fw-bold text-dark mb-0">Subscription History & Status</h4>
+            <button type="button" class="btn btn-indigo rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#renewSubscriptionModal" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; color: white;">
+                <i class="fa-solid fa-arrows-rotate me-1"></i>Renew Plan
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr class="text-muted small uppercase">
+                        <th>Date</th>
+                        <th>Organization Name</th>
+                        <th>Plan Activated</th>
+                        <th>Amount Paid</th>
+                        <th>Payment Mode</th>
+                        <th>Transaction ID</th>
+                        <th>Term Start</th>
+                        <th>Term End</th>
+                        <th>Status</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in subscriptions %}
+                    <tr class="transaction-row">
+                        <td class="fw-semibold text-dark">{{ sub.PeriodStart }}</td>
+                        <td class="fw-bold text-indigo">{{ sub.OrgName }}</td>
+                        <td><span class="badge bg-light text-dark rounded-pill text-capitalize px-2 py-1">{{ sub.Plan }}</span></td>
+                        <td class="fw-bold text-dark">₹{{ sub.Amount }}</td>
+                        <td><span class="badge bg-light text-dark rounded px-2 py-1 text-uppercase">{{ sub.Gateway|default:"Platform" }}</span></td>
+                        <td class="text-muted small">{{ sub.TransactionID|default:"-" }}</td>
+                        <td class="small">{{ sub.PeriodStart }}</td>
+                        <td class="small">{{ sub.PeriodEnd }}</td>
+                        <td><span class="badge bg-success-soft text-success rounded-pill px-2 py-1"><i class="fa-solid fa-circle-check me-1"></i>{{ sub.Status }}</span></td>
+                        <td class="text-end">
+                            <a href="{% url 'billing_invoice_detail' sub.RawPeriodStart %}?org_id={{ sub.OrgID }}" target="_blank" class="btn btn-sm btn-light rounded-pill px-3 border shadow-sm" style="font-size: 0.75rem; font-weight: 600;">
+                                <i class="fa-solid fa-file-invoice me-1 text-indigo"></i>Invoice
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            No subscription payment events have been logged yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Subscription Renewal Modal -->
+<div class="modal fade" id="renewSubscriptionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 600px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg">
+            <div class="modal-header bg-dark text-white p-4 rounded-top-4" style="background: linear-gradient(135deg, #1e1b4b, #4f46e5) !important;">
+                <div>
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-arrows-rotate me-2"></i>Renew Plan</h5>
+                    <p class="mb-0 text-white-50 small">Configure renewal parameters for tenants</p>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="renewForm" action="">
+                {% csrf_token %}
+                <input type="hidden" id="active_sub_period_end" value="">
+                <div class="modal-body p-4">
+                    <!-- Organization Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Select Organization <span class="text-danger">*</span></label>
+                        <select id="renew_org_id" name="org_id" class="form-select bg-white" required>
+                            <option value="" disabled selected>-- Select Organization --</option>
+                            {% for org in organizations %}
+                                <option value="{{ org.OrgID }}">{{ org.Name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Plan Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Plan Type</label>
+                        <select name="renew_plan" id="renew_plan" class="form-select bg-white">
+                            <option value="basic">Basic</option>
+                            <option value="elite">Elite</option>
+                            <option value="professional">Professional</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Plan Rate (₹ / person / month)</label>
+                            <input type="number" name="renew_plan_rate" id="renew_plan_rate" class="form-control bg-white" value="50" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Billing Seats (Users)</label>
+                            <input type="number" name="renew_billing_seats" id="renew_billing_seats" class="form-control bg-white" value="25" min="1">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Discount (%)</label>
+                            <input type="number" name="renew_discount_percent" id="renew_discount_percent" class="form-control bg-white" value="0" min="0" max="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Tenure Duration</label>
+                            <select id="renew_tenure_duration" name="renew_tenure_duration" class="form-select bg-white">
+                                <option value="12" selected>1 Year (12 Months)</option>
+                                <option value="6">6 Months</option>
+                                <option value="3">3 Months</option>
+                                <option value="1">1 Month</option>
+                                <option value="custom">Custom (Months)</option>
+                            </select>
+                            <div id="renew_custom_tenure_container" class="mt-2" style="display: none;">
+                                <input type="number" id="renew_custom_tenure_months" name="renew_custom_tenure_months" class="form-control bg-white" placeholder="Months count" min="1" value="12">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">New Term Start</label>
+                            <input type="date" name="renew_term_start" id="renew_term_start" class="form-control bg-white" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">New Term End</label>
+                            <input type="date" name="renew_term_end" id="renew_term_end" class="form-control bg-white" readonly>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Payment Mode</label>
+                            <select id="renew_payment_mode" name="renew_payment_mode" class="form-select bg-white">
+                                <option value="Cash" selected>Cash</option>
+                                <option value="UPI">UPI</option>
+                                <option value="NEFT">NEFT</option>
+                                <option value="IMPS">IMPS</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="renew_transaction_id_container" style="display: none;">
+                            <label class="form-label fw-bold text-dark" id="renew_transaction_id_label">Proof ID / Transaction ID</label>
+                            <input type="text" id="renew_transaction_id" name="renew_transaction_id" class="form-control bg-white" placeholder="e.g. TXN123456789">
+                        </div>
+                    </div>
+
+                    <!-- Calculated breakdown inside renewal modal -->
+                    <div class="p-3 bg-light rounded-3 mb-4 border border-indigo-light">
+                        <div class="row text-center g-2">
+                            <div class="col-4 border-end">
+                                <span class="small text-muted d-block" style="font-size: 0.75rem;">Base Subtotal</span>
+                                <span class="fw-bold text-dark" id="renew_calc_subtotal">₹0.00</span>
+                            </div>
+                            <div class="col-4 border-end">
+                                <span class="small text-muted d-block" style="font-size: 0.75rem;">GST (18%)</span>
+                                <span class="fw-bold text-dark" id="renew_calc_gst">₹0.00</span>
+                            </div>
+                            <div class="col-4">
+                                <span class="small text-muted d-block" style="font-size: 0.75rem;">Total Monthly Due</span>
+                                <span class="fw-bold text-success" id="renew_calc_total">₹0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3 rounded-bottom-4 border-top">
+                    <button type="button" class="btn btn-light rounded-pill px-4 border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-indigo rounded-pill px-5 shadow fw-bold" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; color: white;">
+                        <i class="fa-solid fa-circle-check me-1"></i>Confirm Renewal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="organizations-data" type="application/json">
+{
+    {% for org in organizations %}
+        "{{ org.OrgID|escapejs }}": {
+            "name": "{{ org.Name|escapejs }}",
+            "plan": "{{ org.Plan|escapejs }}",
+            "rate": "{{ org.PlanRate|default:50 }}",
+            "seats": "{{ org.BillingSeats|default:25 }}",
+            "discount": "{{ org.DiscountPercent|default:0 }}",
+            "termEnd": "{{ org.TermEnd|default:'' }}"
+        }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+}
+</script>
+<script>
+    const orgsData = JSON.parse(document.getElementById('organizations-data').textContent || '{}');
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const orgSelect = document.getElementById('renew_org_id');
+        const renewForm = document.getElementById('renewForm');
+        
+        const renewPlanSelect = document.getElementById('renew_plan');
+        const renewRateInput = document.getElementById('renew_plan_rate');
+        const renewSeatsInput = document.getElementById('renew_billing_seats');
+        const renewDiscountInput = document.getElementById('renew_discount_percent');
+        const renewTermStartInput = document.getElementById('renew_term_start');
+        const renewTermEndInput = document.getElementById('renew_term_end');
+
+        const renewTenureDurationSelect = document.getElementById('renew_tenure_duration');
+        const renewCustomTenureContainer = document.getElementById('renew_custom_tenure_container');
+        const renewCustomTenureMonthsInput = document.getElementById('renew_custom_tenure_months');
+
+        const renewSubtotalDisplay = document.getElementById('renew_calc_subtotal');
+        const renewGstDisplay = document.getElementById('renew_calc_gst');
+        const renewTotalDisplay = document.getElementById('renew_calc_total');
+
+        const planDefaultRatesMap = {
+            'basic': 50,
+            'elite': 100,
+            'professional': 150
+        };
+
+        const planDefaultSeatsMap = {
+            'basic': 25,
+            'elite': 100,
+            'professional': 250
+        };
+
+        function calculateRenewalInvoice() {
+            if (!renewPlanSelect) return;
+            const rate = parseFloat(renewRateInput.value) || 0;
+            const seats = parseInt(renewSeatsInput.value) || 0;
+            const discountPercent = parseFloat(renewDiscountInput.value) || 0;
+
+            const baseAmount = rate * seats;
+            const discountAmount = baseAmount * (discountPercent / 100);
+            const netAmount = baseAmount - discountAmount;
+            const gstAmount = netAmount * 0.18;
+            const totalAmount = netAmount * 1.18;
+
+            renewSubtotalDisplay.innerText = "₹" + baseAmount.toFixed(2);
+            renewGstDisplay.innerText = "₹" + gstAmount.toFixed(2);
+            renewTotalDisplay.innerText = "₹" + totalAmount.toFixed(2);
+        }
+
+        function getRenewTenureMonths() {
+            if (renewTenureDurationSelect && renewTenureDurationSelect.value === 'custom') {
+                return parseInt(renewCustomTenureMonthsInput.value) || 12;
+            }
+            return parseInt(renewTenureDurationSelect.value) || 12;
+        }
+
+        function updateRenewEndDate() {
+            if (renewTermStartInput && renewTenureDurationSelect && renewTermEndInput) {
+                const startVal = renewTermStartInput.value;
+                if (startVal) {
+                    const startDate = new Date(startVal);
+                    if (!isNaN(startDate.getTime())) {
+                        const monthsToAdd = getRenewTenureMonths();
+                        let endDate = new Date(startDate);
+                        endDate.setMonth(endDate.getMonth() + monthsToAdd);
+                        endDate.setDate(endDate.getDate() - 1);
+                        
+                        const ey = endDate.getFullYear();
+                        const em = String(endDate.getMonth() + 1).padStart(2, '0');
+                        const ed = String(endDate.getDate()).padStart(2, '0');
+                        renewTermEndInput.value = `${ey}-${em}-${ed}`;
+                    }
+                }
+            }
+        }
+
+        if (orgSelect) {
+            orgSelect.addEventListener('change', function() {
+                const orgId = this.value;
+                renewForm.action = `/core/platform/organizations/${orgId}/renew/`;
+                
+                const data = orgsData[orgId];
+                if (data) {
+                    renewPlanSelect.value = data.plan || 'basic';
+                    renewRateInput.value = data.rate || 50;
+                    renewSeatsInput.value = data.seats || 25;
+                    renewDiscountInput.value = data.discount || 0;
+                    document.getElementById('active_sub_period_end').value = data.termEnd || '';
+
+                    // Initialize start date to termEnd + 1 day
+                    let defaultStart = new Date();
+                    const prevEndStr = data.termEnd;
+                    if (prevEndStr) {
+                        try {
+                            const prevEndDate = new Date(prevEndStr);
+                            if (!isNaN(prevEndDate.getTime())) {
+                                prevEndDate.setDate(prevEndDate.getDate() + 1);
+                                defaultStart = prevEndDate;
+                            }
+                        } catch(e) {}
+                    }
+                    const yyyy = defaultStart.getFullYear();
+                    const mm = String(defaultStart.getMonth() + 1).padStart(2, '0');
+                    const dd = String(defaultStart.getDate()).padStart(2, '0');
+                    renewTermStartInput.value = `${yyyy}-${mm}-${dd}`;
+
+                    updateRenewEndDate();
+                    calculateRenewalInvoice();
+                }
+            });
+        }
+
+        if (renewPlanSelect) {
+            renewPlanSelect.addEventListener('change', function() {
+                const planKey = this.value.toLowerCase();
+                renewRateInput.value = planDefaultRatesMap[planKey] || 50;
+                renewSeatsInput.value = planDefaultSeatsMap[planKey] || 25;
+                calculateRenewalInvoice();
+            });
+
+            renewRateInput.addEventListener('input', calculateRenewalInvoice);
+            renewSeatsInput.addEventListener('input', calculateRenewalInvoice);
+            renewDiscountInput.addEventListener('input', calculateRenewalInvoice);
+            renewTermStartInput.addEventListener('change', updateRenewEndDate);
+
+            if (renewTenureDurationSelect) {
+                renewTenureDurationSelect.addEventListener('change', function() {
+                    if (this.value === 'custom') {
+                        renewCustomTenureContainer.style.display = 'block';
+                    } else {
+                        renewCustomTenureContainer.style.display = 'none';
+                    }
+                    updateRenewEndDate();
+                });
+            }
+            if (renewCustomTenureMonthsInput) {
+                renewCustomTenureMonthsInput.addEventListener('input', updateRenewEndDate);
+            }
+
+            const renewPaymentModeSelect = document.getElementById('renew_payment_mode');
+            const renewTransactionIdInput = document.getElementById('renew_transaction_id');
+            const renewTransactionIdLabel = document.getElementById('renew_transaction_id_label');
+
+            function updateRenewPaymentModeUI() {
+                if (!renewPaymentModeSelect || !renewTransactionIdInput) return;
+                const container = document.getElementById('renew_transaction_id_container');
+                if (renewPaymentModeSelect.value === 'Cash') {
+                    renewTransactionIdInput.removeAttribute('required');
+                    renewTransactionIdInput.value = '';
+                    if (container) container.style.display = 'none';
+                } else {
+                    renewTransactionIdInput.setAttribute('required', 'required');
+                    if (container) container.style.display = 'block';
+                    renewTransactionIdLabel.innerHTML = 'Proof ID / Transaction ID <span class="text-danger">*</span>';
+                }
+            }
+
+            if (renewPaymentModeSelect) {
+                renewPaymentModeSelect.addEventListener('change', updateRenewPaymentModeUI);
+                updateRenewPaymentModeUI();
+            }
+        }
+    });
+</script>
+{% endblock %}

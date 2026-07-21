@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}Departments - Lurnexa{% endblock %}
+
+{% block nav_departments %}active{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Left: Form to Add Department -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3 text-main"><i class="fa-solid fa-folder-plus text-indigo me-2"></i>Add Department</h5>
+                    <p class="text-muted small">Create a new department unit inside your organization.</p>
+
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_department">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Department Name</label>
+                            <input type="text" name="department_name" class="form-control bg-light border-0 py-2" placeholder="e.g. Engineering" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">Description (Optional)</label>
+                            <textarea name="department_desc" class="form-control bg-light border-0 py-2" rows="3" placeholder="Brief details about department operations..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2" style="border-radius: 10px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none;">
+                            <i class="fa-solid fa-plus me-1"></i> Add Department
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: List of Departments -->
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold mb-0 text-main"><i class="fa-solid fa-sitemap text-indigo me-2"></i>Existing Departments</h5>
+                        <span class="badge bg-light text-dark fw-bold border-0" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 8px;">
+                            {{ departments|length }} Total
+                        </span>
+                    </div>
+
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 small fw-bold py-3">Department Name</th>
+                                    <th class="border-0 small fw-bold py-3">Description</th>
+                                    <th class="border-0 small fw-bold py-3">Department ID</th>
+                                    <th class="border-0 small fw-bold py-3 text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dept in departments %}
+                                <tr>
+                                    <td class="py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="icon-sm bg-indigo-light rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background-color: #f1f5f9;">
+                                                <i class="fa-solid fa-building text-indigo" style="color: #6366f1;"></i>
+                                            </div>
+                                            <span class="fw-semibold text-main">{{ dept.Name }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 text-muted small">
+                                        {{ dept.Description|default:"No description provided" }}
+                                    </td>
+                                    <td class="py-3">
+                                        <code class="text-muted small">{{ dept.DepartmentID }}</code>
+                                    </td>
+                                    <td class="py-3 text-end">
+                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this department?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete_department">
+                                            <input type="hidden" name="department_id" value="{{ dept.DepartmentID }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm px-3" style="border-radius: 8px;">
+                                                <i class="fa-regular fa-trash-can me-1"></i> Delete
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="fa-regular fa-folder-open fs-2 text-muted mb-3 d-block"></i>
+                                        <p class="mb-0 small fw-medium">No departments registered yet.</p>
+                                        <p class="text-muted small mb-0">Use the left form to add your first organizational unit.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

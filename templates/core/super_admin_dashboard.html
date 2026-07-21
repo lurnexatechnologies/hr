@@ -172,6 +172,8 @@
                                 <div class="avatar-sm bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
                                     {% if item.badge == 'Payroll' %}
                                         <i class="fa-solid fa-money-bill-transfer text-success"></i>
+                                    {% elif item.badge == 'Policy' %}
+                                        <i class="fa-solid fa-file-shield text-warning"></i>
                                     {% else %}
                                         <i class="fa-solid fa-user-shield text-danger"></i>
                                     {% endif %}
@@ -182,7 +184,7 @@
                                 </div>
                             </div>
                             <div class="text-end">
-                                <span class="badge {% if item.badge == 'Payroll' %}bg-success{% else %}bg-danger{% endif %} bg-opacity-10 {% if item.badge == 'Payroll' %}text-success{% else %}text-danger{% endif %} rounded-pill px-3 py-2 small mb-2 d-inline-block">{{ item.badge }}</span>
+                                <span class="badge {% if item.badge == 'Payroll' %}bg-success text-success{% elif item.badge == 'Policy' %}bg-warning text-warning{% else %}bg-danger text-danger{% endif %} bg-opacity-10 rounded-pill px-3 py-2 small mb-2 d-inline-block">{{ item.badge }}</span>
                                 <br>
                                 <a href="{% url item.url %}" class="btn btn-sm btn-dark rounded-pill px-3">Review Now</a>
                             </div>

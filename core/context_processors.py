@@ -4,6 +4,13 @@ from boto3.dynamodb.conditions import Key
 
 def lurnexa_settings(request):
     from core.utils import is_mobile_app
+    
+    org_id = None
+    if request.user.is_authenticated:
+        org_id = getattr(request.user, 'org_id', None)
+    if not org_id and hasattr(request, 'org') and request.org:
+        org_id = request.org.get('OrgID')
+
     # Initialize default data
     data = {
         'LURNEXA_VERSION': '1.0.0',
@@ -13,7 +20,7 @@ def lurnexa_settings(request):
         'global_notifications': [],
         'unread_notifications_count': 0,
         'user_gender': None,
-        'IS_MOBILE_APP': is_mobile_app(request)
+        'IS_MOBILE_APP': is_mobile_app(request),
     }
 
     # Only fetch birthdays if user is logged in
@@ -29,10 +36,18 @@ def lurnexa_settings(request):
             # Check if user has cleared notifications in this session
             notifications_dismissed = request.session.get('notifications_dismissed', False)
             
-            # Fetch all employees to check birthdays
-            all_employees = EmployeesTable.scan()
+            # Fetch all employees to check birthdays (org-scoped)
+            if org_id:
+                all_employees = EmployeesTable.scan(
+                    FilterExpression="OrgID = :oid",
+                    ExpressionAttributeValues={":oid": org_id}
+                )
+            else:
+                all_employees = []
             
             for emp in all_employees:
+                if emp.get('ShowBirthday') == 'off' or emp.get('ShowBirthday') is False:
+                    continue
                 dob = emp.get('DOB')
                 if dob and len(dob) >= 10:
                     dob_md = dob[5:10] # Extracts MM-DD from YYYY-MM-DD
@@ -64,8 +79,14 @@ def lurnexa_settings(request):
         # --- Holiday Reminder (One Day Before) ---
         try:
             tomorrow_full_str = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
-            # Scan holidays to find if any is for tomorrow
-            all_holidays = HolidaysTable.scan()
+            # Scan holidays to find if any is for tomorrow (org-scoped)
+            if org_id:
+                all_holidays = HolidaysTable.scan(
+                    FilterExpression="OrgID = :oid",
+                    ExpressionAttributeValues={":oid": org_id}
+                )
+            else:
+                all_holidays = []
             tomorrow_holiday = next((h for h in all_holidays if h.get('HolidayDate') == tomorrow_full_str), None)
             
             if tomorrow_holiday:
@@ -142,7 +163,10 @@ def lurnexa_settings(request):
 
                     # Pending Leaves (Uses 'Pending' status)
                     if user_role in ['Manager', 'HR ADMIN', 'Super admin']:
-                        all_leaves = LeaveRequestsTable.scan()
+                        all_leaves = LeaveRequestsTable.scan(
+                            FilterExpression="OrgID = :oid",
+                            ExpressionAttributeValues={":oid": org_id}
+                        ) if org_id else []
                         count_l = 0
                         for l in all_leaves:
                             if l.get('Status') == 'Pending':
@@ -154,7 +178,10 @@ def lurnexa_settings(request):
                         
                     # Pending Expenses
                     if user_role in ['Manager', 'HR ADMIN', 'Super admin']:
-                        all_expenses = ExpensesTable.scan()
+                        all_expenses = ExpensesTable.scan(
+                            FilterExpression="OrgID = :oid",
+                            ExpressionAttributeValues={":oid": org_id}
+                        ) if org_id else []
                         count_e = 0
                         for exp in all_expenses:
                             status = exp.get('Status')
@@ -173,7 +200,10 @@ def lurnexa_settings(request):
                         
                     # Pending WFH
                     if user_role in ['Manager', 'HR ADMIN', 'Super admin']:
-                        all_wfh = WFHRequestsTable.scan()
+                        all_wfh = WFHRequestsTable.scan(
+                            FilterExpression="OrgID = :oid",
+                            ExpressionAttributeValues={":oid": org_id}
+                        ) if org_id else []
                         count_w = 0
                         for w in all_wfh:
                             status = w.get('Status')
@@ -193,8 +223,14 @@ def lurnexa_settings(request):
                     # Pending Resignations (Uses 'Pending HR ADMIN Review')
                     if user_role in ['HR ADMIN', 'Super admin']:
                         from core.dynamodb_service import UsersTable
-                        all_res = ResignationsTable.scan()
-                        all_users = UsersTable.scan()
+                        all_res = ResignationsTable.scan(
+                            FilterExpression="OrgID = :oid",
+                            ExpressionAttributeValues={":oid": org_id}
+                        ) if org_id else []
+                        all_users = UsersTable.scan(
+                            FilterExpression="OrgID = :oid",
+                            ExpressionAttributeValues={":oid": org_id}
+                        ) if org_id else []
                         user_role_map = {u.get('EmployeeID'): u.get('Role') for u in all_users if u.get('EmployeeID')}
                         
                         count_r = 0
@@ -209,7 +245,10 @@ def lurnexa_settings(request):
                         
                     # Pending Payroll Approvals
                     if user_role == 'Super admin':
-                        all_pay = PayrollApprovalsTable.scan()
+                        all_pay = PayrollApprovalsTable.scan(
+                            FilterExpression="OrgID = :oid",
+                            ExpressionAttributeValues={":oid": org_id}
+                        ) if org_id else []
                         count_p = sum(1 for p in all_pay if p.get('Status') == 'Pending')
                         data['pending_payroll_count'] = count_p
 

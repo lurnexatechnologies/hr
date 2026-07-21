@@ -1,0 +1,336 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}360° Feedback Hub - Lurnexa{% endblock %}
+
+{% block extra_css %}
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .glass-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1);
+    }
+    .gradient-header {
+        background: linear-gradient(135deg, #4f46e5, #3b82f6);
+        color: white;
+        border-radius: 16px;
+    }
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 0.75rem;
+    }
+    .bg-draft { background-color: #e2e8f0; color: #475569; }
+    .bg-nominated { background-color: #fef3c7; color: #d97706; }
+    .bg-active { background-color: #dbeafe; color: #2563eb; }
+    .bg-closed { background-color: #fee2e2; color: #dc2626; }
+    .bg-published { background-color: #dcfce7; color: #16a34a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="card border-0 mb-4 shadow-sm gradient-header">
+        <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h2 class="fw-bold mb-1"><i class="fa-solid fa-arrows-spin me-2"></i>360° Feedback & Competency Hub</h2>
+                <p class="mb-0 opacity-90">Collect holistic reviews from peers, managers, subordinates, and clients to drive professional development.</p>
+            </div>
+            <div class="d-flex gap-2 mt-3 mt-md-0">
+                {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+                    <a href="{% url 'feedback_cycles' %}" class="btn btn-light fw-bold text-primary rounded-pill px-4 shadow-sm">
+                        <i class="fa-solid fa-rotate me-1"></i> Manage Cycles
+                    </a>
+                    <a href="{% url 'feedback_templates' %}" class="btn btn-primary-light fw-bold text-white rounded-pill px-4 border border-white">
+                        <i class="fa-solid fa-file-invoice me-1"></i> Templates
+                    </a>
+                {% endif %}
+                <a href="{% url 'reviewer_nominations' %}" class="btn btn-info fw-bold text-white rounded-pill px-4 shadow-sm" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);">
+                    <i class="fa-solid fa-users-gear me-1"></i> Nominate Reviewers
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Administrative Quick Access -->
+    {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="glass-card p-3">
+                <div class="d-flex gap-3 flex-wrap">
+                    <span class="fw-bold text-muted d-flex align-items-center"><i class="fa-solid fa-gears me-2"></i> HR Control Panel:</span>
+                    <a href="{% url 'feedback_competencies' %}" class="btn btn-light btn-sm rounded-pill px-3"><i class="fa-solid fa-brain text-indigo me-1"></i> Competency Library</a>
+                    <a href="{% url 'feedback_questions' %}" class="btn btn-light btn-sm rounded-pill px-3"><i class="fa-solid fa-clipboard-question text-info me-1"></i> Question Bank</a>
+                    <a href="{% url 'feedback_audit_logs' %}" class="btn btn-light btn-sm rounded-pill px-3"><i class="fa-solid fa-shield-halved text-success me-1"></i> Security Audit Logs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Key Metrics / Statistics -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 py-2 glass-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted small fw-bold text-uppercase">Total Cycles</h6>
+                            <h3 class="fw-bold text-dark mb-0">{{ stats.total_cycles }}</h3>
+                        </div>
+                        <div class="icon-shape bg-primary-light text-primary rounded-circle p-3">
+                            <i class="fa-solid fa-arrows-spin fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 py-2 glass-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted small fw-bold text-uppercase">Active Cycles</h6>
+                            <h3 class="fw-bold text-info mb-0">{{ stats.active_cycles }}</h3>
+                        </div>
+                        <div class="icon-shape bg-info-light text-info rounded-circle p-3">
+                            <i class="fa-solid fa-circle-play fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 py-2 glass-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted small fw-bold text-uppercase">My Pending Reviews</h6>
+                            <h3 class="fw-bold text-warning mb-0">{{ stats.pending_reviews }}</h3>
+                        </div>
+                        <div class="icon-shape bg-warning-light text-warning rounded-circle p-3">
+                            <i class="fa-solid fa-clock fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 py-2 glass-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted small fw-bold text-uppercase">Evaluation Completion %</h6>
+                            <h3 class="fw-bold text-success mb-0">{{ stats.completion_rate }}%</h3>
+                        </div>
+                        <div class="icon-shape bg-success-light text-success rounded-circle p-3">
+                            <i class="fa-solid fa-circle-check fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Rows -->
+    <div class="row">
+        <!-- Left Workspace: Actionable Surveys -->
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm mb-4 glass-card" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-file-pen text-primary me-2"></i>My Pending Evaluations</h5>
+                    <p class="text-muted small">Select a colleague below to start or complete your evaluation review.</p>
+                    
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 py-3 small fw-bold">Evaluatee</th>
+                                    <th class="border-0 py-3 small fw-bold">Relationship</th>
+                                    <th class="border-0 py-3 small fw-bold">Nominated By</th>
+                                    <th class="border-0 py-3 small fw-bold text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in my_pending_reviews %}
+                                <tr>
+                                    <td class="py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-sm bg-primary-light text-primary rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width:38px; height:38px; background-color:#eff6ff;">
+                                                <i class="fa-solid fa-user"></i>
+                                            </div>
+                                            <div>
+                                                <span class="fw-semibold d-block text-dark">{{ item.RevieweeName }}</span>
+                                                <small class="text-muted">{{ item.ReviewerRole }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 text-muted small">
+                                        <span class="badge bg-light text-primary border">{{ item.Relationship }}</span>
+                                    </td>
+                                    <td class="py-3 text-muted small">
+                                        {{ item.NominatedBy }}
+                                    </td>
+                                    <td class="py-3 text-end">
+                                        <a href="{% url 'evaluate_survey' item.AssignmentID %}" class="btn btn-primary btn-sm rounded-pill px-3 fw-bold shadow-sm">
+                                            <i class="fa-solid fa-pen-nib me-1"></i> Give Feedback
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="fa-regular fa-square-check fs-2 text-success mb-3 d-block"></i>
+                                        <p class="mb-0 small fw-medium">All pending evaluations submitted!</p>
+                                        <p class="text-muted small mb-0">You have no pending assignments at the moment.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Feed & Acknowledgment -->
+            <div class="card border-0 shadow-sm glass-card" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-chart-pie text-success me-2"></i>My Completed & Published Reports</h5>
+                    <p class="text-muted small">View aggregate summary reports for completed feedback cycles.</p>
+                    
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 py-3 small fw-bold">Feedback Cycle</th>
+                                    <th class="border-0 py-3 small fw-bold">Type</th>
+                                    <th class="border-0 py-3 small fw-bold">Status</th>
+                                    <th class="border-0 py-3 small fw-bold text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rep in my_reports %}
+                                <tr>
+                                    <td class="py-3">
+                                        <span class="fw-semibold text-dark">{{ rep.CycleName }}</span>
+                                    </td>
+                                    <td class="py-3 text-muted small">
+                                        360° Assessment
+                                    </td>
+                                    <td class="py-3">
+                                        <span class="status-badge bg-published">Published</span>
+                                    </td>
+                                    <td class="py-3 text-end">
+                                        <a href="{% url 'feedback_report' rep.CycleID request.user.employee_id %}" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-bold">
+                                            <i class="fa-solid fa-chart-line me-1"></i> View Report Card
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-triangle-exclamation fs-3 text-warning mb-3 d-block"></i>
+                                        <p class="mb-0 small fw-medium">No published reports found.</p>
+                                        <p class="text-muted small mb-0">Reports will appear here once the feedback cycle is concluded and published by HR.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar: Team Analytics & Subordinate Monitoring -->
+        <div class="col-lg-4 mb-4">
+            <!-- Manager Team Progress card -->
+            {% if request.user.role == 'Manager' %}
+            <div class="card border-0 shadow-sm mb-4 glass-card" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-people-group text-info me-2"></i>Direct Reports Completion</h5>
+                    <p class="text-muted small">Track 360 reviewer nominations and response levels for your team.</p>
+                    
+                    <div class="d-flex flex-column gap-3">
+                        {% for sub in team_stats %}
+                        <div class="p-3 bg-light rounded-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold small text-dark d-block">{{ sub.Name }}</span>
+                                <span class="badge bg-white text-dark border small">{{ sub.DoneReviewers }}/{{ sub.TotalReviewers }} Done</span>
+                            </div>
+                            <div class="progress rounded-pill bg-white mb-2" style="height: 6px;">
+                                <div class="progress-bar rounded-pill bg-info" role="progressbar" style="width: {{ sub.CompletionRate }}%;"></div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted" style="font-size:0.75rem;">{{ sub.Designation }}</small>
+                                <a href="{% url 'feedback_report' 'any' sub.EmployeeID %}" class="small fw-bold text-decoration-none text-info">View Insights &rarr;</a>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-4 text-muted">
+                            <p class="mb-0 small">No direct subordinates assigned.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- HR Analytics Summary -->
+            {% if request.user.role == 'HR ADMIN' %}
+            <div class="card border-0 shadow-sm mb-4 glass-card" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-chart-column text-indigo me-2"></i>Cycle Completion Tracker</h5>
+                    <p class="text-muted small">Live summary of response rates and survey collections across the enterprise.</p>
+                    
+                    <div class="bg-light p-3 rounded-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold small text-dark">Overall Response Rate</span>
+                            <span class="fw-extrabold text-indigo">{{ hr_analytics.rate }}%</span>
+                        </div>
+                        <div class="progress rounded-pill bg-white" style="height: 8px;">
+                            <div class="progress-bar rounded-pill bg-indigo" role="progressbar" style="width: {{ hr_analytics.rate }}%; background-color:#6366f1;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                        <span class="text-muted small">Total Requests:</span>
+                        <span class="fw-bold text-dark small">{{ hr_analytics.total_reviews }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                        <span class="text-muted small">Completed Reviews:</span>
+                        <span class="fw-bold text-success small">{{ hr_analytics.completed_reviews }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Pending Response:</span>
+                        <span class="fw-bold text-warning small">{{ hr_analytics.pending_reviews }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Guidelines and Best Practices -->
+            <div class="card border-0 shadow-sm glass-card" style="border-radius: 16px;">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-regular fa-lightbulb text-warning me-2"></i>Evaluation Guidelines</h5>
+                    <ul class="text-muted small ps-3 mb-0" style="line-height:1.6;">
+                        <li class="mb-2"><strong>Constructive & Honest:</strong> Focus feedback on behavioral indicators and objective development goals.</li>
+                        <li class="mb-2"><strong>Anonymity:</strong> Unless specified otherwise, peer and downward reports are aggregated anonymously to ensure candid insights.</li>
+                        <li class="mb-2"><strong>Timely Submission:</strong> Submissions are locked automatically after the cycle end date. Keep track of deadlines.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

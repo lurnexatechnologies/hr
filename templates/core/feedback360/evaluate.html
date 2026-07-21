@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}Complete Evaluation - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'feedback_hub' %}" class="text-decoration-none text-muted">Feedback Hub</a></li>
+            <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Complete Evaluation</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <!-- Header card -->
+            <div class="card border-0 shadow-sm mb-4 bg-white p-2" style="border-radius: 16px;">
+                <div class="card-body p-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-light text-primary border mb-2 fw-bold">{{ assignment.Relationship }} Review</span>
+                        <h3 class="fw-bold mb-1 text-dark">Evaluating: {{ assignment.RevieweeName }}</h3>
+                        <p class="text-muted small mb-0"><i class="fa-solid fa-calendar me-1"></i> Cycle: {{ cycle.Name }} | End Date: {{ cycle.EndDate }}</p>
+                    </div>
+                    <div class="icon-shape bg-primary-light text-primary rounded-circle p-3 d-none d-sm-block">
+                        <i class="fa-solid fa-file-pen fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Survey Form -->
+            <form method="POST" action="{% url 'evaluate_survey' assignment.AssignmentID %}" id="surveyForm">
+                {% csrf_token %}
+                <input type="hidden" name="is_draft" id="isDraftInput" value="false">
+
+                {% for q in questions %}
+                <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="badge bg-light text-secondary border small">{{ q.Category }}</span>
+                            {% if q.IsMandatory %}
+                                <span class="text-danger small fw-bold">* Mandatory</span>
+                            {% endif %}
+                        </div>
+                        <h5 class="fw-bold text-dark mb-4">{{ q.QuestionText }}</h5>
+
+                        <!-- Render Question Input -->
+                        {% if q.QuestionType == 'RatingScale' %}
+                            <div class="mb-2">
+                                <label class="form-label text-muted small fw-bold d-block mb-3">Select Rating (1 = Poor, 5 = Excellent)</label>
+                                <div class="d-flex justify-content-between gap-2 max-width-500">
+                                    {% for i in "12345" %}
+                                        <div class="flex-fill">
+                                            <input type="radio" name="q_{{ q.QuestionID }}" value="{{ i }}" id="q_{{ q.QuestionID }}_{{ i }}" class="btn-check" {% if q.IsMandatory %}required{% endif %}>
+                                            <label class="btn btn-outline-primary w-100 py-3 rounded-3 fw-bold" for="q_{{ q.QuestionID }}_{{ i }}">{{ i }}</label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% elif q.QuestionType == 'LikertScale' %}
+                            <div class="d-flex flex-column gap-2">
+                                <div class="form-check p-3 bg-light rounded-3 border">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="1" id="q_{{ q.QuestionID }}_1" {% if q.IsMandatory %}required{% endif %}>
+                                    <label class="form-check-label text-dark fw-medium" for="q_{{ q.QuestionID }}_1">Strongly Disagree</label>
+                                </div>
+                                <div class="form-check p-3 bg-light rounded-3 border">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="2" id="q_{{ q.QuestionID }}_2" {% if q.IsMandatory %}required{% endif %}>
+                                    <label class="form-check-label text-dark fw-medium" for="q_{{ q.QuestionID }}_2">Disagree</label>
+                                </div>
+                                <div class="form-check p-3 bg-light rounded-3 border">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="3" id="q_{{ q.QuestionID }}_3" {% if q.IsMandatory %}required{% endif %}>
+                                    <label class="form-check-label text-dark fw-medium" for="q_{{ q.QuestionID }}_3">Neutral</label>
+                                </div>
+                                <div class="form-check p-3 bg-light rounded-3 border">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="4" id="q_{{ q.QuestionID }}_4" {% if q.IsMandatory %}required{% endif %}>
+                                    <label class="form-check-label text-dark fw-medium" for="q_{{ q.QuestionID }}_4">Agree</label>
+                                </div>
+                                <div class="form-check p-3 bg-light rounded-3 border">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="5" id="q_{{ q.QuestionID }}_5" {% if q.IsMandatory %}required{% endif %}>
+                                    <label class="form-check-label text-dark fw-medium" for="q_{{ q.QuestionID }}_5">Strongly Agree</label>
+                                </div>
+                            </div>
+                        {% elif q.QuestionType == 'YesNo' %}
+                                <div class="d-flex gap-3">
+                                    <div class="form-check flex-fill p-3 bg-light rounded-3 border">
+                                        <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="Yes" id="q_{{ q.QuestionID }}_yes" {% if q.IsMandatory %}required{% endif %}>
+                                        <label class="form-check-label text-dark fw-bold" for="q_{{ q.QuestionID }}_yes">Yes</label>
+                                    </div>
+                                    <div class="form-check flex-fill p-3 bg-light rounded-3 border">
+                                        <input class="form-check-input ms-0 me-2" type="radio" name="q_{{ q.QuestionID }}" value="No" id="q_{{ q.QuestionID }}_no" {% if q.IsMandatory %}required{% endif %}>
+                                        <label class="form-check-label text-dark fw-bold" for="q_{{ q.QuestionID }}_no">No</label>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <!-- Text/Comments -->
+                                <textarea name="q_{{ q.QuestionID }}" rows="3" class="form-control bg-light border-0 py-3" placeholder="Provide details/constructive remarks here..." style="border-radius:12px;" {% if q.IsMandatory %}required{% endif %}></textarea>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+
+                <!-- Overall Remarks -->
+                <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold text-dark mb-2"><i class="fa-solid fa-message text-indigo me-2"></i>Overall Comments & Recommendations</h5>
+                        <p class="text-muted small mb-4">Provide any additional, overall remarks on key strengths or areas of improvement for this employee.</p>
+                        <textarea name="overall_comments" rows="4" class="form-control bg-light border-0 py-3" placeholder="Type overall remarks..." style="border-radius:12px;"></textarea>
+                    </div>
+                </div>
+
+                <!-- Submit / Save Actions -->
+                <div class="d-flex justify-content-between align-items-center mb-5">
+                    <button type="button" onclick="submitSurvey(true)" class="btn btn-outline-secondary rounded-pill px-4 fw-bold">
+                        <i class="fa-solid fa-box-archive me-1"></i> Save as Draft
+                    </button>
+                    <button type="button" onclick="submitSurvey(false)" class="btn btn-primary rounded-pill px-5 py-2-5 fw-bold shadow" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); border: none;">
+                        <i class="fa-solid fa-paper-plane me-1"></i> Submit Evaluation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function submitSurvey(isDraft) {
+        document.getElementById('isDraftInput').value = isDraft ? 'true' : 'false';
+        
+        // If final submit, validate html forms
+        if (!isDraft) {
+            const form = document.getElementById('surveyForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+        }
+        
+        document.getElementById('surveyForm').submit();
+    }
+</script>
+{% endblock %}

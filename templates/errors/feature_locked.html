@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Feature Locked - Lurnexa{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-center py-5">
+    <div class="card border-0 shadow-lg text-center p-5" style="max-width: 550px; border-radius: 24px; background: linear-gradient(145deg, #ffffff, #f1f3f9);">
+        <div class="mb-4">
+            <span class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-warning rounded-circle" style="width: 90px; height: 90px;">
+                <i class="fa-solid fa-lock fa-3x animate-bounce"></i>
+            </span>
+        </div>
+        <h3 class="fw-bold text-dark mb-2">Feature Upgrade Required</h3>
+        <p class="text-muted mb-4 fs-6">
+            The <strong class="text-primary">{{ feature_name }}</strong> module is not included in your organization's current <strong class="text-capitalize">{{ current_plan }}</strong> plan.
+        </p>
+
+        <div class="bg-white p-4 rounded-4 shadow-sm border mb-4 text-start">
+            <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-circle-info me-2 text-primary"></i>What does this feature offer?</h5>
+            <p class="small text-muted mb-2">
+                Gain access to advanced HR management tools, streamlined workflows, automated calculations, and secure data storage to save hours of administrative overhead.
+            </p>
+        </div>
+
+        <div class="d-grid gap-2">
+            <a href="mailto:sales@lurnexa.com?subject=Upgrade%20Request%20for%20{{ feature_name }}&body=Hi%20Sales%20Team%2C%0A%0AOurg%20organization%20is%20currently%20on%20the%20{{ current_plan }}%20plan%20and%20we'd%20like%20to%20upgrade%20to%20access%20the%20{{ feature_name }}%20feature.%20Please%20guide%20us%20on%20the%20process.%0A%0AThanks!" class="btn btn-primary btn-lg rounded-pill fw-semibold py-3 border-0" style="background: linear-gradient(135deg, #4f46e5, #3b82f6);">
+                <i class="fa-solid fa-arrow-up-right-from-square me-2"></i>Contact Admin/Sales to Upgrade
+            </a>
+            <a href="{% url 'index' %}" class="btn btn-light btn-lg rounded-pill fw-semibold py-3 border mt-2">
+                <i class="fa-solid fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+.animate-bounce {
+    animation: bounce 2s infinite ease-in-out;
+}
+</style>
+{% endblock %}

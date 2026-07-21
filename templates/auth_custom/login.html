@@ -3,11 +3,13 @@
 {% block content %}
 <form method="POST" action="{% url 'login' %}">
     {% csrf_token %}
+    <input type="hidden" name="device_id" id="login_device_id">
+    
     <div class="mb-3">
         <label for="username" class="form-label fw-medium text-muted">Email or Employee ID</label>
         <div class="input-group">
             <span class="input-group-text bg-white border-end-0"><i class="fa-regular fa-envelope text-muted"></i></span>
-            <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" placeholder="Enter your email or ID" required>
+            <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" placeholder="Enter your email or ID" value="{{ username|default:'' }}" required>
         </div>
     </div>
     
@@ -23,6 +25,26 @@
                 <i class="fa-regular fa-eye text-muted"></i>
             </span>
         </div>
+    </div>
+
+    {% if show_force_login %}
+    <div class="alert alert-warning border-0 rounded-3 p-3 mb-4 shadow-sm">
+        <div class="d-flex align-items-center mb-2">
+            <i class="fa-solid fa-circle-exclamation text-warning me-2 fs-5"></i>
+            <span class="fw-bold text-dark small">Active Session Detected</span>
+        </div>
+        <p class="text-muted mb-3" style="font-size: 0.82rem; line-height: 1.4;">You are currently logged in on another device or tab. Click below to terminate that session and log in here.</p>
+        <div class="form-check">
+            <input class="form-check-input border-warning" type="checkbox" name="force_login" value="true" id="forceLoginCheck" required>
+            <label class="form-check-label fw-medium text-dark" for="forceLoginCheck" style="font-size: 0.82rem;">
+                Log out other devices and sign in here.
+            </label>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="d-grid gap-2 mb-3">
+        <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
     </div>
 
     <script>
@@ -41,18 +63,27 @@
             }
         });
         
+        // Handle persistent device_id loading/generation
+        (function() {
+            let devId = localStorage.getItem('lurnexa_device_id');
+            if (!devId) {
+                // Try cookie fallback
+                const match = document.cookie.match(new RegExp('(^| )device_id=([^;]+)'));
+                if (match) {
+                    devId = match[2];
+                } else {
+                    // Generate new persistent device ID
+                    devId = 'dev-' + Math.random().toString(36).substring(2, 15) + '-' + Date.now().toString(36);
+                }
+                localStorage.setItem('lurnexa_device_id', devId);
+            }
+            document.getElementById('login_device_id').value = devId;
+        })();
+        
         // Mark session active in sessionStorage upon form submission
         document.querySelector('form').addEventListener('submit', function() {
             sessionStorage.setItem('session_active', 'true');
         });
     </script>
-    
-    <div class="d-grid gap-2">
-        <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
-    </div>
-
-
-
-
 </form>
 {% endblock %}
