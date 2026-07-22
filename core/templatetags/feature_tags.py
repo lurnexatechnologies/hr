@@ -9,5 +9,9 @@ def has_feature(context, feature_key):
         # Platform Admins don't have tenant feature locks inside the main app
         if getattr(request.user, 'role', '') == 'Platform Admin':
             return True
-        return feature_key in getattr(request.user, 'features', [])
+        features = getattr(request.user, 'features', [])
+        if not features:
+            from core.features import PLAN_FEATURES
+            features = PLAN_FEATURES.get('professional', [])
+        return feature_key in features
     return False

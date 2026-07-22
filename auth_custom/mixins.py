@@ -10,11 +10,15 @@ class FeatureRequiredMixin:
         if getattr(request.user, 'role', '') == 'Platform Admin':
             return super().dispatch(request, *args, **kwargs)
         if self.required_feature:
-            if self.required_feature not in getattr(request.user, 'features', []):
+            user_features = getattr(request.user, 'features', [])
+            if not user_features:
+                from core.features import PLAN_FEATURES
+                user_features = PLAN_FEATURES.get('professional', [])
+            if self.required_feature not in user_features:
                 from core.features import FEATURE_REGISTRY
                 return render(request, 'errors/feature_locked.html', {
                     'feature_name': FEATURE_REGISTRY.get(self.required_feature, (self.required_feature,))[0],
-                    'current_plan': getattr(request.user, 'plan', 'basic'),
+                    'current_plan': getattr(request.user, 'plan', 'professional'),
                 })
         return super().dispatch(request, *args, **kwargs)
 

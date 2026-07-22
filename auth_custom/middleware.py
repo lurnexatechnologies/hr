@@ -188,16 +188,37 @@ class DynamoDBAuthMiddleware:
                             org = None
                             if org_id:
                                 org = _get_org_cached(org_id)
-                                if org:
-                                    request.user.org = org
-                                    request.org = org
-                                    plan = org.get('Plan', 'basic').lower()
-                                    if plan == 'whitelabel':
-                                        plan = 'professional'
-                                    request.user.plan = plan
-                                    plan_features = PLAN_FEATURES.get(plan, [])
-                                    custom_features = org.get('CustomFeatures', [])
-                                    request.user.features = list(set(plan_features) | set(custom_features))
+                            
+                            if not org:
+                                from core.dynamodb_service import OrganizationsTable
+                                try:
+                                    all_orgs = OrganizationsTable.scan()
+                                    if all_orgs:
+                                        org = all_orgs[0]
+                                        org_id = org.get('OrgID')
+                                        request.user.org_id = org_id
+                                except Exception as err:
+                                    logger.error(f"Error resolving org fallback in middleware: {err}")
+
+                            if org:
+                                request.user.org = org
+                                request.org = org
+                                raw_plan = org.get('Plan')
+                                if not raw_plan or str(raw_plan).strip().lower() in ['none', 'null', '']:
+                                    plan = 'professional'
+                                else:
+                                    plan = str(raw_plan).strip().lower()
+                                
+                                if plan in ['whitelabel', 'custom', 'unlimited']:
+                                    plan = 'professional'
+                                
+                                request.user.plan = plan
+                                plan_features = PLAN_FEATURES.get(plan, PLAN_FEATURES.get('professional', []))
+                                custom_features = org.get('CustomFeatures', []) or []
+                                request.user.features = list(set(plan_features) | set(custom_features))
+                            else:
+                                request.user.plan = 'professional'
+                                request.user.features = PLAN_FEATURES.get('professional', [])
                             
                             # Resolve and assign user permissions
                             request.user.permissions = get_user_permissions(user_data, org)

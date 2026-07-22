@@ -37,11 +37,15 @@ def feature_required(feature_key):
                 return redirect('login')
             if getattr(request.user, 'role', '') == 'Platform Admin':
                 return view_func(request, *args, **kwargs)
-            if feature_key not in getattr(request.user, 'features', []):
+            user_features = getattr(request.user, 'features', [])
+            if not user_features:
+                from core.features import PLAN_FEATURES
+                user_features = PLAN_FEATURES.get('professional', [])
+            if feature_key not in user_features:
                 from core.features import FEATURE_REGISTRY
                 return render(request, 'errors/feature_locked.html', {
                     'feature_name': FEATURE_REGISTRY.get(feature_key, (feature_key,))[0],
-                    'current_plan': getattr(request.user, 'plan', 'basic'),
+                    'current_plan': getattr(request.user, 'plan', 'professional'),
                 })
             return view_func(request, *args, **kwargs)
         return _wrapped
