@@ -41,8 +41,9 @@ class PlatformDashboardView(RoleRequiredMixin, View):
         total_orgs = len(orgs)
         active_orgs = sum(1 for o in orgs if o.get('Status', 'active') == 'active')
         suspended_orgs = total_orgs - active_orgs
-        total_employees = len(all_emps)
-        total_users = len(all_users)
+        # Exclude Platform Admin from counts - they are system accounts, not tenant users
+        total_employees = sum(1 for e in all_emps if e.get('Designation') != 'Platform Admin')
+        total_users = sum(1 for u in all_users if (u.get('Role') or '').strip().upper() not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN'])
 
         # Plan distribution
         plan_dist = {}
@@ -69,6 +70,8 @@ class PlatformDashboardView(RoleRequiredMixin, View):
         emp_counts = {}
         single_org_id = orgs[0].get('OrgID') if len(orgs) == 1 else None
         for emp in all_emps:
+            if emp.get('Designation') == 'Platform Admin':
+                continue
             oid = emp.get('OrgID') or single_org_id
             if oid:
                 emp_counts[oid] = emp_counts.get(oid, 0) + 1
@@ -129,6 +132,8 @@ class PlatformOrgListView(RoleRequiredMixin, View):
 
         emp_counts = {}
         for emp in all_emps:
+            if emp.get('Designation') == 'Platform Admin':
+                continue
             oid = emp.get('OrgID')
             if oid:
                 emp_counts[oid] = emp_counts.get(oid, 0) + 1
@@ -830,7 +835,7 @@ class PlatformResetDatabaseView(RoleRequiredMixin, View):
             SettingsTable, SubscriptionsTable, WFHRequestsTable, PFSettingsTable,
             PFTransactionsTable, PayrollApprovalsTable, EmployeeLettersTable,
             AssetsTable, OKRsTable, AssetRequestsTable, AppraisalCyclesTable,
-            AppraisalsTable, DeviceTokensTable
+            AppraisalsTable, DeviceTokensTable, DepartmentsTable
         )
         import uuid
         import bcrypt
@@ -855,7 +860,8 @@ class PlatformResetDatabaseView(RoleRequiredMixin, View):
             (PasswordResetTokensTable, ['Token']),
             (NotificationsTable, ['EmployeeID', 'Timestamp']),
             (SettingsTable, ['SettingKey']),
-            (SubscriptionsTable, ['SubID']),
+            (SubscriptionsTable, ['OrgID', 'PeriodStart']),
+            (DepartmentsTable, ['OrgID', 'DepartmentID']),
             (WFHRequestsTable, ['EmployeeID', 'RequestID']),
             (PFSettingsTable, ['SettingKey']),
             (PFTransactionsTable, ['EmployeeID', 'MonthYear']),

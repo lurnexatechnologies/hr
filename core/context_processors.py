@@ -21,7 +21,17 @@ def lurnexa_settings(request):
         'unread_notifications_count': 0,
         'user_gender': None,
         'IS_MOBILE_APP': is_mobile_app(request),
+        'has_orgs': False,
     }
+
+    # Platform Admin: check if any organizations exist (for sidebar visibility)
+    if request.user.is_authenticated and getattr(request.user, 'role', '') == 'Platform Admin':
+        try:
+            from core.dynamodb_service import OrganizationsTable
+            orgs = OrganizationsTable.scan(Limit=1)
+            data['has_orgs'] = len(orgs) > 0
+        except Exception:
+            data['has_orgs'] = False
 
     # Only fetch birthdays if user is logged in
     if request.user.is_authenticated:

@@ -277,6 +277,7 @@ class DynamoDBAuthMiddleware:
                 'platform_renew_org',
                 'platform_create_org_admin',
                 'platform_billing',
+                'platform_reset_database',
                 'billing_invoice_detail',
                 'settings',
                 'sitemap',
