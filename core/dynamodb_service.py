@@ -61,7 +61,7 @@ class TableService:
                         org_id = getattr(request.user, 'org_id', None)
             except Exception:
                 pass
-            if org_id and item.get('OrgID') != org_id:
+            if org_id and item.get('OrgID') and item.get('OrgID') != org_id:
                 return None
         return item
 
@@ -100,17 +100,18 @@ class TableService:
 
         if org_id:
             from boto3.dynamodb.conditions import Attr
+            org_filter = Attr('OrgID').eq(org_id) | Attr('OrgID').not_exists()
             if 'FilterExpression' not in kwargs:
-                kwargs['FilterExpression'] = Attr('OrgID').eq(org_id)
+                kwargs['FilterExpression'] = org_filter
             else:
                 expr = kwargs['FilterExpression']
                 if isinstance(expr, str):
-                    kwargs['FilterExpression'] = f"({expr}) AND OrgID = :autogen_org_id"
+                    kwargs['FilterExpression'] = f"({expr}) AND (OrgID = :autogen_org_id OR attribute_not_exists(OrgID))"
                     if 'ExpressionAttributeValues' not in kwargs:
                         kwargs['ExpressionAttributeValues'] = {}
                     kwargs['ExpressionAttributeValues'][':autogen_org_id'] = org_id
                 else:
-                    kwargs['FilterExpression'] = expr & Attr('OrgID').eq(org_id)
+                    kwargs['FilterExpression'] = expr & org_filter
         return kwargs
 
     def query(self, **kwargs):

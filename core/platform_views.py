@@ -67,8 +67,9 @@ class PlatformDashboardView(RoleRequiredMixin, View):
 
         # Employee distribution per org (top 5)
         emp_counts = {}
+        single_org_id = orgs[0].get('OrgID') if len(orgs) == 1 else None
         for emp in all_emps:
-            oid = emp.get('OrgID')
+            oid = emp.get('OrgID') or single_org_id
             if oid:
                 emp_counts[oid] = emp_counts.get(oid, 0) + 1
 

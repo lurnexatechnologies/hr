@@ -1,0 +1,25 @@
+2026-07-21 16:46:55,864 - INFO - Starting fix_prod_db.py script...
+2026-07-21 16:46:57,813 - INFO - Firebase Admin SDK initialized using firebase_credentials.b64.
+2026-07-21 16:46:58,190 - INFO - Initializing DynamoDB tables on live environment...
+2026-07-21 16:46:59,673 - INFO - DynamoDB tables check completed.
+2026-07-21 16:46:59,673 - INFO - Checking if Platform Admin user exists...
+2026-07-21 16:46:59,697 - INFO - Platform Admin user already exists.
+2026-07-21 16:46:59,717 - INFO - Found 9 employees in Lurnexa_Employees.
+2026-07-21 16:46:59,717 - INFO - Employee ID: LT-26004, Name: SARAH ASSISTANT, is_pf_applicable: None
+2026-07-21 16:46:59,718 - INFO - Employee ID: USHA-SA-001, Name: MS DHONI, is_pf_applicable: None
+2026-07-21 16:46:59,718 - INFO - Employee ID: LXP-PLAT-001, Name: LURNEXA TECHNOLOGIES, is_pf_applicable: None
+2026-07-21 16:46:59,718 - INFO - Employee ID: LT-26001, Name: HR ADMIN, is_pf_applicable: None
+2026-07-21 16:46:59,718 - INFO - Employee ID: LT-26003, Name: CHARLIE WORKER, is_pf_applicable: True
+2026-07-21 16:46:59,718 - INFO - Employee ID: YASH-SA-001, Name: MS DHONI, is_pf_applicable: None
+2026-07-21 16:46:59,718 - INFO - Employee ID: LT-26002, Name: BOB MANAGER, is_pf_applicable: True
+2026-07-21 16:46:59,718 - INFO - Matched target employee: LT-26002 - BOB MANAGER
+2026-07-21 16:46:59,719 - INFO - Employee ID: LT-26000, Name: SUPER ADMIN, is_pf_applicable: None
+2026-07-21 16:46:59,719 - INFO - Employee ID: USHA-HR-002, Name: ABC DESFG, is_pf_applicable: None
+2026-07-21 16:46:59,749 - INFO - Successfully updated is_pf_applicable to True for LT-26002.
+2026-07-21 16:46:59,783 - INFO - Found 18 payroll approval requests.
+2026-07-21 16:46:59,783 - INFO - Before fix: PF=1272.0, Ded=2000.0, Net=24500.0
+2026-07-21 16:46:59,783 - INFO - After fix: PF=1272.0, Ded=2000.0, Net=24500.0
+2026-07-21 16:46:59,808 - INFO - Updated payroll approval request 11c685a8-41f9-47ff-a563-c39735f07ba7 with TotalNetPay 24500.0.
+2026-07-21 16:46:59,809 - INFO - Before fix: PF=1272.0, Ded=2000.0, Net=24500.0
+2026-07-21 16:46:59,809 - INFO - After fix: PF=1272.0, Ded=2000.0, Net=24500.0
+2026-07-21 16:46:59,845 - INFO - Updated payroll approval request 145bd703-98c0-4b08-80c2-c7021c4c4b56 with TotalNetPay 24500.0.

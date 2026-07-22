@@ -132,6 +132,7 @@ class DynamoDBAuthMiddleware:
                     else:
                         # optionally fetch employee details to enrich user object
                         emp_id = user_data.get('EmployeeID')
+                        emp_data = None
                         if emp_id:
                             emp_data = EmployeesTable.get_item({'EmployeeID': emp_id})
                             if emp_data:
@@ -140,6 +141,39 @@ class DynamoDBAuthMiddleware:
                                 user_data['PassportPhoto'] = emp_data.get('PassportPhoto')
                                 user_data['OnboardingStatus'] = emp_data.get('OnboardingStatus', 'Approved')
                                 user_data['RejectionReason'] = emp_data.get('RejectionReason', '')
+
+                        # Ensure OrgID resolution
+                        if not user_data.get('OrgID') and emp_data and emp_data.get('OrgID'):
+                            user_data['OrgID'] = emp_data.get('OrgID')
+
+                        role_upper = (user_data.get('Role') or '').strip().upper()
+                        if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN'] and not user_data.get('OrgID'):
+                            from core.dynamodb_service import OrganizationsTable
+                            try:
+                                all_orgs = OrganizationsTable.scan()
+                                if all_orgs:
+                                    fallback_org = all_orgs[0]
+                                    fallback_org_id = fallback_org.get('OrgID')
+                                    if fallback_org_id:
+                                        user_data['OrgID'] = fallback_org_id
+                                        # Auto-persist OrgID to DB for this user
+                                        try:
+                                            UsersTable._get_table().update_item(
+                                                Key={'UserID': user_id},
+                                                UpdateExpression="SET OrgID = :oid",
+                                                ExpressionAttributeValues={":oid": fallback_org_id}
+                                            )
+                                            if emp_id:
+                                                EmployeesTable._get_table().update_item(
+                                                    Key={'EmployeeID': emp_id},
+                                                    UpdateExpression="SET OrgID = :oid",
+                                                    ExpressionAttributeValues={":oid": fallback_org_id}
+                                                )
+                                        except Exception as err:
+                                            logger.error(f"Failed to auto-update OrgID on DB: {err}")
+                            except Exception as err:
+                                logger.error(f"Error resolving fallback OrgID: {err}")
+
                         if not user_data.get('IsActive', True):
                             if 'user_id' in request.session:
                                 del request.session['user_id']
