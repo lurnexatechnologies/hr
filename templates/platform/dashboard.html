@@ -132,15 +132,10 @@
 <div class="container-fluid py-4" style="max-width: 1200px;">
 
     <!-- Welcome Banner -->
-    <div class="welcome-banner mb-4 d-flex align-items-center justify-content-between">
+    <div class="welcome-banner mb-4">
         <div class="position-relative" style="z-index: 1;">
             <h2 class="fw-bold mb-1" style="font-size: 1.7rem;">Welcome back, {% if request.user.first_name or request.user.last_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}Platform Admin{% endif %}</h2>
             <p class="mb-0 opacity-75">Here's a snapshot of your multi-tenant infrastructure across all organizations.</p>
-        </div>
-        <div class="position-relative" style="z-index: 1;">
-            <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#resetDatabaseModal" style="background-color: #dc2626; border: none;">
-                <i class="fa-solid fa-triangle-exclamation me-2"></i>Reset Full Database
-            </button>
         </div>
     </div>
 
@@ -294,59 +289,4 @@
         </div>
     </div>
 </div>
-
-<!-- Reset Database Confirmation Modal -->
-<div class="modal fade" id="resetDatabaseModal" tabindex="-1" aria-labelledby="resetDatabaseModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold text-danger" id="resetDatabaseModalLabel">
-                    <i class="fa-solid fa-triangle-exclamation me-2"></i>Reset Full Database
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body py-4">
-                <div class="alert alert-danger border-0 rounded-4 mb-3" style="background-color: #fef2f2; color: #991b1b;">
-                    <strong class="d-block mb-1"><i class="fa-solid fa-radiation me-1"></i> CRITICAL WARNING:</strong>
-                    This action will permanently delete <strong>ALL</strong> data from all DynamoDB tables including:
-                    <ul class="mb-0 mt-2 ps-3 small">
-                        <li>All Organizations & Subscriptions</li>
-                        <li>All Users, Logins, Passwords & Employee Profiles</li>
-                        <li>All Attendance, Leaves, Payroll, Payslips & Policies</li>
-                    </ul>
-                    <div class="mt-2 fw-semibold">Only your Platform Admin account will be preserved.</div>
-                </div>
-
-                <form method="post" action="{% url 'platform_reset_database' %}" id="reset-db-form">
-                    {% csrf_token %}
-                    <label class="form-label small fw-bold text-secondary">To confirm database wipe, type <span class="text-danger fw-bold">RESET</span> below:</label>
-                    <input type="text" id="confirm-reset-input" class="form-control rounded-pill px-3 mb-3" placeholder="RESET" autocomplete="off" required>
-
-                    <div class="d-flex justify-content-end gap-2 mt-4">
-                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" id="btn-confirm-reset" class="btn btn-danger rounded-pill px-4 fw-bold" disabled>
-                            <i class="fa-solid fa-trash-can me-1"></i> Wipe & Reset Database
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const resetInput = document.getElementById('confirm-reset-input');
-    const resetBtn = document.getElementById('btn-confirm-reset');
-    if (resetInput && resetBtn) {
-        resetInput.addEventListener('input', function() {
-            if (this.value.trim() === 'RESET') {
-                resetBtn.removeAttribute('disabled');
-            } else {
-                resetBtn.setAttribute('disabled', 'disabled');
-            }
-        });
-    }
-});
-</script>
 {% endblock %}
