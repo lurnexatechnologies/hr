@@ -816,3 +816,100 @@ class PlatformOrgWorkflowsView(RoleRequiredMixin, View):
                 messages.error(request, f"Error saving workflow rules: {e}")
 
         return redirect('platform_org_workflows', org_id=org_id)
+
+
+class PlatformResetDatabaseView(RoleRequiredMixin, View):
+    allowed_roles = ['Platform Admin']
+
+    def post(self, request):
+        from core.dynamodb_service import (
+            OrganizationsTable, UsersTable, EmployeesTable, ReportingHierarchyTable,
+            LeaveRequestsTable, AttendanceTable, PayslipsTable, ExpensesTable,
+            ResignationsTable, HolidaysTable, PoliciesTable, OnboardingTokensTable,
+            LoginHistoryTable, PasswordResetTokensTable, NotificationsTable,
+            SettingsTable, SubscriptionsTable, WFHRequestsTable, PFSettingsTable,
+            PFTransactionsTable, PayrollApprovalsTable, EmployeeLettersTable,
+            AssetsTable, OKRsTable, AssetRequestsTable, AppraisalCyclesTable,
+            AppraisalsTable, DeviceTokensTable
+        )
+        import uuid
+        import bcrypt
+
+        current_user_email = getattr(request.user, 'email', 'lurnexasolution@gmail.com')
+        current_user_id = getattr(request.user, 'id', str(uuid.uuid4()))
+
+        tables_and_keys = [
+            (OrganizationsTable, ['OrgID']),
+            (UsersTable, ['UserID']),
+            (EmployeesTable, ['EmployeeID']),
+            (ReportingHierarchyTable, ['ManagerID', 'EmployeeID']),
+            (LeaveRequestsTable, ['EmployeeID', 'LeaveDate']),
+            (AttendanceTable, ['EmployeeID', 'RecordDate']),
+            (PayslipsTable, ['EmployeeID', 'MonthYear']),
+            (ExpensesTable, ['EmployeeID', 'RequestID']),
+            (ResignationsTable, ['EmployeeID']),
+            (HolidaysTable, ['HolidayID']),
+            (PoliciesTable, ['PolicyID']),
+            (OnboardingTokensTable, ['Token']),
+            (LoginHistoryTable, ['UserID', 'LoginTime']),
+            (PasswordResetTokensTable, ['Token']),
+            (NotificationsTable, ['EmployeeID', 'Timestamp']),
+            (SettingsTable, ['SettingKey']),
+            (SubscriptionsTable, ['SubID']),
+            (WFHRequestsTable, ['EmployeeID', 'RequestID']),
+            (PFSettingsTable, ['SettingKey']),
+            (PFTransactionsTable, ['EmployeeID', 'MonthYear']),
+            (PayrollApprovalsTable, ['RequestID']),
+            (EmployeeLettersTable, ['EmployeeID', 'LetterID']),
+            (AssetsTable, ['AssetID']),
+            (OKRsTable, ['EmployeeID', 'GoalID']),
+            (AssetRequestsTable, ['EmployeeID', 'RequestID']),
+            (AppraisalCyclesTable, ['CycleID']),
+            (AppraisalsTable, ['EmployeeID', 'CycleID']),
+            (DeviceTokensTable, ['EmployeeID', 'DeviceToken']),
+        ]
+
+        total_deleted = 0
+        try:
+            for tbl, key_fields in tables_and_keys:
+                try:
+                    items = tbl._get_table().scan().get('Items', [])
+                    for item in items:
+                        key = {k: item[k] for k in key_fields if k in item}
+                        if len(key) == len(key_fields):
+                            tbl._get_table().delete_item(Key=key)
+                            total_deleted += 1
+                except Exception as tbl_err:
+                    print(f"Error resetting table {tbl.table_name}: {tbl_err}")
+
+            # Re-seed Platform Admin User so current admin remains active
+            plat_user_id = current_user_id or str(uuid.uuid4())
+            plat_emp_id = 'LXP-PLAT-001'
+            plat_pw_hash = bcrypt.hashpw('Password@123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+            user_item = {
+                'UserID': plat_user_id,
+                'Email': current_user_email or 'lurnexasolution@gmail.com',
+                'Role': 'Platform Admin',
+                'PasswordHash': plat_pw_hash,
+                'EmployeeID': plat_emp_id,
+                'IsActive': True
+            }
+            UsersTable._get_table().put_item(Item=user_item)
+
+            employee_item = {
+                'EmployeeID': plat_emp_id,
+                'UserID': plat_user_id,
+                'Email': current_user_email or 'lurnexasolution@gmail.com',
+                'FirstName': 'Lurnexa',
+                'LastName': 'Technologies',
+                'Department': 'Administration',
+                'Designation': 'Platform Admin'
+            }
+            EmployeesTable._get_table().put_item(Item=employee_item)
+
+            messages.success(request, f"Database reset completed successfully! Cleared {total_deleted} items across all tables. Platform Admin account preserved.")
+        except Exception as e:
+            messages.error(request, f"Error performing database reset: {e}")
+
+        return redirect('platform_dashboard')

@@ -69,6 +69,7 @@ urlpatterns = [
     path('platform/organizations/<str:org_id>/renew/', platform_views.PlatformRenewOrgView.as_view(), name='platform_renew_org'),
     path('platform/organizations/<str:org_id>/create-admin/', platform_views.PlatformCreateOrgAdminView.as_view(), name='platform_create_org_admin'),
     path('platform/billing/', billing_views.PlatformBillingView.as_view(), name='platform_billing'),
+    path('platform/reset-database/', platform_views.PlatformResetDatabaseView.as_view(), name='platform_reset_database'),
 
     # Tenant Billing routes
     path('billing/dashboard/', billing_views.TenantBillingDashboardView.as_view(), name='tenant_billing_dashboard'),
