@@ -201,10 +201,9 @@
                             <span class="plan-chip {{ plan_name|lower }}">{{ plan_name }}</span>
                             <span class="fw-bold text-dark">{{ count }} <span class="text-muted fw-normal small">org{{ count|pluralize }}</span></span>
                         </div>
+                        {% widthratio count total_orgs 100 as pct %}
                         <div class="progress" style="height: 6px; border-radius: 100px; background: #f1f5f9;">
-                            <div class="progress-bar" role="progressbar"
-                                 style="width: {% widthratio count total_orgs 100 %}%; border-radius: 100px; background: linear-gradient(90deg, #4f46e5, #7c3aed);">
-                            </div>
+                            <div class="progress-bar top-org-bar" role="progressbar" style="--bar-width: {{ pct }}%; width: var(--bar-width);"></div>
                         </div>
                     </div>
                     {% empty %}
@@ -226,8 +225,9 @@
                             <span class="fw-semibold text-dark">{{ org.name }}</span>
                             <span class="text-muted small">{{ org.count }} employee{{ org.count|pluralize }}</span>
                         </div>
+                        {% widthratio org.count total_employees 100 as org_pct %}
                         <div style="background: #f1f5f9; border-radius: 100px; height: 8px;">
-                            <div class="top-org-bar" style="width: {% widthratio org.count total_employees 100 %}%;"></div>
+                            <div class="top-org-bar" style="--bar-width: {{ org_pct }}%; width: var(--bar-width);"></div>
                         </div>
                     </div>
                     {% endfor %}

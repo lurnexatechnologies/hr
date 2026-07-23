@@ -113,8 +113,8 @@
 
             {% if request.user.role == 'Super admin' %}
             <div class="nav-item">
-                <a href="{% url 'tenant_billing_dashboard' %}" class="nav-link {% block nav_tenant_billing %}{% endblock %}">
-                    <i class="fa-solid fa-credit-card"></i> Subscription & Billing
+                <a href="{% url 'org_settings' %}" class="nav-link {% block nav_org_settings %}{% endblock %}">
+                    <i class="fa-solid fa-sliders"></i> Organization Settings
                 </a>
             </div>
             <div class="nav-item">
@@ -370,6 +370,13 @@
                     <i class="fa-solid fa-shield-halved"></i> Policies
                 </a>
             </div>
+            {% if request.user.role == 'Super admin' %}
+            <div class="nav-item">
+                <a href="{% url 'tenant_billing_dashboard' %}" class="nav-link {% block nav_tenant_billing %}{% endblock %}">
+                    <i class="fa-solid fa-credit-card"></i> Subscription & Billing
+                </a>
+            </div>
+            {% endif %}
             {% if request.user.role != 'Super admin' %}
             {% has_feature 'hr_letters' as show_my_letters %}
             {% if show_my_letters %}

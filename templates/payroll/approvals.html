@@ -3,6 +3,8 @@
 {% load custom_filters %}
 
 {% block title %}Payroll Approvals - Lurnexa{% endblock %}
+{% block nav_payroll_approvals %}active{% endblock %}
+
 
 {% block content %}
 <div class="row g-3 align-items-center mb-4">
@@ -133,14 +135,14 @@
                                         <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#viewDetails{{ req.RequestID }}">
                                             <i class="fa-solid fa-list-check me-1"></i> Details
                                         </button>
-                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Authorize Payroll', message: 'Authorize this payroll run? This will initiate the disbursement workflow.', onConfirm: () => form.submit()});">
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); Lurnexa.confirm({title: 'Authorize Payroll', message: 'Authorize this payroll run? This will initiate the disbursement workflow.', onConfirm: () => this.submit()});">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="approve">
                                             <button type="submit" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm">
                                                 <i class="fa-solid fa-check me-1"></i> Authorize
                                             </button>
                                         </form>
-                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Reject Payroll', message: 'Reject this payroll run?', onConfirm: () => form.submit()});">
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); Lurnexa.confirm({title: 'Reject Payroll', message: 'Reject this payroll run?', onConfirm: () => this.submit()});">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="reject">
                                             <button type="submit" class="btn btn-sm btn-outline-danger px-3 rounded-pill">

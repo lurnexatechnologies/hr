@@ -6,7 +6,7 @@ from django.views import View
 from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import PayslipsTable, EmployeesTable, AttendanceTable, LeaveRequestsTable, HolidaysTable, PayrollApprovalsTable, UsersTable, ExpensesTable
-from core.kotak_service import KotakBankService
+from core.bank_service import UniversalBankService
 from core.utils import safe_float, get_local_date, get_local_now, send_notification, resolve_workflow_step
 from boto3.dynamodb.conditions import Key
 import io
@@ -1053,8 +1053,9 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
             batch_data = approval_request.get('BatchData', [])
             count = 0
             error_count = 0
-            
-            kotak = KotakBankService()
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id}) if org_id else None
+            bank_service = UniversalBankService(org)
             
             for item in batch_data:
                 try:
@@ -1110,13 +1111,13 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                         except Exception as email_err:
                             print(f"Error sending payslip notification for {emp_id}: {email_err}")
                     
-                    # 3. Trigger Kotak Transfer
+                    # 3. Trigger Bank API Transfer
                     net_pay = float(payslip_data.get('NetPay', 0))
                     if net_pay > 0:
                         try:
-                            kotak.transfer_funds(emp, net_pay, f"Salary_{month_year}")
+                            bank_service.transfer_funds(emp, net_pay, f"Salary_{month_year}")
                         except Exception as e:
-                            print(f"Kotak Transfer Error during Approval for {emp_id}: {e}")
+                            print(f"Bank Transfer Error during Approval for {emp_id}: {e}")
                     
                     count += 1
                 except Exception as e:

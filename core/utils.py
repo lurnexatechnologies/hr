@@ -175,7 +175,7 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                             android=messaging.AndroidConfig(
                                 notification=messaging.AndroidNotification(
                                     sound='default',
-                                    notification_channel_id='fcm_default_channel'
+                                    channel_id='fcm_default_channel'
                                 )
                             ),
                             data={
@@ -611,9 +611,25 @@ def get_authorized_signature_base64():
             print(f"Error base64 encoding signature: {e}")
     return ""
 
-def get_authorized_signature_stamp_base64():
+def get_authorized_signature_stamp_base64(org_id=None):
     import base64
     from django.conf import settings
+
+    if org_id:
+        org_stamps_dir = os.path.join(settings.MEDIA_ROOT, 'org_stamps', str(org_id))
+        if os.path.exists(org_stamps_dir):
+            for fname in os.listdir(org_stamps_dir):
+                if fname.startswith('stamp'):
+                    custom_stamp_path = os.path.join(org_stamps_dir, fname)
+                    try:
+                        with open(custom_stamp_path, 'rb') as f:
+                            encoded = base64.b64encode(f.read()).decode('utf-8')
+                        ext = os.path.splitext(fname)[1].lower()
+                        mime_type = 'image/jpeg' if ext in ['.jpg', '.jpeg'] else 'image/png'
+                        return f"data:{mime_type};base64,{encoded}"
+                    except Exception as e:
+                        print(f"Error base64 encoding custom org stamp for {org_id}: {e}")
+
     path = os.path.join(settings.BASE_DIR, 'static', 'img', 'authorized_signature_stamp.png')
     if os.path.exists(path):
         try:
@@ -796,11 +812,14 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         all_users = UsersTable.scan()
         for u in all_users:
             u_org_id = u.get('OrgID')
-            if not org_id or u_org_id == org_id:
-                if u.get('Role') == 'HR ADMIN' and u.get('EmployeeID'):
-                    hr_users.append(u.get('EmployeeID'))
-                elif u.get('Role') == 'Super admin' and u.get('EmployeeID'):
-                    sa_users.append(u.get('EmployeeID'))
+            # Strict Multi-Tenant isolation: Approvers must belong to the exact same organization
+            if org_id and u_org_id and u_org_id != org_id:
+                continue
+
+            if u.get('Role') == 'HR ADMIN' and u.get('EmployeeID'):
+                hr_users.append(u.get('EmployeeID'))
+            elif u.get('Role') in ['Super admin', 'SUPER ADMIN', 'SUPERADMIN'] and u.get('EmployeeID'):
+                sa_users.append(u.get('EmployeeID'))
     except Exception:
         pass
     

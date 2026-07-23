@@ -106,12 +106,25 @@ class GlobalCalendarView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboa
         context = super().get_context_data(**kwargs)
         user = self.request.user
         
+        # Auto-sync software company holidays from Google Calendar
+        try:
+            from leave.google_calendar_service import sync_google_calendar_holidays
+            sync_google_calendar_holidays()
+        except Exception as sync_err:
+            print(f"Google Calendar Holiday Sync Note: {sync_err}")
+
         events = []
         
         # 1. Add Holidays (Single Blue Dot per Holiday)
         holidays = HolidaysTable.scan()
         sorted_holidays = sorted(holidays, key=lambda x: x.get('HolidayDate', ''))
         for h in sorted_holidays:
+            # Clean description if it contains auto-generated prefix
+            desc = h.get('Description', '') or ''
+            if "synced via Google Calendar" in desc or "Standard Software Company Holiday" in desc:
+                desc = h.get('Name', '')
+                h['Description'] = desc
+
             # Add formatted date for sidebar display
             try:
                 dt = datetime.datetime.strptime(h.get('HolidayDate'), '%Y-%m-%d')
@@ -130,7 +143,7 @@ class GlobalCalendarView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboa
                     'id': h.get('HolidayID'),
                     'type': 'Holiday',
                     'category': h.get('Type', 'Company'),
-                    'description': h.get('Description', '')
+                    'description': desc
                 }
             })
             
@@ -649,8 +662,14 @@ class LeaveApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateVie
             )
             my_reportees = [h.get('EmployeeID') for h in hierarchy]
             
+        user_org_id = getattr(self.request.user, 'org_id', None)
         relevant_leaves = []
         for l in all_leaves:
+            # Multi-Tenant isolation: Only process leaves from the user's own organization
+            l_emp = emp_obj_map.get(l.get('EmployeeID'), {})
+            if user_org_id and l_emp.get('OrgID') and l_emp.get('OrgID') != user_org_id:
+                continue
+
             # Role-based visibility
             is_relevant = False
             status = l.get('Status', 'Pending')

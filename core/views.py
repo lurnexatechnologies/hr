@@ -36,8 +36,11 @@ class HRDashboardView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
             user = next((u for u in all_users if u.get('UserID') == emp.get('UserID')), None)
             is_user_active = user.get('IsActive', True) if user else True
             
-            # Exclusion: Super admin should not count as an employee
-            if user and user.get('Role') == 'Super admin':
+            # Exclusion: Super admin and Platform Admin should not count as employees in workforce stats
+            user_role = (user.get('Role') or '').strip().upper() if user else ''
+            if user_role in ['SUPER ADMIN', 'SUPERADMIN', 'PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                continue
+            if emp.get('Designation') in ['Platform Admin', 'Platform Super Admin']:
                 continue
 
             if not is_user_active:
@@ -222,9 +225,19 @@ class SuperAdminDashboardView(HRDashboardView):
         all_employees = EmployeesTable.scan()
         today = datetime.date.today()
         
+        all_users = UsersTable.scan()
+        user_role_map = {u.get('UserID'): (u.get('Role') or '').strip().upper() for u in all_users if u.get('UserID')}
+
         # 1. Total Monthly Payroll Projection
         total_payroll = 0
         for emp in all_employees:
+            uid = emp.get('UserID')
+            role = user_role_map.get(uid, '')
+            if role in ['SUPER ADMIN', 'SUPERADMIN', 'PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                continue
+            if emp.get('Designation') in ['Platform Admin', 'Platform Super Admin']:
+                continue
+
             try:
                 # Field is SalaryPA (Annual), divide by 12 for monthly
                 total_payroll += safe_float(emp.get('SalaryPA')) / 12
@@ -474,90 +487,118 @@ class ExportEmployeesCSVView(FeatureRequiredMixin, HRRequiredMixin, View):
 
         return response
 
-class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+
+
+
+class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, TemplateView):
     required_feature = 'ess_portal'
-    template_name = 'core/settings.html'
+    template_name = 'core/org_settings.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        try:
-            from core.dynamodb_service import (
-                EmployeesTable, ReportingHierarchyTable, LeaveRequestsTable, 
-                ExpensesTable, AttendanceTable, HolidaysTable, PoliciesTable, 
-                ResignationsTable, NotificationsTable, WFHRequestsTable, LoginHistoryTable, UsersTable, PayrollApprovalsTable
-            )
-            from boto3.dynamodb.conditions import Key
-            
-            # Login History (Sidebar - Last 5)
-            sidebar_history = LoginHistoryTable.query(
-                KeyConditionExpression=Key('UserID').eq(user.user_id),
-                ScanIndexForward=False,
-                Limit=5
-            )
-            context['login_history'] = sidebar_history
-            
-            # Full Login History (For Modal - Last 50)
-            full_history = LoginHistoryTable.query(
-                KeyConditionExpression=Key('UserID').eq(user.user_id),
-                ScanIndexForward=False,
-                Limit=50
-            )
-            context['full_login_history'] = full_history
+        if getattr(user, 'org_id', None):
+            from core.dynamodb_service import OrganizationsTable, UsersTable
+            org = OrganizationsTable.get_item({'OrgID': user.org_id})
+            if org:
+                all_users = UsersTable.scan(
+                    FilterExpression="OrgID = :oid",
+                    ExpressionAttributeValues={":oid": user.org_id}
+                )
+                context['org_users'] = sorted(all_users, key=lambda u: u.get('Email', ''))
+                context['org'] = org
 
-            # Organization-level Biometric Settings for Super Admin
-            if getattr(user, 'role', None) == 'Super admin' and getattr(user, 'org_id', None):
-                from core.dynamodb_service import OrganizationsTable
-                org = OrganizationsTable.get_item({'OrgID': user.org_id})
-                if org:
-                    all_users = UsersTable.scan(
-                        FilterExpression="OrgID = :oid",
-                        ExpressionAttributeValues={":oid": user.org_id}
-                    )
-                    context['org_users'] = sorted(all_users, key=lambda u: u.get('Email', ''))
-                    context['org'] = org
+                context['biometric_settings'] = {
+                    'Enabled': org.get('BiometricEnabled', False),
+                    'APIURL': org.get('BiometricAPIURL', ''),
+                    'APIKey': org.get('BiometricAPIKey', ''),
+                    'DeviceID': org.get('BiometricDeviceID', ''),
+                }
+                context['bank_settings'] = {
+                    'Enabled': org.get('BankAPIEnabled', False),
+                    'APIURL': org.get('BankAPIURL', ''),
+                    'ClientID': org.get('BankClientID', ''),
+                    'APIKey': org.get('BankAPIKey', ''),
+                }
+                
+                # Leave Policies (with defaults)
+                leave_policies = org.get('LeavePolicies', {})
+                from core.utils import DEFAULT_LEAVE_POLICIES
+                for emp_type in ['Permanent', 'Probation', 'Intern']:
+                    if emp_type not in leave_policies:
+                        leave_policies[emp_type] = DEFAULT_LEAVE_POLICIES[emp_type]
+                context['leave_policies'] = leave_policies
+                
+                # Tax and PF Settings
+                context['tax_pf_settings'] = {
+                    'PFEnabled': org.get('PFEnabled', True),
+                    'EmployeePFPercent': org.get('EmployeePFPercent', 12.0),
+                    'EmployerPFPercent': org.get('EmployerPFPercent', 12.0),
+                    'TDSEnabled': org.get('TDSEnabled', True),
+                    'TaxRegime': org.get('TaxRegime', 'New Regime'),
+                    'TaxStandardDeduction': org.get('TaxStandardDeduction', 75000.0)
+                }
 
-                    context['biometric_settings'] = {
-                        'Enabled': org.get('BiometricEnabled', False),
-                        'APIURL': org.get('BiometricAPIURL', ''),
-                        'APIKey': org.get('BiometricAPIKey', ''),
-                        'DeviceID': org.get('BiometricDeviceID', ''),
-                    }
-                    context['bank_settings'] = {
-                        'Enabled': org.get('BankAPIEnabled', False),
-                        'APIURL': org.get('BankAPIURL', ''),
-                        'ClientID': org.get('BankClientID', ''),
-                        'APIKey': org.get('BankAPIKey', ''),
-                    }
-                    
-                    # Leave Policies (with defaults)
-                    leave_policies = org.get('LeavePolicies', {})
-                    from core.utils import DEFAULT_LEAVE_POLICIES
-                    for emp_type in ['Permanent', 'Probation', 'Intern']:
-                        if emp_type not in leave_policies:
-                            leave_policies[emp_type] = DEFAULT_LEAVE_POLICIES[emp_type]
-                    context['leave_policies'] = leave_policies
-                    
-                    # Tax and PF Settings
-                    context['tax_pf_settings'] = {
-                        'PFEnabled': org.get('PFEnabled', True),
-                        'EmployeePFPercent': org.get('EmployeePFPercent', 12.0),
-                        'EmployerPFPercent': org.get('EmployerPFPercent', 12.0),
-                        'TDSEnabled': org.get('TDSEnabled', True),
-                        'TaxRegime': org.get('TaxRegime', 'New Regime'),
-                        'TaxStandardDeduction': org.get('TaxStandardDeduction', 75000.0)
-                    }
+                # Custom Organization Official Stamp
+                import os, time
+                from django.conf import settings
+                org_stamps_dir = os.path.join(settings.MEDIA_ROOT, 'org_stamps', str(user.org_id))
+                if os.path.exists(org_stamps_dir):
+                    for fname in os.listdir(org_stamps_dir):
+                        if fname.startswith("stamp"):
+                            context['org_stamp_url'] = f"{settings.MEDIA_URL}org_stamps/{user.org_id}/{fname}?v={int(time.time())}"
+                            break
 
-        except Exception as e:
-            print(f"Error in Settings context: {e}")
-            context['login_history'] = []
         return context
 
     def post(self, request):
         user = request.user
         action = request.POST.get('action')
 
-        if action == 'update_biometric' and getattr(user, 'role', None) == 'Super admin':
+        if action == 'upload_org_stamp':
+            print(f"DEBUG: upload_org_stamp triggered. POST: {request.POST}, FILES: {request.FILES.keys()}")
+            stamp_file = request.FILES.get('org_stamp_file')
+            if not stamp_file:
+                # Check if any file was uploaded under any field name
+                if request.FILES:
+                    stamp_file = list(request.FILES.values())[0]
+
+            if not stamp_file:
+                messages.error(request, "Please select a stamp image file to upload.")
+                return redirect('/core/org-settings/#pills-stamp')
+
+            import os
+            from django.conf import settings
+            org_stamps_dir = os.path.join(settings.MEDIA_ROOT, 'org_stamps', str(user.org_id))
+            os.makedirs(org_stamps_dir, exist_ok=True)
+
+            # Get file extension (.jpg, .png, .webp, etc.)
+            _, ext = os.path.splitext(stamp_file.name)
+            ext = ext.lower() if ext else '.png'
+
+            # Clean up existing stamps inside this org's dedicated folder
+            if os.path.exists(org_stamps_dir):
+                for existing in os.listdir(org_stamps_dir):
+                    try:
+                        os.remove(os.path.join(org_stamps_dir, existing))
+                    except Exception:
+                        pass
+
+            target_filename = f"stamp{ext}"
+            target_path = os.path.join(org_stamps_dir, target_filename)
+
+            try:
+                with open(target_path, 'wb+') as destination:
+                    for chunk in stamp_file.chunks():
+                        destination.write(chunk)
+                print(f"DEBUG: Stamp saved successfully to {target_path}")
+                messages.success(request, "Organization official stamp uploaded successfully.")
+            except Exception as e:
+                print(f"ERROR saving stamp: {e}")
+                messages.error(request, f"Error saving organization stamp: {e}")
+            return redirect('/core/org-settings/#pills-stamp')
+
+        if action == 'update_biometric':
             enabled = request.POST.get('biometric_enabled') == 'on'
             api_url = request.POST.get('biometric_api_url', '').strip()
             api_key = request.POST.get('biometric_api_key', '').strip()
@@ -577,9 +618,9 @@ class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
                     messages.error(request, "Organization not found.")
             except Exception as e:
                 messages.error(request, f"Error saving biometric settings: {str(e)}")
-            return redirect('settings')
+            return redirect('/core/org-settings/#pills-biometric')
 
-        if action == 'update_bank' and getattr(user, 'role', None) == 'Super admin':
+        if action == 'update_bank':
             enabled = request.POST.get('bank_enabled') == 'on'
             api_url = request.POST.get('bank_api_url', '').strip()
             client_id = request.POST.get('bank_client_id', '').strip()
@@ -599,7 +640,9 @@ class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
                     messages.error(request, "Organization not found.")
             except Exception as e:
                 messages.error(request, f"Error saving bank API settings: {str(e)}")
-        if action == 'update_leave_policies' and getattr(user, 'role', None) == 'Super admin':
+            return redirect('/core/org-settings/#pills-bank')
+
+        if action == 'update_leave_policies':
             from core.dynamodb_service import OrganizationsTable
             try:
                 org = OrganizationsTable.get_item({'OrgID': user.org_id})
@@ -623,9 +666,9 @@ class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
                     messages.error(request, "Organization not found.")
             except Exception as e:
                 messages.error(request, f"Error saving leave policies: {str(e)}")
-            return redirect('settings')
+            return redirect('/core/org-settings/#pills-leave')
 
-        if action == 'update_tax_pf' and getattr(user, 'role', None) == 'Super admin':
+        if action == 'update_tax_pf':
             from core.dynamodb_service import OrganizationsTable
             try:
                 org = OrganizationsTable.get_item({'OrgID': user.org_id})
@@ -642,9 +685,9 @@ class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
                     messages.error(request, "Organization not found.")
             except Exception as e:
                 messages.error(request, f"Error saving Tax & PF settings: {str(e)}")
-            return redirect('settings')
+            return redirect('/core/org-settings/#pills-tax')
 
-        if action == 'update_payroll_manager' and getattr(user, 'role', None) == 'Super admin':
+        if action == 'update_payroll_manager':
             payroll_manager_user_id = request.POST.get('payroll_manager_user_id', '').strip()
             pf_manager_user_id = request.POST.get('pf_manager_user_id', '').strip()
             historical_payroll_manager_user_id = request.POST.get('historical_payroll_manager_user_id', '').strip()
@@ -661,9 +704,46 @@ class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
                     messages.error(request, "Organization not found.")
             except Exception as e:
                 messages.error(request, f"Error saving payroll/PF/historical access settings: {str(e)}")
-            return redirect('settings')
-        
-        # Basic Profile Update & Security Settings
+            return redirect('/core/org-settings/#pills-officers')
+
+        return redirect('org_settings')
+
+        return redirect('org_settings')
+
+
+class SettingsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
+    required_feature = 'ess_portal'
+    template_name = 'core/settings.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        try:
+            from core.dynamodb_service import LoginHistoryTable
+            from boto3.dynamodb.conditions import Key
+            
+            # Login History (Sidebar - Last 5)
+            sidebar_history = LoginHistoryTable.query(
+                KeyConditionExpression=Key('UserID').eq(user.user_id),
+                ScanIndexForward=False,
+                Limit=5
+            )
+            context['login_history'] = sidebar_history
+            
+            # Full Login History (For Modal - Last 50)
+            full_history = LoginHistoryTable.query(
+                KeyConditionExpression=Key('UserID').eq(user.user_id),
+                ScanIndexForward=False,
+                Limit=50
+            )
+            context['full_login_history'] = full_history
+        except Exception as e:
+            print(f"Error in Settings context: {e}")
+            context['login_history'] = []
+        return context
+
+    def post(self, request):
+        user = request.user
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         passport_photo = request.FILES.get('passport_photo')
@@ -1642,9 +1722,15 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
         active_employees = []
         emp_dict = {emp['EmployeeID']: emp for emp in all_employees}
         
+        current_org_id = request.user.org_id
         for emp in all_employees:
+            # Multi-Tenant isolation: Only show employees belonging to the current user's organization
+            if current_org_id and emp.get('OrgID') and emp.get('OrgID') != current_org_id:
+                continue
+
             user = next((u for u in all_users if u.get('UserID') == emp.get('UserID')), None)
-            if user and user.get('Role') == 'Super admin': continue
+            if user and user.get('Role') in ['Super admin', 'Platform Admin', 'Platform Super Admin']: continue
+            if emp.get('Designation') in ['Platform Admin', 'Platform Super Admin']: continue
             if user and not user.get('IsActive', True): continue
             
             # If logged in as HR ADMIN, do not display other HR ADMINs in the dropdown
@@ -1660,9 +1746,14 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             emp_id = l.get('EmployeeID')
             emp_info = emp_dict.get(emp_id)
             if emp_info:
+                user = next((u for u in all_users if u.get('UserID') == emp_info.get('UserID')), None)
+                if user and user.get('Role') in ['Super admin', 'Platform Admin', 'Platform Super Admin']:
+                    continue
+                if emp_info.get('Designation') in ['Platform Admin', 'Platform Super Admin']:
+                    continue
+
                 # If current user is HR ADMIN, do not show letters for other HR ADMINs
                 if current_user_role == 'HR ADMIN':
-                    user = next((u for u in all_users if u.get('UserID') == emp_info.get('UserID')), None)
                     if user and user.get('Role') == 'HR ADMIN':
                         continue
                         
@@ -1692,7 +1783,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
         if sig_data and sig_data.startswith('data:image/'):
             signature_stamp_base64 = sig_data
         else:
-            signature_stamp_base64 = get_authorized_signature_stamp_base64()
+            signature_stamp_base64 = get_authorized_signature_stamp_base64(org_id=request.user.org_id)
             
         employee_id = request.POST.get('employee_id')
         letter_type = request.POST.get('letter_type')

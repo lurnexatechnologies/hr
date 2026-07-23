@@ -149,9 +149,9 @@
                                     </div>
                                     <div class="col-md-4">
                                         <div class="p-3 bg-light rounded-4 border-0 h-100 d-flex flex-column justify-content-between">
-                                            <small class="text-muted d-block smaller fw-bold mb-1">SHOW BIRTHDAY DATE</small>
+                                            <small class="text-muted d-block smaller fw-bold mb-1">SHOW BIRTHDAY TO OTHERS</small>
                                             <div class="d-flex align-items-center mt-1">
-                                                {% if request.user.employee_id == employee.EmployeeID or request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+                                                {% if request.user.employee_id == employee.EmployeeID %}
                                                     <form method="POST" action="{% url 'toggle_birthday_visibility' employee.EmployeeID %}" class="d-inline">
                                                         {% csrf_token %}
                                                         <div class="btn-group btn-group-sm rounded-pill overflow-hidden border" role="group" style="background: white;">

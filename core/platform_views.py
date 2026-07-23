@@ -6,6 +6,7 @@ from core.dynamodb_service import OrganizationsTable, UsersTable, EmployeesTable
 from core.features import FEATURE_REGISTRY, PLAN_FEATURES, PLAN_LIMITS
 import bcrypt
 import datetime
+import uuid
 from decimal import Decimal
 
 
@@ -586,6 +587,7 @@ class PlatformCreateOrgAdminView(RoleRequiredMixin, View):
             'OrgID': org_id,
         }
 
+        dept_name = 'Human Resources' if role == 'HR ADMIN' else ''
         emp_item = {
             'EmployeeID': emp_id,
             'UserID': email,
@@ -593,6 +595,8 @@ class PlatformCreateOrgAdminView(RoleRequiredMixin, View):
             'FirstName': first_name,
             'LastName': last_name,
             'Role': role,
+            'Department': dept_name,
+            'Designation': 'HR Administrator' if role == 'HR ADMIN' else 'Super Administrator',
             'OrgID': org_id,
             'IsActive': True,
             'OnboardingStatus': 'Approved',
@@ -601,7 +605,64 @@ class PlatformCreateOrgAdminView(RoleRequiredMixin, View):
         try:
             UsersTable.put_item(user_item)
             EmployeesTable.put_item(emp_item)
-            messages.success(request, f"{role} '{email}' created successfully for {org_id}.")
+
+            # Auto-create 'Human Resources' department if role is HR ADMIN
+            if role == 'HR ADMIN':
+                try:
+                    existing_depts = DepartmentsTable.scan(
+                        FilterExpression="OrgID = :oid",
+                        ExpressionAttributeValues={":oid": org_id}
+                    )
+                    hr_dept_exists = any((d.get('Name') or '').strip().lower() == 'human resources' for d in existing_depts)
+                    if not hr_dept_exists:
+                        dept_id = f"DEPT-{uuid.uuid4().hex[:6].upper()}"
+                        dept_item = {
+                            'OrgID': org_id,
+                            'DepartmentID': dept_id,
+                            'Name': 'Human Resources',
+                            'Description': 'Core HR, Personnel, and Talent Management',
+                            'CreatedAt': datetime.datetime.utcnow().isoformat()
+                        }
+                        DepartmentsTable.put_item(dept_item)
+                except Exception as dept_err:
+                    print(f"Error auto-creating HR department: {dept_err}")
+
+            # Send welcome email containing login credentials in a background thread
+            try:
+                from core.utils import send_notification
+                login_url = request.build_absolute_uri('/auth/login/')
+                email_subject = f"Welcome to Lurnexa HRMS - Your {role} Account Credentials"
+                email_body = f"""Dear {first_name} {last_name},
+
+Your {role} account for organization '{org_id}' has been successfully provisioned by the Lurnexa HRMS Admin team.
+
+Here are your account credentials to access the Lurnexa HRMS Portal:
+
+  Portal URL: {login_url}
+  Username / Email: {email}
+  Temporary Password: {password}
+  Role: {role}
+  Organization ID: {org_id}
+
+For security purposes, please log in and change your password after your initial sign-in.
+
+Best regards,
+Lurnexa HRMS Administration Team"""
+                send_notification(
+                    employee_id=emp_id,
+                    title=f"Account Provisioned - {role}",
+                    message=f"Welcome! Your {role} account for organization {org_id} has been created.",
+                    n_type='System',
+                    icon='fa-user-shield',
+                    color='success',
+                    email_subject=email_subject,
+                    email_body=email_body,
+                    org_id=org_id
+                )
+            except Exception as email_err:
+                print(f"Error sending credentials email to {email}: {email_err}")
+
+            messages.success(request, f"{role} '{email}' created successfully for {org_id}. Credentials email sent.")
             return redirect('platform_org_list')
         except Exception as e:
             messages.error(request, f"Error creating user/employee: {e}")

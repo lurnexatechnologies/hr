@@ -142,6 +142,7 @@ class ExpensesView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingM
 
         item = {
             'EmployeeID': user_emp_id,
+            'OrgID': org_id,
             'RequestID': req_id,
             'Amount': amount,
             'Category': category,
@@ -227,7 +228,8 @@ class ResignationView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardi
             if hierarchy:
                 approver_id = hierarchy[0].get('ManagerID')
             else:
-                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN']
+                user_org_id = getattr(request.user, 'org_id', None)
+                hr_users = [u for u in UsersTable.scan() if u.get('Role') == 'HR ADMIN' and (not user_org_id or u.get('OrgID') == user_org_id)]
                 if hr_users: approver_id = hr_users[0].get('EmployeeID')
 
             item = {
@@ -284,9 +286,15 @@ class ExpenseApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateV
         pending = []
         processed = []
         
+        user_org_id = getattr(self.request.user, 'org_id', None)
         for exp in all_expenses:
-            status = exp.get('Status')
             emp = emp_obj_map.get(exp['EmployeeID'], {})
+            
+            # Multi-Tenant isolation: Only process expense approvals from the user's own organization
+            if user_org_id and emp.get('OrgID') and emp.get('OrgID') != user_org_id:
+                continue
+
+            status = exp.get('Status')
             exp['EmployeeName'] = f"{emp.get('FirstName', '')} {emp.get('LastName', '')}"
             exp['Department'] = emp.get('Department', '')
 
@@ -1022,7 +1030,7 @@ class GenerateExperienceLetterView(FeatureRequiredMixin, HRRequiredMixin, Templa
         context['resignation'] = resignation
         context['today'] = get_local_date().strftime('%B %d, %Y')
         context['logo_base64'] = get_lurnexa_logo_base64()
-        context['signature_stamp_base64'] = get_authorized_signature_stamp_base64()
+        context['signature_stamp_base64'] = get_authorized_signature_stamp_base64(org_id=employee.get('OrgID'))
         org_id = employee.get('OrgID')
         org_name = "Lurnexa"
         if org_id:
@@ -1073,7 +1081,7 @@ class GeneratePFLetterView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
         context['resignation'] = resignation
         context['today'] = get_local_date().strftime('%B %d, %Y')
         context['logo_base64'] = get_lurnexa_logo_base64()
-        context['signature_stamp_base64'] = get_authorized_signature_stamp_base64()
+        context['signature_stamp_base64'] = get_authorized_signature_stamp_base64(org_id=employee.get('OrgID'))
         org_id = employee.get('OrgID')
         org_name = "Lurnexa"
         if org_id:

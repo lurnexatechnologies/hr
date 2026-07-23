@@ -15,7 +15,12 @@
     <div class="d-flex justify-content-between align-items-center mb-3 mt-1">
         <div>
             <h4 class="fw-bold text-dark mb-0">Company Calendar</h4>
-            <p class="text-muted smaller mb-0">Dot indicators: <span class="text-success fw-bold">●</span> Leaves | <span class="text-primary fw-bold">●</span> Holidays</p>
+            <p class="text-muted smaller mb-0">
+                Dot indicators: <span class="text-success fw-bold">●</span> Leaves | <span class="text-primary fw-bold">●</span> Holidays 
+                <span class="badge bg-light text-primary border ms-2 rounded-pill px-2 py-1" style="font-weight: 500;">
+                    <i class="fa-brands fa-google text-danger me-1"></i> Auto-synced from Google Calendar
+                </span>
+            </p>
         </div>
         <div class="d-flex gap-2">
             {% if request.user.role == 'HR ADMIN' %}
@@ -218,6 +223,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var calendarEl = document.getElementById('calendar');
+        if (!calendarEl) return;
+
         
         var eventsData = [];
         try {

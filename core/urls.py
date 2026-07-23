@@ -11,6 +11,7 @@ urlpatterns = [
     path('employee_dashboard/', views.EmployeeDashboardView.as_view(), name='employee_dashboard'),
     path('export_employees/', views.ExportEmployeesCSVView.as_view(), name='export_employees'),
     path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('org-settings/', views.OrganizationSettingsView.as_view(), name='org_settings'),
     path('departments/', views.ManageDepartmentsView.as_view(), name='manage_departments'),
     path('notifications/', views.NotificationsView.as_view(), name='notifications'),
     path('notifications/clear/', views.ClearNotificationsView.as_view(), name='clear_notifications'),

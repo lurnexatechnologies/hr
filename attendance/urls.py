@@ -12,4 +12,6 @@ urlpatterns = [
     path('export_my_attendance/', views.ExportMyAttendanceView.as_view(), name='export_my_attendance'),
     path('apply_wfh/', views.ApplyWFHView.as_view(), name='apply_wfh'),
     path('import_data/', views.ImportAttendanceView.as_view(), name='import_attendance'),
+    path('api/biometric/push/', views.BiometricPunchAPIView.as_view(), name='biometric_punch_api'),
 ]
+

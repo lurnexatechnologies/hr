@@ -70,32 +70,33 @@ def get_user_permissions(user_data, org):
     if user_data.get('PermissionsOverride'):
         effective_permissions.update(user_data.get('PermissionsOverride', []))
         
-    # 4. Check if this specific user is marked as the designated Payroll/PF/Historical Payroll Officer on the organization
+    # 4. Check if this specific user is marked as designated Payroll/PF/Historical Payroll Officer on the organization
     user_id = user_data.get('UserID')
     if org:
         if org.get('PayrollManagerUserID') == user_id:
-            if role_upper not in ['SUPER ADMIN', 'SUPERADMIN']:
-                effective_permissions.add('payroll_access')
-        if org.get('PFManagerUserID') == user_id:
-            if role_upper not in ['SUPER ADMIN', 'SUPERADMIN']:
-                effective_permissions.add('pf_access')
-        if org.get('HistoricalPayrollManagerUserID') == user_id:
-            if role_upper not in ['SUPER ADMIN', 'SUPERADMIN']:
-                effective_permissions.add('historical_payroll_access')
+            effective_permissions.add('payroll_access')
+        else:
+            if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                effective_permissions.discard('payroll_access')
 
-    # Ensure role permissions logic discard them if not explicitly designated
-    if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+        if org.get('PFManagerUserID') == user_id:
+            effective_permissions.add('pf_access')
+        else:
+            if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                effective_permissions.discard('pf_access')
+
+        if org.get('HistoricalPayrollManagerUserID') == user_id:
+            effective_permissions.add('historical_payroll_access')
+        else:
+            if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                effective_permissions.discard('historical_payroll_access')
+
+    # Explicitly ensure Super Admin never gets payroll_access or pf_access unless designated
+    if role_upper in ['SUPER ADMIN', 'SUPERADMIN']:
         if not org or org.get('PayrollManagerUserID') != user_id:
             effective_permissions.discard('payroll_access')
         if not org or org.get('PFManagerUserID') != user_id:
             effective_permissions.discard('pf_access')
-        if not org or org.get('HistoricalPayrollManagerUserID') != user_id:
-            effective_permissions.discard('historical_payroll_access')
-
-    # Explicitly ensure Super Admin never gets payroll_access or pf_access
-    if role_upper in ['SUPER ADMIN', 'SUPERADMIN']:
-        effective_permissions.discard('payroll_access')
-        effective_permissions.discard('pf_access')
         
     return list(effective_permissions)
 
