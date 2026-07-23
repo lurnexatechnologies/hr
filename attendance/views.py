@@ -109,51 +109,59 @@ class ClockInView(FeatureRequiredMixin, LoginRequiredMixin, View):
 
             latitude_str = request.POST.get('latitude')
             longitude_str = request.POST.get('longitude')
+            face_verified = request.POST.get('face_verified') == 'true'
 
-            geofence = SettingsTable.get_item({'SettingKey': 'geofencing_settings'})
-            if geofence and geofence.get('Enabled', False) and not wfh_approved:
-                # Check IP restriction
-                ip_whitelist = geofence.get('IPWhitelist', '')
-                if ip_whitelist and ip_whitelist.lower() != 'all' and ip_whitelist.lower() != 'none':
-                    allowed_ips = [ip.strip() for ip in ip_whitelist.split(',') if ip.strip()]
-                    if user_ip not in allowed_ips:
-                        messages.error(request, f"Clock-in restricted: Your IP address ({user_ip}) is not whitelisted for office clock-in.")
+            # Face verification required ONLY for WFH employees
+            if wfh_approved and not face_verified:
+                messages.error(request, "WFH Clock-in restricted: Live face verification failed or was not completed.")
+                return redirect('attendance_history')
+
+            # WFH completely bypasses geofence & IP checks
+            if not wfh_approved:
+                geofence = SettingsTable.get_item({'SettingKey': 'geofencing_settings'})
+                if geofence and geofence.get('Enabled', False):
+                    # Check IP restriction
+                    ip_whitelist = geofence.get('IPWhitelist', '')
+                    if ip_whitelist and ip_whitelist.lower() != 'all' and ip_whitelist.lower() != 'none':
+                        allowed_ips = [ip.strip() for ip in ip_whitelist.split(',') if ip.strip()]
+                        if user_ip not in allowed_ips:
+                            messages.error(request, f"Clock-in restricted: Your IP address ({user_ip}) is not whitelisted for office clock-in.")
+                            return redirect('attendance_history')
+
+                    # Check Geofencing coordinates
+                    def is_invalid_coord(val):
+                        if not val:
+                            return True
+                        v = str(val).strip().lower()
+                        return v in ('', 'null', 'undefined', 'nan')
+
+                    if is_invalid_coord(latitude_str) or is_invalid_coord(longitude_str):
+                        messages.error(request, "Clock-in restricted: Location coordinates are required. Please allow location permissions in your browser.")
                         return redirect('attendance_history')
 
-                # Check Geofencing coordinates
-                def is_invalid_coord(val):
-                    if not val:
-                        return True
-                    v = str(val).strip().lower()
-                    return v in ('', 'null', 'undefined', 'nan')
-
-                if is_invalid_coord(latitude_str) or is_invalid_coord(longitude_str):
-                    messages.error(request, "Clock-in restricted: Location coordinates are required. Please allow location permissions in your browser.")
-                    return redirect('attendance_history')
-
-                try:
-                    lat1 = float(latitude_str)
-                    lon1 = float(longitude_str)
-                except ValueError:
-                    messages.error(request, "Clock-in restricted: Invalid coordinates format received from browser.")
-                    return redirect('attendance_history')
-
-                try:
-                    lat2 = float(geofence.get('Latitude', '0.0') or '0.0')
-                    lon2 = float(geofence.get('Longitude', '0.0') or '0.0')
-                    radius = float(geofence.get('Radius', '100') or '100')
-                except ValueError:
-                    messages.error(request, "Clock-in restricted: Office geofencing configuration is invalid. Please contact HR.")
-                    return redirect('attendance_history')
-
-                try:
-                    dist = haversine_distance(lat1, lon1, lat2, lon2)
-                    if dist > radius:
-                        messages.error(request, f"Clock-in restricted: You are {round(dist, 1)}m away from the office. Required radius: {radius}m.")
+                    try:
+                        lat1 = float(latitude_str)
+                        lon1 = float(longitude_str)
+                    except ValueError:
+                        messages.error(request, "Clock-in restricted: Invalid coordinates format received from browser.")
                         return redirect('attendance_history')
-                except Exception as e:
-                    messages.error(request, f"Clock-in restricted: Location calculation error: {e}")
-                    return redirect('attendance_history')
+
+                    try:
+                        lat2 = float(geofence.get('Latitude', '0.0') or '0.0')
+                        lon2 = float(geofence.get('Longitude', '0.0') or '0.0')
+                        radius = float(geofence.get('Radius', '100') or '100')
+                    except ValueError:
+                        messages.error(request, "Clock-in restricted: Office geofencing configuration is invalid. Please contact HR.")
+                        return redirect('attendance_history')
+
+                    try:
+                        dist = haversine_distance(lat1, lon1, lat2, lon2)
+                        if dist > radius:
+                            messages.error(request, f"Clock-in restricted: You are {round(dist, 1)}m away from the office. Required radius: {radius}m.")
+                            return redirect('attendance_history')
+                    except Exception as e:
+                        messages.error(request, f"Clock-in restricted: Location calculation error: {e}")
+                        return redirect('attendance_history')
 
             item = {
                 'EmployeeID': eid,
@@ -164,10 +172,15 @@ class ClockInView(FeatureRequiredMixin, LoginRequiredMixin, View):
                 'Latitude': latitude_str or None,
                 'Longitude': longitude_str or None,
                 'IPAddress': user_ip,
-                'IsGeofenced': not wfh_approved
+                'IsGeofenced': not wfh_approved,
+                'FaceVerified': face_verified if wfh_approved else False,
+                'IsWFH': wfh_approved
             }
             AttendanceTable.put_item(item)
-            messages.success(request, f"Clocked in successfully at {now_time_str}.")
+            msg = f"Clocked in successfully at {now_time_str}."
+            if wfh_approved:
+                msg += " [Work From Home Mode - Face Verified & Geofence Bypassed]"
+            messages.success(request, msg)
             
         return redirect('attendance_history')
 
@@ -179,6 +192,20 @@ class ClockOutView(FeatureRequiredMixin, LoginRequiredMixin, View):
         yesterday = (now.date() - datetime.timedelta(days=1)).isoformat()
         now_time = now.strftime("%H:%M")
         eid = request.user.employee_id
+
+        # Check if user is on WFH today
+        wfh_approved = False
+        try:
+            all_wfh = WFHRequestsTable.scan()
+            for w in all_wfh:
+                if w.get('EmployeeID') == eid and w.get('Status') == 'Approved':
+                    w_start = w.get('WFHDate')
+                    w_end = w.get('EndDate') or w_start
+                    if w_start <= today <= w_end:
+                        wfh_approved = True
+                        break
+        except Exception as e:
+            print(f"Error checking WFH on clock-out: {e}")
 
         # 1. Check if user is on leave today
         all_leaves = LeaveRequestsTable.scan()
@@ -220,10 +247,16 @@ class ClockOutView(FeatureRequiredMixin, LoginRequiredMixin, View):
             else:
                 messages.error(request, "You haven't clocked in for an active shift.")
         else:
+            face_verified = request.POST.get('face_verified') == 'true'
+            # Face verification required ONLY for WFH
+            if (target_record.get('IsWFH') or wfh_approved) and not face_verified:
+                messages.error(request, "WFH Clock-out restricted: Live face verification failed or was not completed.")
+                return redirect('attendance_history')
+
             AttendanceTable.update_item(
                 Key={'EmployeeID': eid, 'RecordDate': target_date},
-                UpdateExpression="SET ClockOut = :val",
-                ExpressionAttributeValues={':val': now_time}
+                UpdateExpression="SET ClockOut = :val, FaceVerifiedOut = :fv",
+                ExpressionAttributeValues={':val': now_time, ':fv': face_verified if (target_record.get('IsWFH') or wfh_approved) else False}
             )
             
             # --- Credit Comp-Off if it's a weekend or public holiday ---
@@ -343,7 +376,21 @@ class AttendanceHistoryView(FeatureRequiredMixin, LoginRequiredMixin, TemplateVi
         wfh_requests = WFHRequestsTable.query(
             KeyConditionExpression=Key('EmployeeID').eq(self.request.user.employee_id)
         )
-        
+
+        # Check if user has an approved WFH request today
+        is_wfh_today = False
+        try:
+            for w in wfh_requests:
+                if w.get('Status') == 'Approved':
+                    w_start = w.get('WFHDate')
+                    w_end = w.get('EndDate') or w_start
+                    if w_start <= today <= w_end:
+                        is_wfh_today = True
+                        break
+        except Exception as e:
+            print(f"Error checking WFH status for context: {e}")
+        context['is_wfh_today'] = is_wfh_today
+
         # Add formatted strings to WFH requests
         for w in wfh_requests:
             raw_wfh = w.get('WFHDate')
@@ -994,3 +1041,164 @@ class ImportAttendanceView(FeatureRequiredMixin, HRRequiredMixin, View):
             messages.error(request, f"Error processing file: {str(e)}")
             
         return redirect('hr_attendance')
+
+
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+from core.dynamodb_service import OrganizationsTable
+
+@method_decorator(csrf_exempt, name='dispatch')
+class BiometricPunchAPIView(View):
+    """
+    Device-Agnostic Biometric Attendance API.
+    Supports push logs from any biometric hardware (ZKTeco, Essl, Hikvision, Matrix, etc.).
+    Authenticates via API Key (Header `X-API-Key` or JSON body `api_key` / `token`).
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+            except Exception:
+                data = request.POST.dict()
+
+            if not data:
+                return JsonResponse({"status": "error", "message": "Invalid or empty JSON body payload."}, status=400)
+
+            # 1. Extract credentials from Header or Body
+            api_key = request.headers.get('X-API-Key') or data.get('api_key') or data.get('token') or data.get('apiKey')
+            device_id = data.get('device_id') or data.get('DeviceID') or data.get('serial_number') or data.get('sn')
+
+            # 2. Find Organization by BiometricAPIKey or BiometricDeviceID
+            target_org = None
+            all_orgs = OrganizationsTable.scan()
+            
+            if api_key:
+                for org in all_orgs:
+                    if org.get('BiometricAPIKey') and org.get('BiometricAPIKey').strip() == str(api_key).strip():
+                        target_org = org
+                        break
+
+            if not target_org and device_id:
+                for org in all_orgs:
+                    if org.get('BiometricDeviceID') and org.get('BiometricDeviceID').strip() == str(device_id).strip():
+                        target_org = org
+                        break
+
+            if not target_org:
+                return JsonResponse({
+                    "status": "error", 
+                    "message": "Authentication failed. Invalid API Key or Device ID."
+                }, status=401)
+
+            if not target_org.get('BiometricEnabled', False):
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Biometric integration is disabled for this organization."
+                }, status=403)
+
+            org_id = target_org.get('OrgID')
+
+            # 3. Extract punches list (Supports single punch object or array of punches)
+            punches = data.get('punches') or data.get('logs') or data.get('data')
+            if not punches:
+                punches = [data]
+            elif not isinstance(punches, list):
+                punches = [punches]
+
+            success_count = 0
+            errors = []
+
+            for idx, item in enumerate(punches):
+                if not isinstance(item, dict):
+                    continue
+
+                # Universal ID extraction: employee_id, user_id, badge_id, emp_code, pin
+                emp_identifier = (
+                    item.get('employee_id') or item.get('EmployeeID') or 
+                    item.get('user_id') or item.get('UserID') or 
+                    item.get('badge_id') or item.get('emp_code') or item.get('pin')
+                )
+
+                if not emp_identifier:
+                    errors.append(f"Punch #{idx+1}: Missing employee identifier (employee_id, user_id, badge_id, etc.).")
+                    continue
+
+                emp_identifier_str = str(emp_identifier).strip()
+
+                # Find employee in DynamoDB under target organization
+                all_employees = EmployeesTable.scan()
+                employee = None
+                for emp in all_employees:
+                    if emp.get('OrgID') == org_id:
+                        if (emp.get('EmployeeID') == emp_identifier_str or 
+                            emp.get('BiometricID') == emp_identifier_str or 
+                            emp.get('EmployeeCode') == emp_identifier_str):
+                            employee = emp
+                            break
+
+                if not employee:
+                    errors.append(f"Punch #{idx+1}: No employee matched identifier '{emp_identifier_str}'.")
+                    continue
+
+                eid = employee.get('EmployeeID')
+
+                # Universal Timestamp extraction: timestamp, time, datetime, punch_time
+                raw_time = item.get('timestamp') or item.get('time') or item.get('datetime') or item.get('punch_time')
+                punch_dt = get_local_now()
+
+                if raw_time:
+                    try:
+                        raw_time_str = str(raw_time).replace('T', ' ')
+                        if len(raw_time_str) >= 19:
+                            punch_dt = datetime.datetime.strptime(raw_time_str[:19], "%Y-%m-%d %H:%M:%S")
+                        elif len(raw_time_str) >= 10:
+                            punch_dt = datetime.datetime.strptime(raw_time_str[:10], "%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                record_date = punch_dt.strftime("%Y-%m-%d")
+                time_str = punch_dt.strftime("%H:%M")
+
+                # Action punch type: punch_type, type, status, in_out
+                punch_type = (str(item.get('punch_type') or item.get('type') or item.get('status') or item.get('in_out') or '')).upper()
+
+                # Fetch existing attendance record
+                att_record = AttendanceTable.get_item({'EmployeeID': eid, 'RecordDate': record_date}) or {
+                    'EmployeeID': eid,
+                    'RecordDate': record_date,
+                    'ClockIn': None,
+                    'ClockOut': None,
+                    'Status': 'Present'
+                }
+
+                if 'OUT' in punch_type or 'EXIT' in punch_type or '2' in punch_type:
+                    att_record['ClockOut'] = time_str
+                elif 'IN' in punch_type or 'ENTRY' in punch_type or '1' in punch_type:
+                    att_record['ClockIn'] = time_str
+                else:
+                    # Auto-detect: First punch of day is ClockIn, subsequent punch is ClockOut
+                    if not att_record.get('ClockIn'):
+                        att_record['ClockIn'] = time_str
+                    else:
+                        att_record['ClockOut'] = time_str
+
+                att_record['Status'] = 'Present'
+                att_record['Source'] = 'Biometric'
+                att_record['LastBiometricDeviceID'] = device_id or 'API'
+
+                AttendanceTable.put_item(att_record)
+                success_count += 1
+
+            return JsonResponse({
+                "status": "success",
+                "message": f"Processed {success_count} punch record(s) successfully.",
+                "success_count": success_count,
+                "errors": errors
+            }, status=200)
+
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Server error processing biometric punch: {str(e)}"}, status=500)
+

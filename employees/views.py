@@ -33,7 +33,7 @@ def generate_next_employee_id():
         return 'LT-26001'
     return f"LT-26{max_id + 1:03d}"
 
-def get_managers_list(for_role=None):
+def get_managers_list(for_role=None, org_id=None):
     """Helper to get managers based on the role of the employee being edited."""
     all_users = UsersTable.scan()
     all_employees = EmployeesTable.scan()
@@ -41,6 +41,10 @@ def get_managers_list(for_role=None):
     seen_ids = set()
     
     for u in all_users:
+        # Multi-Tenant isolation: Only show users belonging to the target organization
+        if org_id and u.get('OrgID') and u.get('OrgID') != org_id:
+            continue
+
         emp_id = u.get('EmployeeID')
         role = u.get('Role')
         if not emp_id or emp_id in seen_ids:
@@ -50,10 +54,13 @@ def get_managers_list(for_role=None):
         # if role == 'Super admin' and for_role != 'HR ADMIN':
         #     continue
             
+        if role in ['Platform Admin', 'Platform Super Admin']:
+            continue
+
         # 2. Managers and HR ADMINs are visible to everyone else
         if role in ['Manager', 'HR ADMIN', 'Super admin']:
             emp_data = next((e for e in all_employees if e.get('EmployeeID') == emp_id), None)
-            if emp_data:
+            if emp_data and emp_data.get('Designation') not in ['Platform Admin', 'Platform Super Admin']:
                 seen_ids.add(emp_id)
                 managers_list.append({
                     'EmployeeID': emp_data['EmployeeID'],
@@ -83,13 +90,20 @@ class EmployeeDirectoryView(FeatureRequiredMixin, HRRequiredMixin, ApprovedOnboa
         # Filter out Resigned employees (passed LWD)
         active_employees = []
         today = get_local_date()
+        current_org_id = getattr(self.request.user, 'org_id', None)
         for emp in all_employees:
+            # Multi-tenant isolation: Only show employees belonging to current user's organization
+            if current_org_id and emp.get('OrgID') and emp.get('OrgID') != current_org_id:
+                continue
+
             user = next((u for u in all_users if u.get('UserID') == emp.get('UserID')), None)
             is_user_active = user.get('IsActive', True) if user else True
             
-            # Exclusion: Super admin should not be visible in directory to anyone
+            # Exclusion: Super admin and Platform Admin should not be visible in directory to anyone
             role = user.get('Role', 'Employee') if user else 'Employee'
-            if role == 'Super admin':
+            if role in ['Super admin', 'Platform Admin', 'Platform Super Admin']:
+                continue
+            if emp.get('Designation') in ['Platform Admin', 'Platform Super Admin']:
                 continue
 
             emp['IsActive'] = is_user_active
@@ -436,8 +450,8 @@ class EmployeeProfileView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnbo
 
 class ToggleBirthdayVisibilityView(LoginRequiredMixin, View):
     def post(self, request, emp_id):
-        if request.user.employee_id != emp_id and request.user.role not in ['HR ADMIN', 'Super admin']:
-            messages.error(request, "Permission denied.")
+        if request.user.employee_id != emp_id:
+            messages.error(request, "Permission denied. Only the employee can change their birthday visibility.")
             return redirect('employee_profile', emp_id=emp_id)
             
         show_birthday = request.POST.get('show_birthday', 'on')
@@ -1662,10 +1676,11 @@ class ApproveOnboardingActionView(FeatureRequiredMixin, HRAdminOnlyMixin, View):
                 employee['OnboardingStatus'] = 'Approved'
                 
                 # Migrate to new Employee ID
+                old_temp_id = emp_id
                 new_employee = employee.copy()
                 new_employee['EmployeeID'] = new_employee_id
                 EmployeesTable.put_item(new_employee)
-                EmployeesTable.delete_item({'EmployeeID': emp_id})
+                EmployeesTable.delete_item({'EmployeeID': old_temp_id})
                 employee = new_employee
                 emp_id = new_employee_id
                 
@@ -1677,11 +1692,11 @@ class ApproveOnboardingActionView(FeatureRequiredMixin, HRAdminOnlyMixin, View):
                         user['EmployeeID'] = new_employee_id
                         UsersTable.put_item(user)
 
-                # Update Manager link
-                manager_links = ReportingHierarchyTable.scan(FilterExpression="EmployeeID = :eid", ExpressionAttributeValues={":eid": emp_id})
+                # Update Manager link in ReportingHierarchyTable
+                manager_links = ReportingHierarchyTable.scan(FilterExpression="EmployeeID = :eid", ExpressionAttributeValues={":eid": old_temp_id})
                 for link in manager_links:
                     ReportingHierarchyTable.put_item({'ManagerID': link['ManagerID'], 'EmployeeID': new_employee_id})
-                    ReportingHierarchyTable.delete_item({'ManagerID': link['ManagerID'], 'EmployeeID': emp_id})
+                    ReportingHierarchyTable.delete_item({'ManagerID': link['ManagerID'], 'EmployeeID': old_temp_id})
                 
                 messages.success(request, f"Onboarding for {employee['FirstName']} approved and activated with ID {new_employee_id}.")
             else:
