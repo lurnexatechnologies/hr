@@ -6,49 +6,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Primary SEO Metadata -->
-    <title>Lurnexa HRMS - Next-Gen Human Resource Management Platform</title>
-    <meta name="description" content="Lurnexa HRMS is a next-generation Human Resource Management System built for the future of work. Automate payroll, track leave, securely manage employee documents, and streamline organizational workflows.">
-    <meta name="keywords" content="HRMS, Human Resource Management System, Lurnexa, HR Software, Payroll automation, Leave tracking, Workflow automation, Employee portal, Secure document vault">
+    <title>Lurnexa HRMS - Best HR Management System, Human Resource Software & HR Activities Platform</title>
+    <meta name="description" content="Lurnexa HRMS is India's leading Human Resource Management System (HRMS). Streamline HR management, automate human resource activities, manage payroll, biometric attendance, employee performance, and organizational workflows.">
+    <meta name="keywords" content="hrms, hr, hr management, management, manage, hr activities, human resource, management activities, hr management software, human resource management system, best hrms software, payroll management, attendance tracking, human resource software india, lurnexa hrms">
     <meta name="author" content="Lurnexa Technologies">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
     <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
 
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph / Facebook SEO -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <meta property="og:title" content="Lurnexa HRMS - Next-Gen Human Resource Management Platform">
-    <meta property="og:description" content="Automate payroll, track leaves, manage employee documents, and streamline organizational workflows with Lurnexa HRMS.">
-    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}?v=2">
-    <meta property="og:site_name" content="Lurnexa">
+    <meta property="og:title" content="Lurnexa HRMS - Best HR Management System & HR Activities Software">
+    <meta property="og:description" content="Streamline HR management, human resource activities, automated payroll, AI biometric attendance, and employee workflows with Lurnexa HRMS.">
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/lurnexa_dashboard_mockup.png' %}">
+    <meta property="og:site_name" content="Lurnexa HRMS">
 
-    <!-- Twitter Card -->
+    <!-- Twitter Card SEO -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <meta name="twitter:title" content="Lurnexa HRMS - Next-Gen Human Resource Management Platform">
-    <meta name="twitter:description" content="Automate payroll, track leaves, manage employee documents, and streamline organizational workflows with Lurnexa HRMS.">
-    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <meta name="twitter:title" content="Lurnexa HRMS - Best HR Management System & HR Activities Software">
+    <meta name="twitter:description" content="Streamline HR management, human resource activities, automated payroll, AI biometric attendance, and employee workflows with Lurnexa HRMS.">
+    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/lurnexa_dashboard_mockup.png' }}">
 
-    <!-- JSON-LD Structured Data Schema -->
+    <!-- Rich JSON-LD Multi-Schema for Google Search Engine Indexing -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Lurnexa HRMS",
-      "operatingSystem": "All",
-      "applicationCategory": "BusinessApplication",
-      "description": "Lurnexa is a modern, next-generation Human Resource Management System featuring automated workflows, secure document vault, transparent payroll processing, and flexible policy management.",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "INR"
+    [
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Lurnexa HRMS",
+        "operatingSystem": "All",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Human Resource Management System (HRMS)",
+        "description": "Lurnexa HRMS is a comprehensive Human Resource Management System for managing HR activities, payroll automation, statutory PF/ESI compliance, facial biometric attendance, and employee self-service.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "INR"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "Lurnexa Technologies",
+          "url": "{{ request.scheme }}://{{ request.get_host }}/",
+          "logo": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}"
+        }
       },
-      "publisher": {
-        "@type": "Organization",
-        "name": "Lurnexa Technologies",
-        "url": "{{ request.scheme }}://{{ request.get_host }}/"
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Lurnexa HRMS",
+        "url": "{{ request.scheme }}://{{ request.get_host }}/",
+        "keywords": "hrms, hr, hr management, management, manage, hr activities, human resource, management activities"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Lurnexa HRMS?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Lurnexa HRMS is an all-in-one Human Resource Management System designed to handle all HR management and employee activities including onboarding, leave tracking, facial attendance, automated payroll processing, and statutory compliance."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does Lurnexa automate HR activities and management?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Lurnexa automates multi-tier leave approvals, Work From Home (WFH) requests, expense claims, Provident Fund (PF) calculations, and digital payslip generation, saving over 15 hours of manual HR work monthly."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Lurnexa HRMS statutory compliant for Indian companies?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, Lurnexa HRMS is 100% statutory compliant with Indian labor laws, automatically computing Provident Fund (PF), Employee State Insurance (ESI), Professional Tax (PT), and Income Tax deductions."
+            }
+          }
+        ]
       }
-    }
+    ]
     </script>
 
     <!-- Google Fonts: Inter -->
@@ -96,6 +137,7 @@
             border-bottom: 1px solid var(--glass-border);
             padding: 1rem 2rem;
             transition: all 0.3s ease;
+            z-index: 1050;
         }
         .navbar-brand {
             font-weight: 800;
@@ -130,7 +172,8 @@
         /* Hero Section */
         .hero {
             position: relative;
-            padding: 160px 0 100px;
+            padding-top: 170px !important;
+            padding-bottom: 90px !important;
             background: radial-gradient(circle at top right, #F3E8FF 0%, #F8F6FF 100%);
             overflow: hidden;
         }
@@ -344,7 +387,8 @@
     <nav id="navbar" class="navbar navbar-expand-lg fixed-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="#">
-                <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa Logo" height="30" class="me-2"> Lurnexa
+                <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa HRMS Logo" height="32" class="me-2"> 
+                <span class="fw-bold">Lurnexa <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1" style="font-size: 0.75rem; font-weight: 600;">HRMS</span></span>
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <i class="fa-solid fa-bars"></i>
@@ -352,13 +396,19 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav mx-auto">
                     <li class="nav-item"><a class="nav-link" href="#home">Home</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#features">HRMS Features</a></li>
                     <li class="nav-item"><a class="nav-link" href="#customization">Customization</a></li>
                     <li class="nav-item"><a class="nav-link" href="#pricing">Pricing</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                     <li class="nav-item"><a class="nav-link" href="#contact">Contact Us</a></li>
                 </ul>
-                <div class="d-flex">
-                    <a href="{% url 'login' %}" class="btn btn-signin"><i class="fa-solid fa-right-to-bracket me-2"></i> Sign In</a>
+                <div class="d-flex gap-2">
+                    <a href="#contact" class="btn btn-primary rounded-pill px-3 py-2 text-white fw-bold shadow-sm" style="background: linear-gradient(135deg, #6366f1, #4f46e5); font-size: 0.88rem;">
+                        <i class="fa-solid fa-calendar-check me-1"></i> Book Demo
+                    </a>
+                    <a href="{% url 'login' %}" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold" style="font-size: 0.88rem;">
+                        <i class="fa-solid fa-right-to-bracket me-1"></i> Sign In
+                    </a>
                 </div>
             </div>
         </div>
@@ -369,18 +419,45 @@
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-lg-6 mb-5 mb-lg-0">
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill mb-4 fw-bold">Next-Gen HRMS 🚀</span>
-                    <h1 class="hero-title">Elevate Your HR Experience.</h1>
-                    <p class="hero-subtitle">The modern, beautiful, and comprehensive Human Resource Management System built for the future of work.</p>
-                    <div class="d-flex gap-3">
-                        <a href="#features" class="btn btn-signin" style="padding: 1rem 2rem; font-size: 1.1rem;">Explore Features</a>
-                        <a href="{% url 'login' %}" class="btn btn-light" style="padding: 1rem 2rem; font-size: 1.1rem; border-radius: 50px; font-weight: 600; border: 1px solid #e2e8f0;">Sign In</a>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2 rounded-pill mb-4 fw-bold shadow-sm">
+                        <i class="fa-solid fa-sparkles me-1 text-warning"></i> Next-Gen Enterprise HRMS Platform
+                    </span>
+                    <h1 class="hero-title fw-extrabold display-4 mb-3">Next-Gen HRMS & HR Management System</h1>
+                    <p class="hero-subtitle fs-5 text-muted mb-4">Streamline all human resource & management activities with Lurnexa HRMS—the automated, statutory-compliant HR management platform built for modern enterprises.</p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="#contact" class="btn btn-signin shadow-lg px-4 py-3 rounded-pill fs-6 fw-bold" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;">
+                            <i class="fa-solid fa-calendar-check me-2"></i>Book a Free Demo
+                        </a>
+                        <a href="{% url 'login' %}" class="btn btn-outline-secondary px-4 py-3 rounded-pill fs-6 fw-semibold">
+                            <i class="fa-solid fa-right-to-bracket me-2"></i>Sign In
+                        </a>
                     </div>
                 </div>
                 <div class="col-lg-6">
-                    <div class="hero-img-container">
-                        <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" alt="HR Dashboard Interface" class="img-fluid rounded" style="border-radius: 14px !important;">
+                    <div class="hero-img-container position-relative mx-auto" style="max-width: 540px;">
+                        <div class="position-absolute badge bg-success bg-opacity-90 text-white rounded-pill px-3 py-2 shadow-sm z-3" style="font-size: 0.85rem; top: -12px; left: -12px;">
+                            <i class="fa-solid fa-shield-check me-1"></i> Live HRMS Dashboard
+                        </div>
+                        <img src="{% static 'img/lurnexa_dashboard_mockup.png' %}" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80';" alt="Lurnexa HRMS Dashboard Interface" class="img-fluid rounded-4 shadow-lg border border-2 border-white">
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trust & Statutory Compliance Bar -->
+    <section class="py-3 bg-white border-top border-bottom">
+        <div class="container">
+            <div class="row align-items-center text-center text-lg-start g-2">
+                <div class="col-lg-3 fw-bold text-dark border-end-lg pe-lg-3">
+                    <span class="text-indigo fs-6"><i class="fa-solid fa-shield-halved me-2"></i>Enterprise Grade HRMS</span><br>
+                    <small class="text-muted fw-normal" style="font-size: 0.78rem;">Trusted Partner for Indian Businesses</small>
+                </div>
+                <div class="col-lg-9 d-flex flex-wrap justify-content-lg-between justify-content-center align-items-center gap-3">
+                    <div class="d-flex align-items-center text-secondary fw-semibold small"><i class="fa-solid fa-circle-check text-success me-1.5 fs-6"></i> 100% PF, ESI & PT Compliant</div>
+                    <div class="d-flex align-items-center text-secondary fw-semibold small"><i class="fa-solid fa-bolt text-warning me-1.5 fs-6"></i> 99.99% Guaranteed Uptime</div>
+                    <div class="d-flex align-items-center text-secondary fw-semibold small"><i class="fa-solid fa-lock text-primary me-1.5 fs-6"></i> 256-bit Encrypted Vault</div>
+                    <div class="d-flex align-items-center text-secondary fw-semibold small"><i class="fa-solid fa-user-shield text-info me-1.5 fs-6"></i> Live AI Face Verification</div>
                 </div>
             </div>
         </div>
@@ -389,66 +466,79 @@
     <!-- Features Section -->
     <section id="features" class="py-5 my-5">
         <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Powerful Features</span>
-                <h2 class="display-5 fw-bold text-dark">Everything you need to manage your team</h2>
+            <div class="section-header text-center mb-5">
+                <span class="section-tag">Powerful & Intelligent</span>
+                <h2 class="display-5 fw-bold text-dark">Everything you need to manage & scale your team</h2>
+                <p class="text-muted fs-5">Empower your HR department with automated workflows, real-time tracking, and instant compliance.</p>
             </div>
             
             <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <div class="col-md-6 col-lg-3">
+                    <div class="feature-card h-100 p-4 border rounded-4 bg-white shadow-sm hover-lift">
+                        <div class="feature-icon mb-3 text-primary bg-primary bg-opacity-10 rounded-3 d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="fa-solid fa-wand-magic-sparkles fs-4"></i>
                         </div>
-                        <h4 class="fw-bold mb-3">Automated Workflows</h4>
-                        <p class="text-muted mb-0">Seamlessly automate leave approvals, WFH requests, and expense claims with our intelligent routing engine.</p>
+                        <span class="badge bg-primary bg-opacity-10 text-primary mb-2 fw-semibold">Save 15+ Hours/Mo</span>
+                        <h4 class="fw-bold mb-3 fs-5">Automated Workflows</h4>
+                        <p class="text-muted small mb-0">Seamlessly automate leave approvals, WFH face verification, and multi-tier expense claims with our zero-delay routing engine.</p>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="fa-solid fa-sack-dollar"></i>
+                <div class="col-md-6 col-lg-3">
+                    <div class="feature-card h-100 p-4 border rounded-4 bg-white shadow-sm hover-lift">
+                        <div class="feature-icon mb-3 text-success bg-success bg-opacity-10 rounded-3 d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="fa-solid fa-sack-dollar fs-4"></i>
                         </div>
-                        <h4 class="fw-bold mb-3">Payroll & PF Engine</h4>
-                        <p class="text-muted mb-0">Generate payslips, track provident fund deductions, and manage historical salary disbursements instantly.</p>
+                        <span class="badge bg-success bg-opacity-10 text-success mb-2 fw-semibold">1-Click Salary Disbursement</span>
+                        <h4 class="fw-bold mb-3 fs-5">Payroll & PF Engine</h4>
+                        <p class="text-muted small mb-0">Generate digital payslips, track Provident Fund (PF), ESI, Professional Tax, and manage historical salary disbursements error-free.</p>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="fa-solid fa-shield-halved"></i>
+                <div class="col-md-6 col-lg-3">
+                    <div class="feature-card h-100 p-4 border rounded-4 bg-white shadow-sm hover-lift">
+                        <div class="feature-icon mb-3 text-warning bg-warning bg-opacity-10 rounded-3 d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="fa-solid fa-user-check fs-4"></i>
                         </div>
-                        <h4 class="fw-bold mb-3">Secure Document Vault</h4>
-                        <p class="text-muted mb-0">All employee documents, receipts, and medical certificates are securely stored with enterprise-grade encryption.</p>
+                        <span class="badge bg-warning bg-opacity-10 text-warning mb-2 fw-semibold">Zero Buddy Punching</span>
+                        <h4 class="fw-bold mb-3 fs-5">AI Face Verification</h4>
+                        <p class="text-muted small mb-0">Enforce live 1:1 facial biometric descriptor matching against employee profile photos for WFH and attendance verification.</p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="feature-card h-100 p-4 border rounded-4 bg-white shadow-sm hover-lift">
+                        <div class="feature-icon mb-3 text-info bg-info bg-opacity-10 rounded-3 d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="fa-solid fa-shield-halved fs-4"></i>
+                        </div>
+                        <span class="badge bg-info bg-opacity-10 text-info mb-2 fw-semibold">Bank-Grade Encryption</span>
+                        <h4 class="fw-bold mb-3 fs-5">Secure Document Vault</h4>
+                        <p class="text-muted small mb-0">All employee documents, offer letters, expense proof PDFs, and certificates are securely stored with 256-bit encryption.</p>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Customization Section -->
-    <section id="customization" class="customization">
+    <!-- Customization Section (Harmonized Indigo Theme) -->
+    <section id="customization" class="py-5">
         <div class="container">
-            <div class="row align-items-center">
-                <div class="col-lg-5 mb-5 mb-lg-0">
-                    <span class="section-tag">Endless Flexibility</span>
-                    <h2 class="display-5 fw-bold mb-4">Tailored to your organizational DNA.</h2>
-                    <p class="fs-5 mb-4 text-light opacity-75">We don't force you into a box. Lurnexa adapts to your hierarchy, policies, and operational structures seamlessly.</p>
-                    
-                    <div class="mt-4">
-                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Custom Leave Policies</span>
-                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Dynamic Multi-level Approvals</span>
-                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Custom Role Hierarchies</span>
-                        <span class="custom-badge"><i class="fa-solid fa-check text-success me-2"></i> Variable Payroll Structures</span>
-                    </div>
-                </div>
-                <div class="col-lg-6 offset-lg-1">
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="img-fluid rounded-4 shadow-lg mb-3" alt="Customization 1">
+            <div class="p-4 p-md-5 rounded-5 shadow-lg position-relative overflow-hidden" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: #ffffff;">
+                <div class="row align-items-center position-relative z-2">
+                    <div class="col-lg-6 mb-4 mb-lg-0">
+                        <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2 rounded-pill mb-3 fw-semibold">
+                            <i class="fa-solid fa-sliders me-2 text-warning"></i> Complete Flexibility
+                        </span>
+                        <h2 class="display-5 fw-bold mb-3">Tailored to Your Organizational DNA.</h2>
+                        <p class="fs-6 mb-4 text-white opacity-75">We don't force you into a rigid box. Lurnexa adapts to your custom hierarchy, company policies, and approval workflows seamlessly.</p>
+                        
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <span class="badge bg-white bg-opacity-10 text-white px-3 py-2 rounded-pill border border-white border-opacity-10"><i class="fa-solid fa-check text-success me-2"></i> Custom Leave Policies</span>
+                            <span class="badge bg-white bg-opacity-10 text-white px-3 py-2 rounded-pill border border-white border-opacity-10"><i class="fa-solid fa-check text-success me-2"></i> Dynamic Multi-Level Approvals</span>
+                            <span class="badge bg-white bg-opacity-10 text-white px-3 py-2 rounded-pill border border-white border-opacity-10"><i class="fa-solid fa-check text-success me-2"></i> Custom Role Hierarchies</span>
+                            <span class="badge bg-white bg-opacity-10 text-white px-3 py-2 rounded-pill border border-white border-opacity-10"><i class="fa-solid fa-check text-success me-2"></i> Variable Payroll Structures</span>
                         </div>
-                        <div class="col-6 mt-5">
-                            <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="img-fluid rounded-4 shadow-lg" alt="Customization 2">
+                    </div>
+                    <div class="col-lg-6 text-center">
+                        <div class="p-2 bg-white bg-opacity-10 rounded-4 border border-white border-opacity-25 shadow-lg mx-auto" style="max-width: 520px;">
+                            <img src="{% static 'img/lurnexa_customization_mockup.png' %}" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80';" class="img-fluid rounded-3 shadow" alt="Customization Workflow">
                         </div>
                     </div>
                 </div>
@@ -459,57 +549,157 @@
     <!-- Pricing Section -->
     <section id="pricing" class="py-5 my-5 bg-light">
         <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Transparent Pricing</span>
+            <div class="section-header text-center mb-5">
+                <span class="section-tag">Transparent Enterprise Pricing</span>
                 <h2 class="display-5 fw-bold text-dark">Tailored for Your Enterprise</h2>
+                <p class="text-muted fs-5">Choose the plan that best fits your organizational scale and workflow needs.</p>
             </div>
             
-            <div class="row justify-content-center">
-                <!-- Custom Enterprise Plan -->
+            <div class="row g-4 justify-content-center">
+                <!-- Basic Plan -->
                 <div class="col-lg-4 col-md-6">
-                    <div class="pricing-card text-center border-primary shadow-sm" style="border-width: 2px;">
-                        <h3 class="fw-bold">Enterprise Custom</h3>
-                        <p class="text-muted mb-4">Scalable HR solutions for modern organizations</p>
-                        <div class="price" style="font-size: 2.5rem;">Custom<span>/mo</span></div>
-                        
-                        <div class="text-start mx-auto mt-4" style="max-width: 350px;">
-                            <ul class="pricing-list">
-                                <li><i class="fa-solid fa-check-circle"></i> Unlimited Employees & Profiles</li>
-                                <li><i class="fa-solid fa-check-circle"></i> Advanced Payroll & PF Calculations</li>
-                                <li><i class="fa-solid fa-check-circle"></i> Enterprise-Grade Security & Compliance</li>
-                                <li><i class="fa-solid fa-check-circle"></i> Custom Multi-level Approval Workflows</li>
-                                <li><i class="fa-solid fa-check-circle"></i> Complete Analytics & Reporting</li>
-                                <li><i class="fa-solid fa-check-circle"></i> White-Glove Onboarding & Account Management</li>
-                            </ul>
+                    <div class="pricing-card text-center h-100 shadow-sm border bg-white p-4 rounded-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary fw-semibold px-3 py-1 rounded-pill mb-3">Essential HR</span>
+                            <h3 class="fw-bold text-dark mb-3">Basic</h3>
+                            <div class="price mb-3" style="font-size: 1.4rem; font-weight: 700; color: #4f46e5;">Contact Us for Pricing</div>
+                            
+                            <div class="text-start mt-4">
+                                <ul class="pricing-list list-unstyled text-muted small">
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Employee Self-Onboarding</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Employee Directory & Org Hierarchy</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Leave Management</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Attendance (Geofencing & IP)</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Holiday Calendar Sync</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Employee Self-Service (ESS) Portal</li>
+                                </ul>
+                            </div>
                         </div>
-                        <a href="#contact" class="btn btn-signin w-100 rounded-pill py-3 mt-3" style="max-width: 350px;">Contact Us</a>
+                        <a href="#contact" class="btn btn-outline-primary w-100 rounded-pill py-2.5 fw-semibold mt-4">Book a Free Demo</a>
+                    </div>
+                </div>
+
+                <!-- Elite Plan -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="pricing-card text-center h-100 shadow border-primary bg-white p-4 rounded-4 position-relative d-flex flex-column justify-content-between" style="border-width: 2px;">
+                        <span class="position-absolute top-0 start-50 translate-middle badge bg-primary text-white rounded-pill px-3 py-1 fw-bold fs-7 shadow-sm">Most Popular</span>
+                        <div>
+                            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold px-3 py-1 rounded-pill mb-3 mt-2">Advanced Workflows</span>
+                            <h3 class="fw-bold text-dark mb-3">Elite</h3>
+                            <div class="price mb-3 text-primary" style="font-size: 1.4rem; font-weight: 700;">Contact Us for Pricing</div>
+                            
+                            <div class="text-start mt-4">
+                                <ul class="pricing-list list-unstyled text-muted small">
+                                    <li class="mb-2 fw-semibold text-dark"><i class="fa-solid fa-check-circle text-primary me-2"></i>All Basic Plan Features +</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Performance Management & OKRs</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Asset Management & Allocation</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>WFH & Live Face Verification</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Expense Claim & Reimbursements</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Resignation & Exit Management</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <a href="#contact" class="btn btn-primary w-100 rounded-pill py-2.5 fw-semibold mt-4 shadow-sm">Book a Free Demo</a>
+                    </div>
+                </div>
+
+                <!-- Professional Plan -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="pricing-card text-center h-100 shadow-sm border bg-white p-4 rounded-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <span class="badge bg-indigo bg-opacity-10 text-indigo fw-semibold px-3 py-1 rounded-pill mb-3">Full Suite</span>
+                            <h3 class="fw-bold text-dark mb-3">Professional</h3>
+                            <div class="price mb-3" style="font-size: 1.4rem; font-weight: 700; color: #4f46e5;">Contact Us for Pricing</div>
+                            
+                            <div class="text-start mt-4">
+                                <ul class="pricing-list list-unstyled text-muted small">
+                                    <li class="mb-2 fw-semibold text-dark"><i class="fa-solid fa-check-circle text-indigo me-2"></i>All Elite Plan Features +</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Automated Payroll & Tax Engine</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Digital Payslips & Form-16</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Statutory Compliance (PF, ESI, PT)</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Automated HR Letter Generator</li>
+                                    <li class="mb-2"><i class="fa-solid fa-check-circle text-success me-2"></i>Alumni Portal & Custom RBAC</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <a href="#contact" class="btn btn-outline-primary w-100 rounded-pill py-2.5 fw-semibold mt-4">Book a Free Demo</a>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Contact Section -->
-    <section id="contact" class="contact-section">
+    <!-- Frequently Asked Questions (FAQ) Section - High SEO Impact -->
+    <section id="faq" class="py-5 bg-white border-top">
+        <div class="container" style="max-width: 900px;">
+            <div class="section-header text-center mb-5">
+                <span class="section-tag">Got Questions?</span>
+                <h2 class="display-6 fw-bold text-dark">Frequently Asked Questions</h2>
+                <p class="text-muted fs-6">Everything you need to know about Lurnexa HRMS & HR management activities.</p>
+            </div>
+            
+            <div class="accordion accordion-flush" id="faqAccordion">
+                <div class="accordion-item border rounded-4 mb-3 shadow-sm">
+                    <h3 class="accordion-header" id="faqHeadingOne">
+                        <button class="accordion-button fw-bold text-dark fs-6 rounded-4 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapseOne">
+                            What is Lurnexa HRMS and how does it help in HR management activities?
+                        </button>
+                    </h3>
+                    <div id="faqCollapseOne" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body text-muted small">
+                            Lurnexa HRMS is a comprehensive Human Resource Management System (HRMS) designed to automate all HR management activities including self-onboarding, leave tracking, facial biometric attendance, automated payroll, and statutory PF/ESI compliance.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item border rounded-4 mb-3 shadow-sm">
+                    <h3 class="accordion-header" id="faqHeadingTwo">
+                        <button class="accordion-button fw-bold text-dark fs-6 rounded-4 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapseTwo">
+                            How does Lurnexa HRMS ensure statutory compliance for Indian businesses?
+                        </button>
+                    </h3>
+                    <div id="faqCollapseTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body text-muted small">
+                            Lurnexa HRMS is 100% statutory compliant. It automatically calculates Provident Fund (PF), Employee State Insurance (ESI), Professional Tax (PT), and Income Tax deductions, generating instant digital payslips and Form-16 reports.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item border rounded-4 mb-3 shadow-sm">
+                    <h3 class="accordion-header" id="faqHeadingThree">
+                        <button class="accordion-button fw-bold text-dark fs-6 rounded-4 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapseThree">
+                            How does AI Facial Biometric Verification work for attendance?
+                        </button>
+                    </h3>
+                    <div id="faqCollapseThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body text-muted small">
+                            Lurnexa uses 1:1 facial biometric descriptor vector matching against the employee's uploaded profile photo. Employees complete live face verification during WFH or clock-in, eliminating buddy punching completely.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact / Demo Section -->
+    <section id="contact" class="contact-section py-5">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-lg-5 mb-5 mb-lg-0">
                     <span class="section-tag">Get in Touch</span>
-                    <h2 class="display-5 fw-bold mb-4">Let's transform your HR together.</h2>
-                    <p class="text-muted mb-4 fs-5">Have questions about deployment, custom features, or enterprise pricing? Our team is ready to assist you.</p>
+                    <h2 class="display-5 fw-bold mb-4">Book a Guided Product Demo.</h2>
+                    <p class="text-muted mb-4 fs-5">See how Lurnexa HRMS can streamline your payroll, attendance, and HR workflows in 15 minutes.</p>
                     
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="feature-icon mb-0 me-3" style="width: 50px; height: 50px;">
-                            <i class="fa-solid fa-envelope"></i>
+                    <div class="d-flex align-items-center mb-4">
+                        <div class="feature-icon mb-0 me-3 text-indigo bg-indigo bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 55px; height: 55px;">
+                            <i class="fa-solid fa-envelope fs-4"></i>
                         </div>
                         <div>
-                            <h6 class="fw-bold mb-0">Email Us</h6>
+                            <h6 class="fw-bold mb-0 fs-6">Direct Email Support</h6>
                             <p class="text-muted mb-0">info@lurnexatechnologies.in</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-6 offset-lg-1">
-                    <form action="/core/contact-us/" method="POST" class="contact-form shadow-sm border border-light">
+                    <form action="/core/contact-us/" method="POST" class="contact-form p-4 p-md-5 rounded-4 shadow-sm border border-light bg-white">
                         {% csrf_token %}
                         <!-- Messages Block -->
                         {% if messages %}
@@ -522,39 +712,46 @@
                             {% endfor %}
                         </div>
                         {% endif %}
-                        
-                        <div class="row">
+                        <h4 class="fw-bold text-dark mb-4"><i class="fa-solid fa-calendar-days text-primary me-2"></i>Schedule Your Demo</h4>
+                        <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="fw-medium mb-2 small">First Name</label>
-                                <input type="text" name="first_name" class="form-control" placeholder="John" required>
+                                <label class="form-label fw-semibold text-secondary small">First Name</label>
+                                <input type="text" name="first_name" class="form-control rounded-3" placeholder="John" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="fw-medium mb-2 small">Last Name</label>
-                                <input type="text" name="last_name" class="form-control" placeholder="Doe" required>
+                                <label class="form-label fw-semibold text-secondary small">Last Name</label>
+                                <input type="text" name="last_name" class="form-control rounded-3" placeholder="Doe" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-secondary small">Work Email</label>
+                                <input type="email" name="email" class="form-control rounded-3" placeholder="john@company.com" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-secondary small">Contact Number</label>
+                                <input type="tel" name="phone" class="form-control rounded-3" placeholder="+91 98765 43210" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold text-secondary small">Message / Inquiry</label>
+                                <textarea name="message" class="form-control rounded-3" rows="3" placeholder="How many employees are in your team? What features are you interested in?"></textarea>
+                            </div>
+                            <div class="col-12 mt-4">
+                                <button type="submit" class="btn btn-primary w-100 rounded-pill py-3 fw-bold shadow" style="background: linear-gradient(135deg, #6366f1, #4f46e5); border: none;">
+                                    <i class="fa-solid fa-paper-plane me-2"></i>Book Free Live Demo
+                                </button>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label class="fw-medium mb-2 small">Work Email</label>
-                                <input type="email" name="email" class="form-control" placeholder="john@company.com" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="fw-medium mb-2 small">Contact Number</label>
-                                <input type="tel" name="phone" class="form-control" placeholder="+91 98765 43210" required>
-                            </div>
-                        </div>
-                        
-                        <label class="fw-medium mb-2 small">Message</label>
-                        <textarea name="message" class="form-control" rows="4" placeholder="How can we help you?" required></textarea>
-                        
-                        <button type="submit" class="btn btn-signin w-100 py-3">Send Message <i class="fa-solid fa-paper-plane ms-2"></i></button>
                     </form>
                 </div>
             </div>
         </div>
     </section>
 
-
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container text-center small text-white-50">
+            <p class="mb-0">&copy; 2026 Lurnexa Technologies. All rights reserved. | <a href="/core/privacy-policy/" class="text-white-50">Privacy Policy</a> | <a href="/core/terms-of-service/" class="text-white-50">Terms of Service</a></p>
+        </div>
+    </footer>
 
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 </body>

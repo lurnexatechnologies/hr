@@ -87,25 +87,27 @@
         <div class="col-lg-8">
             <div class="billing-card h-100">
                 <h4 class="fw-bold text-dark mb-4">Available Tiers & Upgrades</h4>
-                <div class="row g-3">
+                <div class="row g-4">
                     <!-- Basic Plan Card -->
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="pricing-card p-4 h-100 d-flex flex-column justify-content-between {% if plan == 'basic' %}active{% endif %}">
                             <div>
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5 class="fw-bold text-dark mb-0">Basic</h5>
                                     {% if plan == 'basic' %}<span class="badge bg-indigo text-white rounded-pill px-2 py-1 small">Current Plan</span>{% endif %}
                                 </div>
-                                <p class="text-muted small mb-3">Strong HR foundation for growing startups.</p>
+                                <p class="text-muted small mb-3">Essential HR & Attendance foundation.</p>
                                 <ul class="list-unstyled text-muted small mb-4">
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Employee Self Service & Profiles</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Self-Onboarding & Directory</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Leave & Attendance</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Holiday Calendar</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Employee Self-Onboarding</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Employee Directory & Hierarchy</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Leave Management</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Attendance (Geofence & IP)</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Holiday Calendar Sync</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Employee Self-Service (ESS)</li>
                                 </ul>
                             </div>
                             {% if plan != 'basic' %}
-                            <a href="mailto:support@lurnexa.com?subject=Plan%20Inquiry%20-%20Basic&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Basic%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
+                            <a href="mailto:info@lurnexatechnologies.in?subject=Plan%20Inquiry%20-%20Basic&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Basic%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
                             {% else %}
                             <button class="btn btn-indigo w-100 rounded-pill" disabled>Active</button>
                             {% endif %}
@@ -113,23 +115,25 @@
                     </div>
 
                     <!-- Elite Plan Card -->
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="pricing-card p-4 h-100 d-flex flex-column justify-content-between {% if plan == 'elite' %}active{% endif %}">
                             <div>
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5 class="fw-bold text-dark mb-0">Elite</h5>
                                     {% if plan == 'elite' %}<span class="badge bg-indigo text-white rounded-pill px-2 py-1 small">Current Plan</span>{% endif %}
                                 </div>
-                                <p class="text-muted small mb-3">Advanced workflows and complete team tracking.</p>
+                                <p class="text-muted small mb-3">Advanced workflows & team tracking.</p>
                                 <ul class="list-unstyled text-muted small mb-4">
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Custom Roles & Multi-Level Approvals</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Performance Management & OKRs</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Asset Allocation & Requests</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Workflow Approvals</li>
+                                    <li class="mb-2 fw-bold text-dark"><i class="fa-solid fa-circle-check text-primary me-2"></i>All Basic Plan Features +</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Performance & OKRs</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Asset Management & Requests</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>WFH & Face Verification</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Expense Claim & Approvals</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Resignation & Exit Clearance</li>
                                 </ul>
                             </div>
                             {% if plan != 'elite' %}
-                            <a href="mailto:support@lurnexa.com?subject=Plan%20Inquiry%20-%20Elite&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Elite%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
+                            <a href="mailto:info@lurnexatechnologies.in?subject=Plan%20Inquiry%20-%20Elite&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Elite%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
                             {% else %}
                             <button class="btn btn-indigo w-100 rounded-pill" disabled>Active</button>
                             {% endif %}
@@ -137,30 +141,31 @@
                     </div>
 
                     <!-- Professional Plan Card -->
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="pricing-card p-4 h-100 d-flex flex-column justify-content-between {% if plan == 'professional' %}active{% endif %}">
                             <div>
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5 class="fw-bold text-dark mb-0">Professional</h5>
                                     {% if plan == 'professional' %}<span class="badge bg-indigo text-white rounded-pill px-2 py-1 small">Current Plan</span>{% endif %}
                                 </div>
-                                <p class="text-muted small mb-3">Complete compliance & integrated payroll automation.</p>
+                                <p class="text-muted small mb-3">Full automated payroll & compliance suite.</p>
                                 <ul class="list-unstyled text-muted small mb-4">
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Bank Payout API & Biometric Integration</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Automated Payroll & Payslips</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Provident Fund Management</li>
-                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Expense Claim & Approvals</li>
+                                    <li class="mb-2 fw-bold text-dark"><i class="fa-solid fa-circle-check text-indigo me-2"></i>All Elite Plan Features +</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Automated Payroll Engine</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Digital Payslips & Tax Tools</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Statutory Compliance (PF, ESI)</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Automated HR Letter Generator</li>
+                                    <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Alumni Portal & Custom RBAC</li>
                                 </ul>
                             </div>
                             {% if plan != 'professional' %}
-                            <a href="mailto:support@lurnexa.com?subject=Plan%20Inquiry%20-%20Professional&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Professional%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
+                            <a href="mailto:info@lurnexatechnologies.in?subject=Plan%20Inquiry%20-%20Professional&body=Hi%20Lurnexa%20Team%2C%0A%0AI%20would%20like%20to%20inquire%20about%20the%20Professional%20plan.%0A%0AOrganization%3A%20{{ org.Name|urlencode }}%0A%0AThank%20you." class="btn btn-outline-indigo w-100 rounded-pill"><i class="fa-solid fa-envelope me-1"></i>Contact Us</a>
                             {% else %}
                             <button class="btn btn-indigo w-100 rounded-pill" disabled>Active</button>
                             {% endif %}
                         </div>
                     </div>
-
-                    </div>
+                </div>
             </div>
         </div>
     </div>

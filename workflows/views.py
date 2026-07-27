@@ -316,23 +316,25 @@ class ExpenseApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateV
                         continue
                 except: pass
 
-            if user_role == 'Super admin':
-                if exp.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
+            st = str(status or '')
+            app_id = exp.get('ApproverID')
+            emp_id = exp.get('EmployeeID')
+            if st in ['Approved', 'Rejected']:
+                processed.append(exp)
+            elif st.startswith('Pending') or st == 'Manager Approved':
+                if emp_id == user_emp_id:
+                    continue
+                if user_role == 'HR ADMIN':
+                    if st == 'Pending Super admin Approval':
+                        continue
                     pending.append(exp)
-                elif status in ['Approved', 'Rejected']:
-                    processed.append(exp)
-            elif user_role == 'HR ADMIN':
-                if status == 'Manager Approved' or status == 'Pending HR ADMIN Approval':
+                elif user_role == 'Super admin':
                     pending.append(exp)
-                elif exp.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                    pending.append(exp)
-                elif status in ['Approved', 'Rejected']:
-                    processed.append(exp)
-            else: # Manager
-                if exp.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                    pending.append(exp)
-                elif exp.get('ApproverID') == user_emp_id and status != 'Pending Manager Approval':
-                    processed.append(exp)
+                elif user_role == 'Manager':
+                    if app_id == user_emp_id or f"Pending {user_role}" in st or st == 'Pending Manager Approval':
+                        pending.append(exp)
+            else:
+                processed.append(exp)
 
         context['departments'] = sorted(list(set(e.get('Department') for e in all_employees if e.get('Department'))))
 
@@ -861,8 +863,17 @@ class WFHApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateView)
                 if user_role in ['Super admin', 'HR ADMIN'] or w['EmployeeID'] == user_emp_id or w.get('ProcessedBy') == user_emp_id:
                     history.append(w)
             elif status and status.startswith('Pending'):
-                if w.get('ApproverID') == user_emp_id or user_role == 'Super admin':
+                if w['EmployeeID'] == user_emp_id:
+                    continue
+                if user_role == 'HR ADMIN':
+                    if status == 'Pending Super admin Approval':
+                        continue
                     pending.append(w)
+                elif user_role == 'Super admin':
+                    pending.append(w)
+                elif user_role == 'Manager':
+                    if w.get('ApproverID') == user_emp_id or status == 'Pending Manager Approval':
+                        pending.append(w)
         
         context['departments'] = sorted(list(set(e.get('Department') for e in all_employees if e.get('Department'))))
 
@@ -933,30 +944,6 @@ class ApproveWFHView(FeatureRequiredMixin, ManagerRequiredMixin, View):
             ExpressionAttributeNames={'#s': 'Status'}, 
             ExpressionAttributeValues=expr_vals
         )
-        
-        if new_status == 'Approved':
-            # Create Attendance Records for the date range (excluding weekends)
-            start_str = wfh.get('WFHDate')
-            end_str = wfh.get('EndDate') or start_str
-            
-            try:
-                start_dt = datetime.datetime.strptime(start_str, '%Y-%m-%d').date()
-                end_dt = datetime.datetime.strptime(end_str, '%Y-%m-%d').date()
-                
-                curr = start_dt
-                while curr <= end_dt:
-                    # Skip Weekends (5=Saturday, 6=Sunday)
-                    if curr.weekday() < 5:
-                        AttendanceTable.put_item({
-                            'EmployeeID': emp_id, 
-                            'RecordDate': curr.isoformat(), 
-                            'ClockIn': '09:00', 
-                            'ClockOut': '18:00', 
-                            'Status': 'WFH' # Match payroll logic
-                        })
-                    curr += datetime.timedelta(days=1)
-            except Exception as e:
-                print(f"Error creating WFH attendance: {e}")
         
         # Notify Employee
         employee = EmployeesTable.get_item({'EmployeeID': emp_id})

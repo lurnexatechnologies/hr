@@ -85,6 +85,15 @@ class ClockInView(FeatureRequiredMixin, LoginRequiredMixin, View):
         # 3. Proceed with Clock-In
         record = AttendanceTable.get_item({'EmployeeID': eid, 'RecordDate': today})
         if record:
+            # Clean legacy auto-generated WFH records (09:00 - 18:00 without FaceVerified)
+            if record.get('ClockIn') == '09:00' and record.get('ClockOut') == '18:00' and not record.get('FaceVerified'):
+                try:
+                    AttendanceTable.delete_item({'EmployeeID': eid, 'RecordDate': today})
+                    record = None
+                except Exception:
+                    pass
+
+        if record and record.get('ClockIn'):
             messages.error(request, "Already clocked in today.")
         else:
             # Geofencing & IP Check

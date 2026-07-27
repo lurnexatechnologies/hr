@@ -1,5 +1,22 @@
 from django.urls import path, include
 from django.shortcuts import redirect, render
+from django.conf import settings
+import os, shutil
+
+# Ensure distinct generated mockup images exist in static/img
+img_dir = os.path.join(settings.BASE_DIR, "static", "img")
+os.makedirs(img_dir, exist_ok=True)
+src1 = r"C:\Users\ADMIN\.gemini\antigravity-ide\brain\582e381b-984f-42b1-9e17-8119c390c528\lurnexa_dashboard_mockup_1785136171876.png"
+dst1 = os.path.join(img_dir, "lurnexa_dashboard_mockup.png")
+src2 = r"C:\Users\ADMIN\.gemini\antigravity-ide\brain\582e381b-984f-42b1-9e17-8119c390c528\lurnexa_customization_mockup_1785136593371.png"
+dst2 = os.path.join(img_dir, "lurnexa_customization_mockup.png")
+
+if os.path.exists(src1):
+    try: shutil.copy(src1, dst1)
+    except Exception as e: pass
+if os.path.exists(src2):
+    try: shutil.copy(src2, dst2)
+    except Exception as e: pass
 
 def index_redirect(request):
     if request.user.is_authenticated:
@@ -44,7 +61,10 @@ urlpatterns = [
     path('attendance/', include('attendance.urls')),
     path('payroll/', include('payroll.urls')),
     path('workflows/', include('workflows.urls')),
+    path('api/chatbot/', include('ai_chatbot.urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+from django.views.static import serve
+urlpatterns += [
+    path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+]

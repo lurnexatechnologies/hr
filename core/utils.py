@@ -728,18 +728,33 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         except Exception:
             pass
 
-    # 2. Get submitter role
+    # 2. Get submitter role from UsersTable
     submitter_role = 'Employee'
     try:
         emp = EmployeesTable.get_item({'EmployeeID': employee_id})
-        if emp:
-            submitter_role = emp.get('Role', 'Employee')
+        user_id = emp.get('UserID') if emp else None
+        user = None
+        if user_id:
+            user = UsersTable.get_item({'UserID': user_id})
+        if not user:
+            all_users = UsersTable.scan()
+            user = next((u for u in all_users if u.get('EmployeeID') == employee_id), None)
+            
+        if user and user.get('Role'):
+            raw_role = str(user.get('Role')).strip()
+            raw_role_upper = raw_role.upper()
+            if raw_role_upper in ['HR ADMIN', 'HR_ADMIN', 'HR']:
+                submitter_role = 'HR ADMIN'
+            elif raw_role_upper in ['SUPER ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']:
+                submitter_role = 'Super admin'
+            elif raw_role_upper in ['MANAGER', 'TEAM LEAD']:
+                submitter_role = 'Manager'
+            elif raw_role in ['Employee', 'Manager', 'HR ADMIN', 'Super admin']:
+                submitter_role = raw_role
+            else:
+                submitter_role = 'Employee'
     except Exception:
         pass
-
-    # Standardize submitter_role
-    if submitter_role not in ['Employee', 'Manager', 'HR ADMIN', 'Super admin']:
-        submitter_role = 'Employee'
 
     # Default fallback rules if no custom ones are configured
     default_rules = {
@@ -769,16 +784,18 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         }
     }
 
-    rules_for_type = {}
-    if workflow_rules:
-        rules_for_type = workflow_rules.get(request_type, {})
+    rules_for_type = None
+    if workflow_rules and isinstance(workflow_rules, dict):
+        rules_for_type = workflow_rules.get(request_type)
         
-    if not rules_for_type:
-        chain = default_rules.get(request_type, {}).get(submitter_role, [])
-    else:
-        chain = rules_for_type.get(submitter_role, [])
+    chain = None
+    if rules_for_type is not None and isinstance(rules_for_type, dict):
+        chain = rules_for_type.get(submitter_role)
     
-    # If no steps defined (e.g. Super Admin), approve immediately
+    if chain is None:
+        chain = default_rules.get(request_type, {}).get(submitter_role, [])
+    
+    # If no steps defined (e.g. 0 steps), approve immediately
     if not chain:
         return 'Approved', None, True
 
@@ -794,32 +811,22 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
     except Exception:
         pass
 
-    manager_manager_id = None
-    if manager_id:
-        try:
-            m_hierarchy = ReportingHierarchyTable.scan(
-                FilterExpression="EmployeeID = :eid",
-                ExpressionAttributeValues={":eid": manager_id}
-            )
-            if m_hierarchy:
-                manager_manager_id = m_hierarchy[0].get('ManagerID')
-        except Exception:
-            pass
-
     hr_users = []
     sa_users = []
     try:
         all_users = UsersTable.scan()
         for u in all_users:
             u_org_id = u.get('OrgID')
-            # Strict Multi-Tenant isolation: Approvers must belong to the exact same organization
             if org_id and u_org_id and u_org_id != org_id:
                 continue
 
-            if u.get('Role') == 'HR ADMIN' and u.get('EmployeeID'):
-                hr_users.append(u.get('EmployeeID'))
-            elif u.get('Role') in ['Super admin', 'SUPER ADMIN', 'SUPERADMIN'] and u.get('EmployeeID'):
-                sa_users.append(u.get('EmployeeID'))
+            r = str(u.get('Role') or '').strip().upper()
+            e_id = u.get('EmployeeID')
+            if e_id:
+                if r in ['HR ADMIN', 'HR_ADMIN', 'HR']:
+                    hr_users.append(e_id)
+                elif r in ['SUPER ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']:
+                    sa_users.append(e_id)
     except Exception:
         pass
     
@@ -830,7 +837,7 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         if role_name == 'Manager':
             return manager_id or fallback_hr_id
         elif role_name == 'Team Lead':
-            return manager_id or fallback_hr_id # Fallback to manager
+            return manager_id or fallback_hr_id
         elif role_name == 'HR ADMIN':
             return fallback_hr_id
         elif role_name == 'Super admin':
@@ -842,15 +849,10 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         return 'Rejected', None, False
 
     # 5. Handle submission or progression
-    # Status format: 'Pending [Role Name] Approval'
-    # E.g. 'Pending Manager Approval'
-    
-    # Map current status to step index in chain
     current_step_index = -1
     if current_status:
-        # Find which role name matches current status
         for idx, role_name in enumerate(chain):
-            if current_status == f"Pending {role_name} Approval":
+            if current_status in [f"Pending {role_name} Approval", f"{role_name} Approved"]:
                 current_step_index = idx
                 break
 

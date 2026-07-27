@@ -376,7 +376,7 @@
 </div>
 
 <!-- hidden image tag to load user profile photo for reference -->
-<img id="userReferencePhoto" src="{% if request.user.passport_photo %}{% if request.user.passport_photo|slice:':4' == 'http' %}{{ request.user.passport_photo }}{% else %}/media/{{ request.user.passport_photo }}{% endif %}{% else %}https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400{% endif %}" crossorigin="anonymous" style="display:none;" />
+<img id="userReferencePhoto" src="{% if request.user.passport_photo %}{% if request.user.passport_photo|slice:':4' == 'http' %}{{ request.user.passport_photo }}{% else %}/media/{{ request.user.passport_photo }}{% endif %}{% endif %}" data-has-photo="{% if request.user.passport_photo %}true{% else %}false{% endif %}" crossorigin="anonymous" style="display:none;" />
 
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
 <script>
@@ -457,18 +457,28 @@
             progressEl.className = "progress-bar bg-primary progress-bar-striped progress-bar-animated";
             scoreText.innerText = "Liveness & Feature Matching Score: Checking...";
 
+            // 1. Enforce Profile Photo Existence
+            const hasPhoto = refPhoto && refPhoto.getAttribute('data-has-photo') === 'true' && refPhoto.getAttribute('src').trim() !== '';
+            if (!hasPhoto) {
+                progressEl.style.width = "100%";
+                progressEl.className = "progress-bar bg-danger";
+                scoreText.innerHTML = `<span class="text-danger fw-bold"><i class="fa-solid fa-circle-xmark me-1"></i> Profile Photo Required</span>`;
+                statusText.className = "position-absolute bottom-0 start-0 end-0 py-2 bg-danger text-white small fw-bold text-center";
+                statusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i> Please update your profile pic to recent one';
+                return;
+            }
+
             const cameraReady = await startCamera();
             if (!cameraReady) return;
 
             await loadModels();
 
-            statusText.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i> Detecting face & matching pattern...';
-            progressEl.style.width = "40%";
+            statusText.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i> Extracting profile photo facial features...';
+            progressEl.style.width = "30%";
 
-            let matchAttempts = 0;
             let referenceDescriptor = null;
 
-            // Compute reference photo descriptor if faceapi ready
+            // 2. Extract facial descriptor vector from uploaded profile photo
             try {
                 if (typeof faceapi !== 'undefined' && refPhoto) {
                     const refDetection = await faceapi.detectSingleFace(refPhoto, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
@@ -480,71 +490,73 @@
                 console.log("Reference image feature extraction:", e);
             }
 
+            if (!referenceDescriptor) {
+                stopCamera();
+                progressEl.style.width = "100%";
+                progressEl.className = "progress-bar bg-danger";
+                scoreText.innerHTML = `<span class="text-danger fw-bold"><i class="fa-solid fa-circle-xmark me-1"></i> Face Detection Failed on Profile Photo</span>`;
+                statusText.className = "position-absolute bottom-0 start-0 end-0 py-2 bg-danger text-white small fw-bold text-center";
+                statusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i> Please update your profile pic to recent one';
+                return;
+            }
+
+            statusText.innerHTML = '<i class="fa-solid fa-camera fa-spin me-2"></i> Position your face clearly in front of the camera...';
+            progressEl.style.width = "50%";
+
+            let matchAttempts = 0;
+            const maxAttempts = 6;
+
             scanInterval = setInterval(async () => {
                 matchAttempts++;
-                progressEl.style.width = Math.min(40 + matchAttempts * 12, 90) + "%";
-
-                let faceDetected = false;
-                let matchScore = 88 + Math.floor(Math.random() * 10); // High confidence matching threshold
+                progressEl.style.width = Math.min(50 + matchAttempts * 8, 90) + "%";
 
                 if (typeof faceapi !== 'undefined') {
                     try {
                         const detection = await faceapi.detectSingleFace(webcam, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-                        if (detection) {
-                            faceDetected = true;
-                            if (referenceDescriptor && detection.descriptor) {
-                                const distance = faceapi.euclideanDistance(referenceDescriptor, detection.descriptor);
-                                matchScore = Math.max(70, Math.round((1 - distance) * 100));
+                        if (detection && referenceDescriptor) {
+                            const distance = faceapi.euclideanDistance(referenceDescriptor, detection.descriptor);
+                            // Match threshold: Euclidean distance <= 0.52
+                            if (distance <= 0.52) {
+                                const matchScore = Math.round((1 - (distance / 0.6)) * 100);
+                                clearInterval(scanInterval);
+                                progressEl.style.width = "100%";
+                                progressEl.className = "progress-bar bg-success";
+                                scoreText.innerHTML = `<span class="text-success fw-bold"><i class="fa-solid fa-circle-check me-1"></i> Profile Photo Matched (${matchScore}%)</span>`;
+                                statusText.className = "position-absolute bottom-0 start-0 end-0 py-2 bg-success text-white small fw-bold text-center";
+                                statusText.innerHTML = '<i class="fa-solid fa-check me-2"></i> Face Verification Successful!';
+
+                                setTimeout(() => {
+                                    stopCamera();
+                                    faceScanModal.hide();
+                                    
+                                    if (currentAction === 'in') {
+                                        document.getElementById("clockInFaceVerified").value = "true";
+                                        submitClockIn();
+                                    } else if (currentAction === 'out') {
+                                        document.getElementById("clockOutFaceVerified").value = "true";
+                                        clockOutBtn.disabled = true;
+                                        clockOutBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Clocking Out...';
+                                        clockOutForm.submit();
+                                    }
+                                }, 1000);
+                                return;
                             }
                         }
                     } catch(e) {
-                        faceDetected = true;
+                        console.log("Camera face scanning error:", e);
                     }
-                } else {
-                    faceDetected = true;
                 }
 
-                if (matchAttempts >= 3 || (faceDetected && matchScore >= 75)) {
+                if (matchAttempts >= maxAttempts) {
                     clearInterval(scanInterval);
+                    stopCamera();
                     progressEl.style.width = "100%";
-                    progressEl.className = "progress-bar bg-success";
-                    scoreText.innerHTML = `<span class="text-success fw-bold"><i class="fa-solid fa-circle-check me-1"></i> Face Pattern Matched (${matchScore}%)</span>`;
-                    statusText.className = "position-absolute bottom-0 start-0 end-0 py-2 bg-success text-white small fw-bold";
-                    statusText.innerHTML = '<i class="fa-solid fa-check me-2"></i> Verification Successful!';
-
-                    setTimeout(() => {
-                        stopCamera();
-                        faceScanModal.hide();
-                        
-                        if (currentAction === 'in') {
-                            document.getElementById("clockInFaceVerified").value = "true";
-                            if (navigator.geolocation) {
-                                clockInBtn.disabled = true;
-                                clockInBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Clocking In...';
-                                navigator.geolocation.getCurrentPosition(
-                                    function(pos) {
-                                        document.getElementById("latInput").value = pos.coords.latitude;
-                                        document.getElementById("lonInput").value = pos.coords.longitude;
-                                        clockInForm.submit();
-                                    },
-                                    function() {
-                                        // Submit anyway (WFH will bypass backend geofence)
-                                        clockInForm.submit();
-                                    },
-                                    { timeout: 5000 }
-                                );
-                            } else {
-                                clockInForm.submit();
-                            }
-                        } else if (currentAction === 'out') {
-                            document.getElementById("clockOutFaceVerified").value = "true";
-                            clockOutBtn.disabled = true;
-                            clockOutBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Clocking Out...';
-                            clockOutForm.submit();
-                        }
-                    }, 1000);
+                    progressEl.className = "progress-bar bg-danger";
+                    scoreText.innerHTML = `<span class="text-danger fw-bold"><i class="fa-solid fa-circle-xmark me-1"></i> Face Mismatch</span>`;
+                    statusText.className = "position-absolute bottom-0 start-0 end-0 py-2 bg-danger text-white small fw-bold text-center";
+                    statusText.innerHTML = '<i class="fa-solid fa-xmark me-2"></i> Please update your profile pic to recent one';
                 }
-            }, 600);
+            }, 700);
         }
 
         const isWFHToday = "{{ is_wfh_today }}" === "True" || "{{ is_wfh_today }}" === "true";

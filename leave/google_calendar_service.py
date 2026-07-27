@@ -166,3 +166,30 @@ def sync_google_calendar_holidays():
     except Exception as e:
         logger.error(f"Error syncing Google Calendar holidays: {e}")
         return False
+
+_sync_lock = threading.Lock()
+
+def trigger_async_google_calendar_sync(force=False):
+    """
+    Triggers Google Calendar holiday sync in a background thread if it hasn't been run in the last 24 hours.
+    Prevents page load delays for the Calendar & Holidays page.
+    """
+    from django.core.cache import cache
+    cache_key = "google_calendar_holiday_last_sync_timestamp"
+    last_sync = cache.get(cache_key)
+    
+    if not force and last_sync:
+        return
+        
+    def _background_worker():
+        if _sync_lock.acquire(blocking=False):
+            try:
+                sync_google_calendar_holidays()
+                cache.set(cache_key, datetime.datetime.now().isoformat(), timeout=86400)
+            except Exception as err:
+                logger.error(f"Background Google Calendar sync error: {err}")
+            finally:
+                _sync_lock.release()
+
+    thread = threading.Thread(target=_background_worker, daemon=True)
+    thread.start()

@@ -27,6 +27,42 @@ def get_dynamodb_resource():
     else:
         return boto3.resource('dynamodb', region_name=region)
 
+def is_platform_admin_item(item):
+    """Check if a DynamoDB item represents a Platform Admin or Platform Super Admin account."""
+    if not item or not isinstance(item, dict):
+        return False
+    role = (str(item.get('Role') or item.get('role') or '')).strip().upper()
+    designation = (str(item.get('Designation') or '')).strip().upper()
+    email = (str(item.get('Email') or item.get('email') or '')).strip().lower()
+    emp_id = (str(item.get('EmployeeID') or '')).strip().upper()
+    
+    if role in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN', 'PLATFORM_ADMIN']:
+        return True
+    if designation in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN', 'PLATFORM_ADMIN']:
+        return True
+    if email == 'lurnexasolution@gmail.com':
+        return True
+    if emp_id == 'LXP-PLAT-001' or emp_id.startswith('LXP-PLAT'):
+        return True
+    return False
+
+def is_organization_context():
+    """Returns True if the current request context belongs to an organization (not Platform Admin)."""
+    try:
+        from core.middleware import get_current_request
+        request = get_current_request()
+        if request:
+            if hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+                user_role = getattr(request.user, 'role', None)
+                if user_role == 'Platform Admin':
+                    return False
+                return True
+            if getattr(request, 'org_id', None) or (hasattr(request, 'org') and request.org):
+                return True
+    except Exception:
+        pass
+    return False
+
 class TableService:
     def __init__(self, table_name):
         self.table_name = table_name
@@ -53,16 +89,23 @@ class TableService:
         item = self._get_table().get_item(Key=key).get('Item')
         if item and self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             org_id = None
+            is_plat_admin = False
             try:
                 from core.middleware import get_current_request
                 request = get_current_request()
                 if request and hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
-                    if getattr(request.user, 'role', None) != 'Platform Admin':
+                    role = getattr(request.user, 'role', None)
+                    if role == 'Platform Admin':
+                        is_plat_admin = True
+                    else:
                         org_id = getattr(request.user, 'org_id', None)
             except Exception:
                 pass
-            if org_id and item.get('OrgID') and item.get('OrgID') != org_id:
-                return None
+            if not is_plat_admin:
+                if is_platform_admin_item(item):
+                    return None
+                if org_id and item.get('OrgID') and item.get('OrgID') != org_id:
+                    return None
         return item
 
     def delete_item(self, key):
@@ -100,13 +143,13 @@ class TableService:
 
         if org_id:
             from boto3.dynamodb.conditions import Attr
-            org_filter = Attr('OrgID').eq(org_id) | Attr('OrgID').not_exists()
+            org_filter = Attr('OrgID').eq(org_id)
             if 'FilterExpression' not in kwargs:
                 kwargs['FilterExpression'] = org_filter
             else:
                 expr = kwargs['FilterExpression']
                 if isinstance(expr, str):
-                    kwargs['FilterExpression'] = f"({expr}) AND (OrgID = :autogen_org_id OR attribute_not_exists(OrgID))"
+                    kwargs['FilterExpression'] = f"({expr}) AND OrgID = :autogen_org_id"
                     if 'ExpressionAttributeValues' not in kwargs:
                         kwargs['ExpressionAttributeValues'] = {}
                     kwargs['ExpressionAttributeValues'][':autogen_org_id'] = org_id
@@ -129,6 +172,10 @@ class TableService:
                 kwargs['Limit'] = limit - len(items)
             response = table.query(**kwargs)
             items.extend(response.get('Items', []))
+
+        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            if is_organization_context():
+                items = [item for item in items if not is_platform_admin_item(item)]
         return items
 
     def scan(self, **kwargs):
@@ -146,6 +193,10 @@ class TableService:
                 kwargs['Limit'] = limit - len(items)
             response = table.scan(**kwargs)
             items.extend(response.get('Items', []))
+
+        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+            if is_organization_context():
+                items = [item for item in items if not is_platform_admin_item(item)]
         return items
 
 # Pre-defined Table Services

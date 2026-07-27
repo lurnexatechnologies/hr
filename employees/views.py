@@ -2321,6 +2321,28 @@ class DeleteCertificateView(FeatureRequiredMixin, LoginRequiredMixin, View):
         return redirect(f"/employees/profile/{emp_id}/?tab=cert")
 
 
+def deduplicate_asset_history(history):
+    """Remove duplicate asset history entries while preserving order."""
+    if not isinstance(history, list):
+        return []
+    unique = []
+    seen = set()
+    for h in history:
+        if isinstance(h, dict):
+            key = (
+                str(h.get('Action', '')).strip(),
+                str(h.get('EmployeeID', '')).strip(),
+                str(h.get('Date', '')).strip(),
+                str(h.get('Condition', '')).strip()
+            )
+            if key not in seen:
+                seen.add(key)
+                unique.append(h)
+        else:
+            unique.append(h)
+    return unique
+
+
 class AssetManagementView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
     required_feature = 'asset_management'
     template_name = 'employees/assets.html'
@@ -2347,9 +2369,14 @@ class AssetManagementView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
                 asset['AssigneeName'] = 'Unassigned'
                 
             history = asset.get('History', [])
-            if not isinstance(history, list):
-                history = []
-            asset['HistoryJSON'] = json.dumps(history)
+            clean_history = deduplicate_asset_history(history)
+            if len(clean_history) != len(history):
+                asset['History'] = clean_history
+                try:
+                    AssetsTable.put_item(asset)
+                except Exception:
+                    pass
+            asset['HistoryJSON'] = json.dumps(clean_history)
                 
         context['assets'] = assets
         
@@ -2444,9 +2471,7 @@ class AllocateAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
             asset['AllocationDate'] = alloc_date
             
             # Append allocation to history list
-            history = asset.get('History', [])
-            if not isinstance(history, list):
-                history = []
+            history = deduplicate_asset_history(asset.get('History', []))
             history.append({
                 'Action': 'Allocated',
                 'EmployeeID': employee_id,
@@ -2454,7 +2479,7 @@ class AllocateAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
                 'Date': alloc_date,
                 'Condition': asset.get('Condition', 'Excellent')
             })
-            asset['History'] = history
+            asset['History'] = deduplicate_asset_history(history)
             
             AssetsTable.put_item(asset)
             try:
@@ -2471,6 +2496,8 @@ class AllocateAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
             messages.success(request, f"Asset allocated to {employee.get('FirstName')} successfully.")
         except Exception as e:
             messages.error(request, f"Error allocating asset: {e}")
+            
+        return redirect('asset_management')
 
 class ReturnAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
     required_feature = 'asset_management'
@@ -2501,9 +2528,7 @@ class ReturnAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
             ret_date = get_local_date().strftime('%Y-%m-%d')
             
             # Append return to history list
-            history = asset.get('History', [])
-            if not isinstance(history, list):
-                history = []
+            history = deduplicate_asset_history(asset.get('History', []))
             history.append({
                 'Action': 'Returned',
                 'EmployeeID': assigned_to,
@@ -2511,7 +2536,7 @@ class ReturnAssetView(FeatureRequiredMixin, HRRequiredMixin, View):
                 'Date': ret_date,
                 'Condition': condition
             })
-            asset['History'] = history
+            asset['History'] = deduplicate_asset_history(history)
             
             asset['Status'] = 'Available'
             asset.pop('AssignedTo', None)
@@ -2735,9 +2760,7 @@ class HandleAssetRequestView(FeatureRequiredMixin, HRRequiredMixin, View):
                     employee_name = asset_req.get('EmployeeName', 'Unknown')
                     
                     # Record return in history
-                    history = asset.get('History', [])
-                    if not isinstance(history, list):
-                        history = []
+                    history = deduplicate_asset_history(asset.get('History', []))
                     history.append({
                         'Action': 'Returned (Exchange Approved)',
                         'EmployeeID': assigned_to,
@@ -2746,7 +2769,7 @@ class HandleAssetRequestView(FeatureRequiredMixin, HRRequiredMixin, View):
                         'Condition': 'Needs Repair'
                     })
                     
-                    asset['History'] = history
+                    asset['History'] = deduplicate_asset_history(history)
                     asset['Condition'] = 'Needs Repair'
                     asset['Status'] = 'Available'
                     asset.pop('AssignedTo', None)

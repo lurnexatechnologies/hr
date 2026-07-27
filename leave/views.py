@@ -106,10 +106,10 @@ class GlobalCalendarView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboa
         context = super().get_context_data(**kwargs)
         user = self.request.user
         
-        # Auto-sync software company holidays from Google Calendar
+        # Asynchronous background sync for holidays (non-blocking)
         try:
-            from leave.google_calendar_service import sync_google_calendar_holidays
-            sync_google_calendar_holidays()
+            from leave.google_calendar_service import trigger_async_google_calendar_sync
+            trigger_async_google_calendar_sync()
         except Exception as sync_err:
             print(f"Google Calendar Holiday Sync Note: {sync_err}")
 
@@ -675,12 +675,7 @@ class LeaveApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateVie
             status = l.get('Status', 'Pending')
             
             if self.request.user.role in ['HR ADMIN', 'Super admin']:
-                if status in ['Approved', 'Rejected']:
-                    is_relevant = True
-                elif status == 'Pending':
-                    # Explicitly assigned or no specific manager set
-                    if l.get('ApproverID') == user_emp_id or not l.get('ApproverID'):
-                        is_relevant = True
+                is_relevant = True
             elif self.request.user.role == 'Manager':
                 # STRICT RULE: Manager sees ONLY leaves of their direct reportees
                 if l.get('EmployeeID') in my_reportees:
@@ -714,8 +709,29 @@ class LeaveApprovalsView(FeatureRequiredMixin, ManagerRequiredMixin, TemplateVie
             l['EmployeeName'] = emp_name_map.get(l['EmployeeID'], 'Unknown')
             relevant_leaves.append(l)
 
-        pending_list = [l for l in relevant_leaves if l.get('Status') == 'Pending']
-        processed_list = [l for l in relevant_leaves if l.get('Status') in ['Approved', 'Rejected']]
+        pending_list = []
+        processed_list = []
+        for l in relevant_leaves:
+            st = str(l.get('Status', ''))
+            emp_id = l.get('EmployeeID')
+            
+            if st in ['Approved', 'Rejected']:
+                processed_list.append(l)
+            elif st.startswith('Pending') or st == 'Submitted':
+                # Self-applied leaves must NOT appear in pending approvals queue for self-approval
+                if emp_id == user_emp_id:
+                    continue
+                    
+                if self.request.user.role == 'HR ADMIN':
+                    # HR ADMIN should not see leaves waiting for Super admin approval
+                    if st == 'Pending Super admin Approval':
+                        continue
+                    pending_list.append(l)
+                elif self.request.user.role == 'Super admin':
+                    pending_list.append(l)
+                elif self.request.user.role == 'Manager':
+                    if l.get('ApproverID') == user_emp_id or emp_id in my_reportees or st == 'Pending Manager Approval':
+                        pending_list.append(l)
         
         pending_list.sort(key=lambda x: x.get('LeaveDate', ''), reverse=(sort_order == 'desc'))
         processed_list.sort(key=lambda x: x.get('LeaveDate', ''), reverse=(sort_order == 'desc'))
@@ -755,6 +771,10 @@ class ApproveLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
         # Clean inputs
         emp_id = str(emp_id).strip()
         leave_date = str(leave_date).strip()
+
+        if emp_id == request.user.employee_id:
+            messages.error(request, "You cannot approve your own leave request.")
+            return redirect('leave_approvals')
         
         # 1. Fetch the leave request to get details
         leave_request = LeaveRequestsTable.get_item({'EmployeeID': emp_id, 'LeaveDate': leave_date})

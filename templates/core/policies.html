@@ -50,29 +50,13 @@
                     </div>
                     <div>
                         <span class="badge bg-light text-secondary border fw-bold px-2 py-1 me-1" style="border-radius: 6px; font-size: 0.7rem;">v{{ p.Version }}</span>
-                        {% if request.user.role == 'Super admin' %}
-                            {% if p.ApprovalStatus == 'Pending Approval' %}
+                        {% if request.user.role == 'Super admin' or request.user.role == 'HR ADMIN' %}
+                            {% if p.ApprovalStatus == 'Pending Approval' or p.ApprovalStatus == 'Pending Super Admin Approval' %}
                                 <span class="badge bg-warning bg-opacity-10 text-warning px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-clock me-1"></i> Pending Super Admin</span>
-                            {% elif p.ApprovalStatus == 'Pending HR Admin Approval' %}
-                                <span class="badge bg-info bg-opacity-10 text-info px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-clock me-1"></i> Pending HR validation</span>
                             {% elif p.ApprovalStatus == 'Rejected' %}
                                 <span class="badge bg-danger bg-opacity-10 text-danger px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-circle-xmark me-1"></i> Rejected</span>
                             {% else %}
                                 <span class="badge bg-success bg-opacity-10 text-success px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-circle-check me-1"></i> Approved</span>
-                            {% endif %}
-                        {% elif request.user.role == 'HR ADMIN' %}
-                            {% if p.ApprovalStatus == 'Pending Approval' %}
-                                <span class="badge bg-warning bg-opacity-10 text-warning px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-clock me-1"></i> Pending Super Admin</span>
-                            {% elif p.ApprovalStatus == 'Pending HR Admin Approval' %}
-                                <span class="badge bg-warning bg-opacity-10 text-warning px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-clock me-1"></i> Awaiting Your Validation</span>
-                            {% elif p.ApprovalStatus == 'Rejected' %}
-                                <span class="badge bg-danger bg-opacity-10 text-danger px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-circle-xmark me-1"></i> Rejected</span>
-                            {% else %}
-                                {% if p.user_acknowledged %}
-                                    <span class="badge bg-success bg-opacity-10 text-success px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-circle-check me-1"></i> Acknowledged</span>
-                                {% else %}
-                                    <span class="badge bg-danger bg-opacity-10 text-danger px-2.5 py-1.5 rounded-pill fw-semibold" style="font-size: 0.7rem;"><i class="fa-solid fa-circle-exclamation me-1"></i> Review Required</span>
-                                {% endif %}
                             {% endif %}
                         {% else %}
                             {% if p.user_acknowledged %}
@@ -95,27 +79,12 @@
             
             <div class="d-flex flex-column gap-2 mt-auto">
                 <button class="btn-view-policy w-100 py-2.5 fw-bold" onclick="openPolicy('{{ p.PolicyID }}')">View Full Policy</button>
-                {% if request.user.role == 'Super admin' and p.ApprovalStatus == 'Pending Approval' %}
+                {% if request.user.role == 'Super admin' and p.ApprovalStatus in 'Pending Approval,Pending Super Admin Approval' %}
                 <div class="d-flex gap-2">
                     <form action="{% url 'approve_policy' p.PolicyID %}" method="POST" class="m-0 flex-grow-1">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-success w-100 py-2 fw-bold shadow-sm" style="border-radius: 8px;">
                             <i class="fa-solid fa-circle-check me-2"></i>Approve
-                        </button>
-                    </form>
-                    <form action="{% url 'reject_policy' p.PolicyID %}" method="POST" class="m-0 flex-grow-1">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-danger w-100 py-2 fw-bold shadow-sm" style="border-radius: 8px;">
-                            <i class="fa-solid fa-circle-xmark me-2"></i>Reject
-                        </button>
-                    </form>
-                </div>
-                {% elif request.user.role == 'HR ADMIN' and p.ApprovalStatus == 'Pending HR Admin Approval' %}
-                <div class="d-flex gap-2">
-                    <form action="{% url 'approve_policy' p.PolicyID %}" method="POST" class="m-0 flex-grow-1">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-success w-100 py-2 fw-bold shadow-sm" style="border-radius: 8px;">
-                            <i class="fa-solid fa-circle-check me-2"></i>Accept
                         </button>
                     </form>
                     <form action="{% url 'reject_policy' p.PolicyID %}" method="POST" class="m-0 flex-grow-1">

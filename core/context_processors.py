@@ -56,21 +56,25 @@ def lurnexa_settings(request):
                 all_employees = []
             
             for emp in all_employees:
-                if emp.get('ShowBirthday') == 'off' or emp.get('ShowBirthday') is False:
-                    continue
+                show_bday = emp.get('ShowBirthday') != 'off' and emp.get('ShowBirthday') is not False
                 dob = emp.get('DOB')
                 if dob and len(dob) >= 10:
                     dob_md = dob[5:10] # Extracts MM-DD from YYYY-MM-DD
                     
                     if dob_md == today_str:
-                        data['today_birthdays'].append(emp)
-                        # Check if it's the current user's birthday for the theme
-                        if emp.get('EmployeeID') == user_emp_id:
+                        # Current user always gets their personal birthday theme & banner even if visibility is off
+                        if user_emp_id and emp.get('EmployeeID') == user_emp_id:
                             data['is_birthday_today'] = True
                             data['user_gender'] = emp.get('Gender')
+                        
+                        # Only include in public today_birthdays list for others if visibility is turned ON
+                        if show_bday:
+                            data['today_birthdays'].append(emp)
                             
                     elif dob_md == tomorrow_str:
-                        data['tomorrow_birthdays'].append(emp)
+                        # Only include in public tomorrow_birthdays list for others if visibility is turned ON
+                        if show_bday:
+                            data['tomorrow_birthdays'].append(emp)
 
             # Add Birthday notifications dynamically for everyone EXCEPT the birthday person (to avoid duplicate alerts for them)
             if not notifications_dismissed:
@@ -179,11 +183,19 @@ def lurnexa_settings(request):
                         ) if org_id else []
                         count_l = 0
                         for l in all_leaves:
-                            if l.get('Status') == 'Pending':
-                                if user_role in ['HR ADMIN', 'Super admin'] and (not l.get('ApproverID') or l.get('ApproverID') == user_emp_id):
-                                    count_l += 1
-                                elif user_role == 'Manager' and l.get('EmployeeID') in my_reportees:
-                                    count_l += 1
+                            st = str(l.get('Status', ''))
+                            emp_id = l.get('EmployeeID')
+                            if (st.startswith('Pending') or st == 'Submitted') and emp_id != user_emp_id:
+                                app_id = l.get('ApproverID')
+                                if user_role == 'HR ADMIN':
+                                    if st != 'Pending Super admin Approval' and (not app_id or app_id == user_emp_id or f"Pending {user_role}" in st or st == 'Pending'):
+                                        count_l += 1
+                                elif user_role == 'Super admin':
+                                    if not app_id or app_id == user_emp_id or f"Pending {user_role}" in st or st == 'Pending':
+                                        count_l += 1
+                                elif user_role == 'Manager':
+                                    if app_id == user_emp_id or emp_id in my_reportees:
+                                        count_l += 1
                         data['pending_leaves_count'] = count_l
                         
                     # Pending Expenses
@@ -194,18 +206,15 @@ def lurnexa_settings(request):
                         ) if org_id else []
                         count_e = 0
                         for exp in all_expenses:
-                            status = exp.get('Status')
-                            if user_role == 'Super admin':
-                                if exp.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                                    count_e += 1
-                            elif user_role == 'HR ADMIN':
-                                if status in ['Manager Approved', 'Pending HR ADMIN Approval']:
-                                    count_e += 1
-                                elif exp.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                                    count_e += 1
-                            elif user_role == 'Manager':
-                                if exp.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                                    count_e += 1
+                            st = str(exp.get('Status', ''))
+                            app_id = exp.get('ApproverID')
+                            if st.startswith('Pending') or st == 'Manager Approved':
+                                if user_role in ['HR ADMIN', 'Super admin']:
+                                    if not app_id or app_id == user_emp_id or f"Pending {user_role}" in st or st in ['Manager Approved', 'Pending HR ADMIN Approval']:
+                                        count_e += 1
+                                elif user_role == 'Manager':
+                                    if app_id == user_emp_id or st == 'Pending Manager Approval':
+                                        count_e += 1
                         data['pending_expenses_count'] = count_e
                         
                     # Pending WFH
@@ -216,18 +225,15 @@ def lurnexa_settings(request):
                         ) if org_id else []
                         count_w = 0
                         for w in all_wfh:
-                            status = w.get('Status')
-                            if user_role == 'Super admin':
-                                if w.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                                    count_w += 1
-                            elif user_role == 'HR ADMIN':
-                                if status == 'Pending HR ADMIN Approval':
-                                    count_w += 1
-                                elif w.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                                    count_w += 1
-                            elif user_role == 'Manager':
-                                if w.get('ApproverID') == user_emp_id and status == 'Pending Manager Approval':
-                                    count_w += 1
+                            st = str(w.get('Status', ''))
+                            app_id = w.get('ApproverID')
+                            if st.startswith('Pending'):
+                                if user_role in ['HR ADMIN', 'Super admin']:
+                                    if not app_id or app_id == user_emp_id or f"Pending {user_role}" in st or st in ['Pending HR ADMIN Approval', 'Pending Manager Approval']:
+                                        count_w += 1
+                                elif user_role == 'Manager':
+                                    if app_id == user_emp_id or st == 'Pending Manager Approval':
+                                        count_w += 1
                         data['pending_wfh_count'] = count_w
                         
                     # Pending Resignations (Uses 'Pending HR ADMIN Review')

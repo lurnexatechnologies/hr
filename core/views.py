@@ -1336,107 +1336,74 @@ class ApprovePolicyView(FeatureRequiredMixin, LoginRequiredMixin, View):
         version = policy.get('Version', '1.0')
 
         try:
-            if role == 'Super admin':
-                if current_status != 'Pending Approval':
-                    messages.error(request, f"This policy cannot be approved by Super Admin in its current state ({current_status}).")
-                    return redirect('policies')
-                
-                # Super Admin Approval: Move to Pending HR Admin Approval
-                PoliciesTable.update_item(
-                    Key={'PolicyID': policy_id},
-                    UpdateExpression="SET ApprovalStatus = :s",
-                    ExpressionAttributeValues={':s': 'Pending HR Admin Approval'}
-                )
-                
-                # Notify HR Admins
-                try:
-                    hr_admins = [u for u in UsersTable.scan() if (u.get('Role') or '').strip().upper() in ['HR ADMIN', 'HRADMIN', 'HR'] and u.get('OrgID') == user.org_id]
-                    for hr in hr_admins:
-                        hr_emp_id = hr.get('EmployeeID') or hr.get('UserID')
-                        if hr_emp_id:
-                            send_notification(
-                                employee_id=hr_emp_id,
-                                title="Policy Approved by Super Admin",
-                                message=f"Policy '{title}' (Version {version}) has been approved by the Super Admin and requires your final validation/acceptance.",
-                                n_type='Policy',
-                                icon='fa-file-circle-check',
-                                color='warning',
-                                org_id=user.org_id
-                            )
-                except Exception as e:
-                    print(f"Error sending Super Admin approval notification to HR Admin: {e}")
-                
-                messages.success(request, "Policy approved by Super Admin. Awaiting HR Admin validation.")
+            if current_status not in ['Pending Approval', 'Pending Super Admin Approval', 'Pending HR Admin Approval']:
+                messages.error(request, f"This policy cannot be approved in its current state ({current_status}).")
+                return redirect('policies')
+            
+            # Super Admin / HR Admin Approval: Directly set to Approved
+            PoliciesTable.update_item(
+                Key={'PolicyID': policy_id},
+                UpdateExpression="SET ApprovalStatus = :s",
+                ExpressionAttributeValues={':s': 'Approved'}
+            )
 
-            elif role == 'HR ADMIN':
-                if current_status != 'Pending HR Admin Approval':
-                    messages.error(request, f"You can only validate policies that are approved by the Super Admin. Current status: {current_status}")
-                    return redirect('policies')
-
-                # HR Admin Validation: Move to Approved
-                PoliciesTable.update_item(
-                    Key={'PolicyID': policy_id},
-                    UpdateExpression="SET ApprovalStatus = :s",
-                    ExpressionAttributeValues={':s': 'Approved'}
-                )
-
-                # Fetch all active employees (excluding Super Admin, Platform Admin)
-                employees = []
-                try:
-                    all_org_emps = EmployeesTable.scan(
-                        FilterExpression="OrgID = :oid",
-                        ExpressionAttributeValues={':oid': user.org_id}
-                    )
-                    all_users = UsersTable.scan()
-                    user_map = {u.get('UserID'): u for u in all_users if u.get('UserID')}
+            # Fetch all active employees (excluding Super Admin, Platform Admin) to notify them
+            employees = []
+            try:
+                all_org_emps = EmployeesTable.scan(
+                    FilterExpression="OrgID = :oid",
+                    ExpressionAttributeValues={':oid': user.org_id}
+                ) if user.org_id else EmployeesTable.scan()
+                
+                all_users = UsersTable.scan()
+                user_map = {u.get('UserID'): u for u in all_users if u.get('UserID')}
+                
+                today_date = get_local_date()
+                for emp in all_org_emps:
+                    uid = emp.get('UserID')
+                    usr = user_map.get(uid) if uid else None
                     
-                    today_date = get_local_date()
-                    for emp in all_org_emps:
-                        uid = emp.get('UserID')
-                        usr = user_map.get(uid) if uid else None
+                    is_user_active = usr.get('IsActive', True) if usr else True
+                    if not is_user_active:
+                        continue
                         
-                        is_user_active = usr.get('IsActive', True) if usr else True
-                        if not is_user_active:
-                            continue
-                            
-                        user_role = (usr.get('Role') or '').strip().upper() if usr else 'EMPLOYEE'
-                        # HR Admins also need to acknowledge approved policies
-                        if user_role in ['SUPER ADMIN', 'SUPERADMIN', 'PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
-                            continue
-                            
-                        status = emp.get('OnboardingStatus')
-                        if status in ['Resigned', 'Pending Review', 'Rejected', 'Pending']:
-                            continue
-                            
-                        lwd_str = emp.get('LastWorkingDate')
-                        is_active_view = True
-                        if status == 'Accepted Resignation' and lwd_str:
-                            try:
-                                lwd = datetime.datetime.strptime(lwd_str, '%Y-%m-%d').date()
-                                if today_date > lwd:
-                                    is_active_view = False
-                            except:
-                                pass
+                    user_role = (usr.get('Role') or '').strip().upper() if usr else 'EMPLOYEE'
+                    if user_role in ['SUPER ADMIN', 'SUPERADMIN', 'PLATFORM ADMIN', 'PLATFORM SUPER ADMIN']:
+                        continue
                         
-                        if is_active_view:
-                            employees.append(emp)
-                except Exception as e:
-                    print(f"Error fetching active employees for final approval notification: {e}")
+                    status = emp.get('OnboardingStatus')
+                    if status in ['Resigned', 'Pending Review', 'Rejected', 'Pending']:
+                        continue
+                        
+                    lwd_str = emp.get('LastWorkingDate')
+                    is_active_view = True
+                    if status == 'Accepted Resignation' and lwd_str:
+                        try:
+                            lwd = datetime.datetime.strptime(lwd_str, '%Y-%m-%d').date()
+                            if today_date > lwd:
+                                is_active_view = False
+                        except:
+                            pass
+                    
+                    if is_active_view:
+                        employees.append(emp)
+            except Exception as e:
+                print(f"Error fetching active employees for policy approval notification: {e}")
 
-                # Notify all employees (including HR Admin themselves if they are in the list)
-                for emp in employees:
-                    emp_id = emp.get('EmployeeID')
-                    if emp_id:
-                        send_notification(
-                            employee_id=emp_id,
-                            title="New Policy Acknowledgment Required",
-                            message=f"Policy '{title}' (Version {version}) has been fully approved. Please review and acknowledge it.",
-                            n_type='Policy',
-                            icon='fa-file-signature',
-                            color='info',
-                            org_id=user.org_id
-                        )
-                messages.success(request, "Policy fully approved and published for all employees.")
+            # Notify all employees
+            for emp in employees:
+                emp_id = emp.get('EmployeeID')
+                if emp_id:
+                    send_notification(
+                        employee_id=emp_id,
+                        title="New Policy Acknowledgment Required",
+                        message=f"Policy '{title}' (Version {version}) has been fully approved by Super Admin. Please review and acknowledge it.",
+                        n_type='Policy',
+                        icon='fa-file-signature',
+                        color='info',
+                        org_id=user.org_id
+                    )
+            messages.success(request, f"Policy '{title}' approved and published for all employees.")
         except Exception as e:
             messages.error(request, f"Error processing policy approval: {str(e)}")
 
