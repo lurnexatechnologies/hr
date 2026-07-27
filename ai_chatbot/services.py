@@ -956,10 +956,16 @@ def process_ai_chat(user, user_message, conversation_history=None, language="en-
     100% Pure AI Engine powered by Groq Llama-3.3 70B Neural Model with RBAC.
     Dynamically loads logged-in employee's complete profile, hierarchy, and portal context.
     """
-    from dotenv import load_dotenv
-    load_dotenv(settings.BASE_DIR / '.env', override=True)
-    
-    groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(settings.BASE_DIR / '.env')
+    except Exception:
+        pass
+
+    groq_api_key = (
+        os.getenv("GROQ_API_KEY", "").strip() or 
+        getattr(settings, 'GROQ_API_KEY', '').strip()
+    )
     employee_id = getattr(user, 'employee_id', None) or getattr(user, 'username', 'EMP1001')
     emp_name = getattr(user, 'first_name', 'Employee')
     user_role = getattr(user, 'role', 'Employee')

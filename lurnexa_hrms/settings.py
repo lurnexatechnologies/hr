@@ -22,6 +22,9 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     CSRF_TRUSTED_ORIGINS = ['https://hr.lurnexatechnologies.in']
 
+# Groq AI API Configuration
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '').strip()
+
 # Application definition
 INSTALLED_APPS = [
     # Bypassing standard admin to avoid deep SQL DB reliance

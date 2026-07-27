@@ -802,104 +802,38 @@
             }
         });
 
-        // Update Hidden Education Field and Verify Files before actual submit
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault(); // Stop normal submission first
-            
+        // Update Hidden Education Field and Submit Form
+        form.addEventListener('submit', function (e) {
             // 1. Update Hidden Education Field
-            const degree = form.degree_name.value;
-            const college = form.college_name.value;
-            const degreeScore = form.degree_score.value;
+            const degree = form.degree_name ? form.degree_name.value : '';
+            const college = form.college_name ? form.college_name.value : '';
+            const degreeScore = form.degree_score ? form.degree_score.value : '';
 
-            const interStream = form.inter_stream.value;
-            const interColl = form.inter_college.value;
-            const interScore = form.inter_score.value;
+            const interStream = form.inter_stream ? form.inter_stream.value : '';
+            const interColl = form.inter_college ? form.inter_college.value : '';
+            const interScore = form.inter_score ? form.inter_score.value : '';
 
-            const schoolBoard = form.school_board.value;
-            const school = form.school_name.value;
-            const schoolScore = form.school_score.value;
+            const schoolBoard = form.school_board ? form.school_board.value : '';
+            const school = form.school_name ? form.school_name.value : '';
+            const schoolScore = form.school_score ? form.school_score.value : '';
 
             let eduSummary = `Degree: ${degree} from ${college} (${degreeScore}%)`;
             if (interColl) eduSummary += ` | Inter: ${interStream} from ${interColl} (${interScore}%)`;
             if (school) eduSummary += ` | 10th: ${schoolBoard} from ${school} (${schoolScore}%)`;
 
-            finalEducation.value = eduSummary;
-
-            // 2. Validate Selected Files to prevent ERR_UPLOAD_FILE_CHANGED
-            submitBtn.disabled = true;
-            const originalBtnHtml = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Files...';
-            
-            const fileInputs = form.querySelectorAll('input[type="file"]');
-            const filesToVerify = [];
-            
-            fileInputs.forEach(input => {
-                if (!input.disabled && input.files && input.files.length > 0) {
-                    for (let i = 0; i < input.files.length; i++) {
-                        const file = input.files[i];
-                        filesToVerify.push({
-                            file: file,
-                            inputElement: input,
-                            inputLabel: input.previousElementSibling ? input.previousElementSibling.innerText : 'Document'
-                        });
-                    }
-                }
-            });
-            
-            const verifyFile = (file) => {
-                return new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(true);
-                    reader.onerror = () => resolve(false);
-                    // Read the entire file to ensure the browser verifies all metadata / accessibility
-                    reader.readAsArrayBuffer(file);
-                });
-            };
-            
-            for (let item of filesToVerify) {
-                const isReadable = await verifyFile(item.file);
-                if (!isReadable) {
-                    alert(`Your browser has lost access to the file "${item.file.name}" (${item.inputLabel}) because it was modified, minimized, or moved. Please click on the file upload field, re-select this file, and try again.`);
-                    
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalBtnHtml;
-                    
-                    item.inputElement.classList.add('is-invalid');
-                    item.inputElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    return;
-                } else {
-                    item.inputElement.classList.remove('is-invalid');
-                }
+            if (finalEducation) {
+                finalEducation.value = eduSummary;
             }
-            
-            // 3. Clear stored data from session storage on successful fetch submit
-            
-            // 4. Submit form via Fetch to intercept any client/browser file-read errors before navigation
-            try {
-                const response = await fetch(form.action || window.location.href, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    // Clear the stored form data on successful submission
-                    sessionStorage.removeItem(`selfOnboardingFormData_${form.email.value}`);
-                    sessionStorage.removeItem(`selfOnboardingCurrentStep_${form.email.value}`);
-                    
-                    const html = await response.text();
-                    document.open();
-                    document.write(html);
-                    document.close();
-                } else {
-                    alert("A server error occurred while processing your onboarding. Please try again or contact HR.");
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalBtnHtml;
-                }
-            } catch (err) {
-                console.error("Submission failed with file/network error:", err);
-                alert("File Access Error: One or more selected files could not be read (e.g. they were moved, edited, or deleted). Please click on the file upload fields, re-select the files, and try again.");
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnHtml;
+
+            // Clear session storage caches
+            if (form.email && form.email.value) {
+                sessionStorage.removeItem(`selfOnboardingFormData_${form.email.value}`);
+                sessionStorage.removeItem(`selfOnboardingCurrentStep_${form.email.value}`);
+            }
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Submitting Onboarding Details...';
             }
         });
         
