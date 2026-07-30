@@ -530,13 +530,19 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
                 context['leave_policies'] = leave_policies
                 
                 # Tax and PF Settings
+                basic_pct = float(org.get('BasicPercent', 40))
+                hra_pct = float(org.get('HRAPercent', 16))
+                special_allowance_pct = round(100 - basic_pct - hra_pct, 2)
                 context['tax_pf_settings'] = {
                     'PFEnabled': org.get('PFEnabled', True),
                     'EmployeePFPercent': org.get('EmployeePFPercent', 12.0),
                     'EmployerPFPercent': org.get('EmployerPFPercent', 12.0),
                     'TDSEnabled': org.get('TDSEnabled', True),
                     'TaxRegime': org.get('TaxRegime', 'New Regime'),
-                    'TaxStandardDeduction': org.get('TaxStandardDeduction', 75000.0)
+                    'TaxStandardDeduction': org.get('TaxStandardDeduction', 75000.0),
+                    'BasicPercent': basic_pct,
+                    'HRAPercent': hra_pct,
+                    'SpecialAllowancePercent': special_allowance_pct,
                 }
 
                 # Custom Organization Official Stamp
@@ -679,6 +685,8 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
                     org['TDSEnabled'] = request.POST.get('tds_enabled') == 'on'
                     org['TaxRegime'] = request.POST.get('tax_regime', 'New Regime')
                     org['TaxStandardDeduction'] = Decimal(request.POST.get('tax_standard_deduction', '75000.0') or '75000.0')
+                    org['BasicPercent'] = Decimal(request.POST.get('basic_percent', '40') or '40')
+                    org['HRAPercent'] = Decimal(request.POST.get('hra_percent', '16') or '16')
                     OrganizationsTable.put_item(org)
                     messages.success(request, "Tax & PF settings updated successfully.")
                 else:

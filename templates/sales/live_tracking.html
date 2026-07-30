@@ -1,0 +1,412 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Live Sales Tracking - Lurnexa HRMS{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+    .tracking-container {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 1rem;
+        height: calc(100vh - 110px);
+    }
+    @media (max-width: 992px) {
+        .tracking-container {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+    }
+    .tracking-sidebar {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid #e9ecef;
+    }
+    .tracking-map-card {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        border: 1px solid #e9ecef;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+    #salesMap {
+        width: 100%;
+        height: 100%;
+        min-height: 500px;
+        z-index: 1;
+    }
+    .rep-card {
+        padding: 1rem;
+        border-bottom: 1px solid #f1f3f5;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+    .rep-card:hover {
+        background: #f8f9fa;
+    }
+    .rep-card.active-selected {
+        background: #eef2ff;
+        border-left: 4px solid #4f46e5;
+    }
+    .badge-moving { background-color: #10b981; color: white; }
+    .badge-meeting { background-color: #3b82f6; color: white; }
+    .badge-stationary { background-color: #f59e0b; color: white; }
+    .badge-offline { background-color: #6b7280; color: white; }
+    
+    .map-controls-overlay {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        padding: 8px 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .route-playback-bar {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        padding: 12px 24px;
+        border-radius: 30px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        display: none;
+        align-items: center;
+        gap: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold mb-1"><i class="fa-solid fa-location-dot text-primary me-2"></i>Sales Force Live Tracking</h4>
+            <p class="text-muted small mb-0">Monitor field representatives in real-time and review daily client visit routes.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="fetchLiveLocations()">
+                <i class="fa-solid fa-rotate me-1"></i> Refresh Now
+            </button>
+            <div class="form-check form-switch mb-0 bg-light px-3 py-1 rounded-pill border">
+                <input class="form-check-input" type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh(this)">
+                <label class="form-check-label small fw-semibold" for="autoRefreshToggle">Live (15s)</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="tracking-container">
+        <!-- Sidebar Rep List -->
+        <div class="tracking-sidebar">
+            <div class="p-3 border-bottom bg-light">
+                <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                    <input type="text" id="searchRep" class="form-control border-start-0" placeholder="Search sales rep..." onkeyup="filterReps()">
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-primary rounded-pill px-3 py-1" id="activeCountBadge">0 Reps Active</span>
+                    <small class="text-muted" id="lastUpdatedTimer">Updated: Just now</small>
+                </div>
+            </div>
+
+            <!-- List of Representatives -->
+            <div class="flex-grow-1 overflow-auto" id="repListContainer">
+                <div class="text-center text-muted py-5">
+                    <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+                    <p class="small mb-0">Loading sales representatives...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Workspace -->
+        <div class="tracking-map-card">
+            <!-- Map Controls Overlay -->
+            <div class="map-controls-overlay">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-satellite-dish text-success"></i>
+                    <span class="small fw-semibold text-dark">Live Map</span>
+                </div>
+                <div class="vr"></div>
+                <div class="small text-muted d-none d-md-block">
+                    <span class="me-2"><i class="fa-solid fa-circle text-success fs-6"></i> Moving</span>
+                    <span class="me-2"><i class="fa-solid fa-circle text-primary fs-6"></i> Meeting</span>
+                    <span><i class="fa-solid fa-circle text-warning fs-6"></i> Stationary</span>
+                </div>
+            </div>
+
+            <!-- Leaflet Map Canvas -->
+            <div id="salesMap"></div>
+
+            <!-- Route Playback Control Floating Bar -->
+            <div class="route-playback-bar" id="routePlaybackBar">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-route text-indigo"></i>
+                    <div>
+                        <div class="fw-bold small mb-0" id="playbackRepName">Employee Route</div>
+                        <div class="text-muted extra-small" id="playbackStats">Distance: 0 km</div>
+                    </div>
+                </div>
+                <div class="vr"></div>
+                <input type="date" id="playbackDate" class="form-control form-control-sm" onchange="loadEmployeeRoute()">
+                <button class="btn btn-sm btn-light border rounded-circle" onclick="closeRoutePlayback()" title="Close Playback">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+    let map;
+    let markers = {};
+    let activeRepsData = [];
+    let autoRefreshTimer = null;
+    let currentRoutePolyline = null;
+    let currentSelectedEmpId = null;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        initMap();
+        fetchLiveLocations();
+        startAutoRefresh();
+    });
+
+    function initMap() {
+        // Default center: India (20.5937, 78.9629) zoom 5
+        map = L.map('salesMap').setView([20.5937, 78.9629], 5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors | Lurnexa HRMS'
+        }).addTo(map);
+    }
+
+    function startAutoRefresh() {
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+        autoRefreshTimer = setInterval(fetchLiveLocations, 15000);
+    }
+
+    function toggleAutoRefresh(checkbox) {
+        if (checkbox.checked) {
+            startAutoRefresh();
+        } else if (autoRefreshTimer) {
+            clearInterval(autoRefreshTimer);
+        }
+    }
+
+    function fetchLiveLocations() {
+        fetch("{% url 'sales_live_locations_api' %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    activeRepsData = data.reps;
+                    renderRepList(activeRepsData);
+                    updateMapMarkers(activeRepsData);
+                    document.getElementById('lastUpdatedTimer').innerText = 'Updated: ' + new Date().toLocaleTimeString();
+                    document.getElementById('activeCountBadge').innerText = `${activeRepsData.length} Reps Tracked`;
+                }
+            })
+            .catch(err => console.error("Error fetching live locations:", err));
+    }
+
+    function getStatusBadgeClass(status) {
+        switch(status.toLowerCase()) {
+            case 'in transit':
+            case 'moving': return 'badge-moving';
+            case 'client meeting':
+            case 'meeting': return 'badge-meeting';
+            case 'stationary':
+            case 'idle': return 'badge-stationary';
+            default: return 'badge-offline';
+        }
+    }
+
+    function renderRepList(reps) {
+        const container = document.getElementById('repListContainer');
+        const filterText = document.getElementById('searchRep').value.toLowerCase();
+
+        const filtered = reps.filter(r => 
+            r.employee_name.toLowerCase().includes(filterText) || 
+            (r.employee_id && r.employee_id.toLowerCase().includes(filterText))
+        );
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="fa-solid fa-user-slash fs-3 mb-2"></i>
+                    <p class="small mb-0">No active sales reps found.</p>
+                </div>`;
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(rep => {
+            const isSelected = currentSelectedEmpId === rep.employee_id ? 'active-selected' : '';
+            const statusClass = getStatusBadgeClass(rep.status);
+            const timeAgo = rep.last_updated_at ? new Date(rep.last_updated_at).toLocaleTimeString() : 'N/A';
+
+            html += `
+                <div class="rep-card ${isSelected}" onclick="focusRepOnMap('${rep.employee_id}', ${rep.latitude}, ${rep.longitude})">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <div class="fw-bold text-dark text-truncate" style="max-width: 180px;">${rep.employee_name}</div>
+                        <span class="badge ${statusClass} rounded-pill extra-small">${rep.status}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center text-muted extra-small">
+                        <span><i class="fa-solid fa-gauge-high me-1"></i>${rep.speed} km/h</span>
+                        <span><i class="fa-solid fa-battery-three-quarters me-1 text-success"></i>${rep.battery_level}%</span>
+                        <span><i class="fa-regular fa-clock me-1"></i>${timeAgo}</span>
+                    </div>
+                    <div class="mt-2 d-flex gap-2">
+                        <button class="btn btn-xs btn-outline-indigo w-100 rounded-pill" onclick="event.stopPropagation(); openRoutePlayback('${rep.employee_id}', '${rep.employee_name}')">
+                            <i class="fa-solid fa-route me-1"></i> View Route
+                        </button>
+                    </div>
+                </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function filterReps() {
+        renderRepList(activeRepsData);
+    }
+
+    function updateMapMarkers(reps) {
+        const currentEmpIds = reps.map(r => r.employee_id);
+
+        // Remove old markers for reps no longer present
+        Object.keys(markers).forEach(empId => {
+            if (!currentEmpIds.includes(empId)) {
+                map.removeLayer(markers[empId]);
+                delete markers[empId];
+            }
+        });
+
+        // Add or update markers
+        const bounds = [];
+        reps.forEach(rep => {
+            const lat = rep.latitude;
+            const lng = rep.longitude;
+            bounds.push([lat, lng]);
+
+            const popupContent = `
+                <div class="p-1">
+                    <h6 class="fw-bold mb-1">${rep.employee_name}</h6>
+                    <p class="small text-muted mb-1"><i class="fa-solid fa-briefcase me-1"></i>${rep.department}</p>
+                    <div class="badge ${getStatusBadgeClass(rep.status)} mb-2">${rep.status}</div>
+                    <div class="small">
+                        <div><strong>Speed:</strong> ${rep.speed} km/h</div>
+                        <div><strong>Battery:</strong> ${rep.battery_level}%</div>
+                        <div><strong>Last Updated:</strong> ${new Date(rep.last_updated_at).toLocaleTimeString()}</div>
+                    </div>
+                </div>`;
+
+            if (markers[rep.employee_id]) {
+                markers[rep.employee_id].setLatLng([lat, lng]).setPopupContent(popupContent);
+            } else {
+                const customIcon = L.divIcon({
+                    className: 'custom-map-pin',
+                    html: `<div style="background:#4f46e5; width:28px; height:28px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 3px 8px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; color:white; font-size:12px;">
+                            <i class="fa-solid fa-user-tie"></i>
+                          </div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map).bindPopup(popupContent);
+                markers[rep.employee_id] = marker;
+            }
+        });
+
+        // Fit map bounds if initializing with points
+        if (bounds.length > 0 && !currentSelectedEmpId) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+        }
+    }
+
+    function focusRepOnMap(empId, lat, lng) {
+        currentSelectedEmpId = empId;
+        renderRepList(activeRepsData);
+        map.flyTo([lat, lng], 16, { duration: 1.2 });
+        if (markers[empId]) {
+            markers[empId].openPopup();
+        }
+    }
+
+    function openRoutePlayback(empId, name) {
+        currentSelectedEmpId = empId;
+        document.getElementById('playbackRepName').innerText = name;
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('playbackDate').value = todayStr;
+        document.getElementById('routePlaybackBar').style.display = 'flex';
+        loadEmployeeRoute();
+    }
+
+    function loadEmployeeRoute() {
+        if (!currentSelectedEmpId) return;
+        const targetDate = document.getElementById('playbackDate').value;
+        const url = `/api/sales/location-history/${currentSelectedEmpId}/?date=${targetDate}`;
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderRoutePolyline(data.route);
+                    document.getElementById('playbackStats').innerText = `Distance: ${data.total_distance_km} KM (${data.ping_count} checkpoints)`;
+                }
+            })
+            .catch(err => console.error("Error loading route:", err));
+    }
+
+    function renderRoutePolyline(routePings) {
+        if (currentRoutePolyline) {
+            map.removeLayer(currentRoutePolyline);
+            currentRoutePolyline = null;
+        }
+
+        if (routePings.length === 0) {
+            alert("No historical route pings found for the selected date.");
+            return;
+        }
+
+        const latLngs = routePings.map(p => [p.latitude, p.longitude]);
+        currentRoutePolyline = L.polyline(latLngs, {
+            color: '#4f46e5',
+            weight: 5,
+            opacity: 0.8,
+            dashArray: '8, 8'
+        }).addTo(map);
+
+        map.fitBounds(currentRoutePolyline.getBounds(), { padding: [40, 40] });
+    }
+
+    function closeRoutePlayback() {
+        document.getElementById('routePlaybackBar').style.display = 'none';
+        if (currentRoutePolyline) {
+            map.removeLayer(currentRoutePolyline);
+            currentRoutePolyline = null;
+        }
+    }
+</script>
+{% endblock %}

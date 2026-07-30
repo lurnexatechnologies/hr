@@ -780,7 +780,7 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
             'Employee': ['Manager', 'HR ADMIN', 'Super admin'],
             'Manager': ['HR ADMIN', 'Super admin'],
             'HR ADMIN': ['Super admin'],
-            'Super admin': []
+            'Super admin': ['Super admin']
         }
     }
 
@@ -795,6 +795,10 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
     if chain is None:
         chain = default_rules.get(request_type, {}).get(submitter_role, [])
     
+    # For payroll approvals, always require Super Admin authorization if no chain is specified
+    if request_type == 'payroll_approval' and not chain:
+        chain = ['Super admin']
+
     # If no steps defined (e.g. 0 steps), approve immediately
     if not chain:
         return 'Approved', None, True

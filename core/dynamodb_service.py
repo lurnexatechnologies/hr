@@ -240,12 +240,27 @@ FeedbackReviewAssignmentsTable = TableService('Lurnexa_FeedbackReviewAssignments
 FeedbackReviewResponsesTable = TableService('Lurnexa_FeedbackReviewResponses')
 FeedbackDevelopmentPlansTable = TableService('Lurnexa_FeedbackDevelopmentPlans')
 FeedbackAuditLogsTable = TableService('Lurnexa_FeedbackAuditLogs')
+SalesLiveLocationTable = TableService('Lurnexa_SalesLiveLocation')
+SalesLocationHistoryTable = TableService('Lurnexa_SalesLocationHistory')
 
 def initialize_dynamodb_tables():
     """
     Helper function to create all required DynamoDB tables.
     """
     tables_to_create = [
+        {
+            'TableName': 'Lurnexa_SalesLiveLocation',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'EmployeeID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_SalesLocationHistory',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}, {'AttributeName': 'Timestamp', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
+                {'AttributeName': 'Timestamp', 'AttributeType': 'S'}
+            ],
+        },
         {
             'TableName': 'Lurnexa_Roles',
             'KeySchema': [{'AttributeName': 'OrgID', 'KeyType': 'HASH'}, {'AttributeName': 'RoleID', 'KeyType': 'RANGE'}],

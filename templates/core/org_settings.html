@@ -366,6 +366,34 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                <hr class="my-4">
+
+                                <h6 class="fw-bold mb-3"><i class="fa-solid fa-chart-pie text-muted me-1"></i> Salary Structure Breakdown</h6>
+                                <p class="text-muted small mb-3">Defines how Monthly CTC is split into Basic, HRA, and Special Allowance. These percentages are used during payroll generation.</p>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 rounded-3" style="background: #f0fdf4;">
+                                            <label class="text-muted small d-block mb-1">Basic Salary</label>
+                                            <span class="fw-bold text-dark fs-5">{{ tax_pf_settings.BasicPercent }}%</span>
+                                            <span class="text-muted small d-block">of Monthly CTC</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 rounded-3" style="background: #eff6ff;">
+                                            <label class="text-muted small d-block mb-1">HRA</label>
+                                            <span class="fw-bold text-dark fs-5">{{ tax_pf_settings.HRAPercent }}%</span>
+                                            <span class="text-muted small d-block">of Monthly CTC</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 rounded-3" style="background: #fefce8;">
+                                            <label class="text-muted small d-block mb-1">Special Allowance</label>
+                                            <span class="fw-bold text-dark fs-5">{{ tax_pf_settings.SpecialAllowancePercent }}%</span>
+                                            <span class="text-muted small d-block">of Monthly CTC (auto-calculated)</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Edit Mode -->
@@ -407,6 +435,26 @@
                                                 <label class="form-label text-muted small fw-bold">Standard Deduction Amount</label>
                                                 <input type="number" step="1000" name="tax_standard_deduction" class="form-control" value="{{ tax_pf_settings.TaxStandardDeduction }}" required>
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    <hr class="my-3">
+
+                                    <h6 class="fw-bold mb-3"><i class="fa-solid fa-chart-pie text-muted me-1"></i> Salary Structure Breakdown</h6>
+                                    <p class="text-muted small mb-3">Configure how Monthly CTC is split. Special Allowance is auto-calculated as the remainder.</p>
+                                    <div class="row g-3 mb-4">
+                                        <div class="col-md-4">
+                                            <label class="form-label text-muted small fw-bold">Basic Salary (% of Monthly CTC)</label>
+                                            <input type="number" step="0.1" min="1" max="100" name="basic_percent" id="basicPercentInput" class="form-control" value="{{ tax_pf_settings.BasicPercent }}" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-muted small fw-bold">HRA (% of Monthly CTC)</label>
+                                            <input type="number" step="0.1" min="0" max="100" name="hra_percent" id="hraPercentInput" class="form-control" value="{{ tax_pf_settings.HRAPercent }}" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-muted small fw-bold">Special Allowance (% of CTC)</label>
+                                            <input type="text" id="specialAllowanceDisplay" class="form-control bg-light" readonly>
+                                            <div class="form-text text-muted">Auto-calculated: 100% − Basic% − HRA%</div>
                                         </div>
                                     </div>
                                     
@@ -616,6 +664,24 @@
         setupToggle('edit-leave-btn', 'cancel-leave-btn', 'leave-view-mode', 'leave-edit-mode');
         setupToggle('edit-tax-btn', 'cancel-tax-btn', 'tax-view-mode', 'tax-edit-mode');
         setupToggle('edit-payroll-manager-btn', 'cancel-payroll-manager-btn', 'payroll-manager-view-mode', 'payroll-manager-edit-mode');
+
+        // Live calculation for Salary Structure in Tax & PF Config edit mode
+        function updateSpecialAllowance() {
+            const basicPct = parseFloat(document.getElementById('basicPercentInput')?.value) || 0;
+            const hraPct = parseFloat(document.getElementById('hraPercentInput')?.value) || 0;
+            const specialPct = Math.round((100 - basicPct - hraPct) * 100) / 100;
+            const display = document.getElementById('specialAllowanceDisplay');
+            if (display) {
+                display.value = specialPct.toFixed(2) + '%';
+                display.style.color = specialPct < 0 ? '#dc3545' : '#198754';
+                display.style.fontWeight = '600';
+            }
+        }
+        const basicInput = document.getElementById('basicPercentInput');
+        const hraInput = document.getElementById('hraPercentInput');
+        if (basicInput) basicInput.addEventListener('input', updateSpecialAllowance);
+        if (hraInput) hraInput.addEventListener('input', updateSpecialAllowance);
+        updateSpecialAllowance();
 
         // Restore active tab from URL hash if present
         let activeTab = window.location.hash;

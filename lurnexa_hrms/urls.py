@@ -62,6 +62,8 @@ urlpatterns = [
     path('payroll/', include('payroll.urls')),
     path('workflows/', include('workflows.urls')),
     path('api/chatbot/', include('ai_chatbot.urls')),
+    
+
 ]
 
 from django.views.static import serve

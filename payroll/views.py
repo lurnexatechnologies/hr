@@ -141,10 +141,24 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
     monthly_ctc = current_annual_salary / 12
 
     # =========================
-    # 2. SALARY STRUCTURE
+    # 2. SALARY STRUCTURE (from org config)
     # =========================
-    basic = 0.40 * monthly_ctc
-    hra = 0.40 * basic
+    # Load org-level salary structure percentages
+    basic_pct = 0.40  # default 40% of CTC
+    hra_pct = 0.16  # default 16% of CTC
+    try:
+        from core.dynamodb_service import OrganizationsTable
+        org_id = employee.get('OrgID')
+        if org_id:
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                basic_pct = float(org.get('BasicPercent', 40)) / 100
+                hra_pct = float(org.get('HRAPercent', 16)) / 100
+    except Exception:
+        pass
+
+    basic = basic_pct * monthly_ctc
+    hra = hra_pct * monthly_ctc
     special_allowance = monthly_ctc - (basic + hra)
 
     gross_salary = basic + hra + special_allowance
@@ -629,8 +643,8 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
         
         PayrollApprovalsTable.put_item(approval_item)
         
-        messages.success(request, f"Payroll for {len(batch_data)} employees submitted. Status: {status}")
-        return redirect('manage_payroll')
+        messages.success(request, f"Payroll for {len(batch_data)} employees submitted for approval. Status: {status}")
+        return redirect('payroll_approval_list')
 
 class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
     required_feature = 'payslips'
