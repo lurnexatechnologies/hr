@@ -680,6 +680,170 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
         messages.success(request, f"Payroll for {len(batch_data)} employees submitted for approval. Status: {status}")
         return redirect('payroll_approval_list')
 
+def generate_payslip_pdf_bytes(record, employee):
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    
+    org_id = employee.get('OrgID') if employee else None
+    org_name = "Lurnexa"
+    if org_id:
+        from core.dynamodb_service import OrganizationsTable
+        org = OrganizationsTable.get_item({'OrgID': org_id})
+        if org:
+            org_name = org.get('Name', 'Lurnexa')
+            
+    font_regular = "Helvetica"
+    font_bold = "Helvetica-Bold"
+    font_italic = "Helvetica-Oblique"
+    currency_symbol = "Rs."
+    
+    try:
+        arial_path = "C:/Windows/Fonts/arial.ttf"
+        arial_bold_path = "C:/Windows/Fonts/arialbd.ttf"
+        if os.path.exists(arial_path):
+            pdfmetrics.registerFont(TTFont('Arial', arial_path))
+            font_regular = "Arial"
+            currency_symbol = "₹"
+        if os.path.exists(arial_bold_path):
+            pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
+            font_bold = "Arial-Bold"
+        arial_italic_path = "C:/Windows/Fonts/ariali.ttf"
+        if os.path.exists(arial_italic_path):
+            pdfmetrics.registerFont(TTFont('Arial-Italic', arial_italic_path))
+            font_italic = "Arial-Italic"
+    except: pass
+
+    header_text = org_name.upper()
+    header_font_size = 26
+    while header_font_size > 14 and p.stringWidth(header_text, font_bold, header_font_size) > (width - 100):
+        header_font_size -= 2
+    p.setFont(font_bold, header_font_size)
+    p.setFillColorRGB(0.07, 0.2, 0.45)
+    p.drawCentredString(width / 2, height - 75, header_text)
+    
+    p.setStrokeColorRGB(0.07, 0.2, 0.45)
+    p.setLineWidth(1.5)
+    p.line(50, height - 100, width - 50, height - 100)
+    
+    p.setFont(font_bold, 12)
+    p.setFillColorRGB(0.3, 0.3, 0.3)
+    month_year = str(record.get('MonthYear', '')).upper()
+    p.drawCentredString(width / 2, height - 125, f"PAYROLL STATEMENT - {month_year}")
+
+    emp_name = f"{employee.get('FirstName', '')} {employee.get('LastName', '')}"
+    p.setFillColorRGB(0.96, 0.97, 0.99)
+    p.roundRect(50, height - 210, width - 100, 70, 6, fill=1, stroke=0)
+    
+    p.setFont(font_bold, 9)
+    p.setFillColorRGB(0.2, 0.2, 0.2)
+    p.drawString(65, height - 155, "Employee Name:")
+    p.drawString(65, height - 175, "Employee ID:")
+    p.drawString(65, height - 195, "Designation:")
+    
+    p.setFont(font_regular, 9)
+    p.drawString(160, height - 155, emp_name)
+    p.drawString(160, height - 175, str(record.get('EmployeeID', '')))
+    p.drawString(160, height - 195, str(employee.get('Designation', 'N/A')))
+    
+    p.setFont(font_bold, 9)
+    p.drawString(330, height - 155, "Department:")
+    p.drawString(330, height - 175, "Paid Days:")
+    p.drawString(330, height - 195, "Generated Date:")
+    
+    p.setFont(font_regular, 9)
+    p.drawString(425, height - 155, str(employee.get('Department', 'N/A')))
+    p.drawString(425, height - 175, str(record.get('PaidDays', '30')))
+    gen_date = record.get('GeneratedAt', '')[:10] if record.get('GeneratedAt') else ''
+    p.drawString(425, height - 195, gen_date)
+
+    y = height - 235
+    table_width = width - 100
+    col_w = table_width / 2
+    
+    p.setFillColorRGB(0.07, 0.2, 0.45)
+    p.rect(50, y - 18, col_w, 22, fill=1, stroke=0)
+    p.setFillColorRGB(0.7, 0.1, 0.1)
+    p.rect(50 + col_w, y - 18, col_w, 22, fill=1, stroke=0)
+    
+    p.setFont(font_bold, 10)
+    p.setFillColorRGB(1, 1, 1)
+    p.drawString(60, y - 12, "EARNINGS")
+    p.drawRightString(290, y - 12, f"AMOUNT ({currency_symbol})")
+    p.drawString(320, y - 12, "DEDUCTIONS")
+    p.drawRightString(550, y - 12, f"AMOUNT ({currency_symbol})")
+    
+    y -= 25
+    earnings = [
+        ("Basic Salary", float(record.get('Basic', 0))),
+        ("HRA", float(record.get('HRA', 0))),
+        ("Special Allowance", float(record.get('SpecialAllowance', 0))),
+        ("Bonus", float(record.get('Bonus', 0))),
+    ]
+    deductions = [
+        ("PF (Employee)", float(record.get('PF', 0))),
+        ("ESI", float(record.get('ESI', 0))),
+        ("Professional Tax (PT)", float(record.get('PT', 0))),
+        ("TDS", float(record.get('TDS', 0))),
+    ]
+    
+    max_rows = max(len(earnings), len(deductions))
+    p.setFont(font_regular, 9)
+    
+    for i in range(max_rows):
+        if i < len(earnings):
+            e_label, e_val = earnings[i]
+            p.setFillColorRGB(0.2, 0.2, 0.2)
+            p.drawString(60, y, e_label)
+            p.drawRightString(290, y, f"{e_val:,.2f}")
+            
+        if i < len(deductions):
+            d_label, d_val = deductions[i]
+            p.setFillColorRGB(0.2, 0.2, 0.2)
+            p.drawString(320, y, d_label)
+            p.drawRightString(550, y, f"{d_val:,.2f}")
+            
+        y -= 18
+
+    if float(record.get('LOPDeduction', 0)) > 0:
+        p.setFillColorRGB(0, 0, 0)
+        p.setFont(font_italic, 9)
+        p.drawString(60, y - 12, "LOP Deduction")
+        p.drawRightString(290, y - 12, f"- {currency_symbol} {float(record.get('LOPDeduction', 0)):,.2f}")
+        y -= 18
+
+    y -= 10
+    p.setStrokeColorRGB(0, 0, 0)
+    p.line(50, y, 290, y)
+    p.line(320, y, 550, y)
+    
+    y -= 15
+    p.setFont(font_bold, 10)
+    p.setFillColorRGB(0, 0, 0)
+    p.drawString(60, y, "Adjusted Gross")
+    p.drawRightString(290, y, f"{currency_symbol} {float(record.get('AdjustedGross', 0)):,.2f}")
+    p.drawString(320, y, "Total Deductions")
+    p.drawRightString(550, y, f"{currency_symbol} {float(record.get('TotalDeductions', 0)):,.2f}")
+
+    y -= 70
+    p.setStrokeColorRGB(0, 0, 0)
+    p.roundRect(50, y - 15, width - 100, 50, 8, fill=0, stroke=1)
+    
+    p.setFont(font_bold, 16)
+    p.setFillColorRGB(0, 0, 0)
+    p.drawString(75, y + 5, "NET PAYABLE")
+    p.setFont(font_bold, 20)
+    p.drawRightString(width - 75, y + 5, f"{currency_symbol} {float(record.get('NetPay', 0)):,.2f}")
+    
+    p.setFont(font_italic, 8)
+    p.setFillColorRGB(0, 0, 0)
+    p.drawCentredString(width / 2, 40, "This is a computer-generated document and does not require a physical signature.")
+    
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer.getvalue()
+
 class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
     required_feature = 'payslips'
     def get(self, request, month_year, emp_id=None):
@@ -693,213 +857,8 @@ class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
         if not record: return HttpResponse("Payslip not found.", status=404)
             
         employee = EmployeesTable.get_item({'EmployeeID': target_emp_id})
-        emp_name = f"{employee.get('FirstName', '')} {employee.get('LastName', '')}"
-        
-        org_id = employee.get('OrgID') if employee else None
-        org_name = "Lurnexa"
-        if org_id:
-            from core.dynamodb_service import OrganizationsTable
-            org = OrganizationsTable.get_item({'OrgID': org_id})
-            if org:
-                org_name = org.get('Name', 'Lurnexa')
-        
-        buffer = io.BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-        width, height = letter
-        
-        # Register Fonts (Windows Support for Rupee Symbol)
-        font_regular = "Helvetica"
-        font_bold = "Helvetica-Bold"
-        font_italic = "Helvetica-Oblique"
-        currency_symbol = "Rs."
-        
-        try:
-            arial_path = "C:/Windows/Fonts/arial.ttf"
-            arial_bold_path = "C:/Windows/Fonts/arialbd.ttf"
-            if os.path.exists(arial_path):
-                pdfmetrics.registerFont(TTFont('Arial', arial_path))
-                font_regular = "Arial"
-                currency_symbol = "₹"
-            if os.path.exists(arial_bold_path):
-                pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-                font_bold = "Arial-Bold"
-            
-            arial_italic_path = "C:/Windows/Fonts/ariali.ttf"
-            if os.path.exists(arial_italic_path):
-                pdfmetrics.registerFont(TTFont('Arial-Italic', arial_italic_path))
-                font_italic = "Arial-Italic"
-        except: pass
-
-        # 1. Header (Centered without logo)
-        header_text = org_name.upper()
-        header_font_size = 26
-        while header_font_size > 14 and p.stringWidth(header_text, font_bold, header_font_size) > (width - 100):
-            header_font_size -= 2
-        p.setFont(font_bold, header_font_size)
-        p.setFillColorRGB(0.07, 0.2, 0.45) # Corporate Blue
-        p.drawCentredString(width / 2, height - 75, header_text)
-        
-        p.setStrokeColorRGB(0.07, 0.2, 0.45)
-        p.setLineWidth(1.5)
-        p.line(50, height - 100, width - 50, height - 100)
-        
-        p.setFont(font_bold, 12)
-        p.setFillColorRGB(0.3, 0.3, 0.3)
-        p.drawCentredString(width / 2, height - 125, f"PAYROLL STATEMENT - {month_year.upper()}")
-
-        # 2. Employee Details Box (Rounded with subtle fill)
-        p.setStrokeColorRGB(0.85, 0.85, 0.85)
-        p.roundRect(50, height - 255, width - 100, 115, 5, fill=0, stroke=1)
-        
-        p.setFont(font_bold, 10)
-        p.setFillColorRGB(0, 0, 0)
-        p.drawString(70, height - 165, "Employee Name:")
-        p.drawString(70, height - 185, "Employee ID:")
-        p.drawString(70, height - 205, "Joining Date:")
-        p.drawString(70, height - 225, "PF Number:")
-        
-        p.drawString(330, height - 165, "Designation:")
-        p.drawString(330, height - 185, "Department:")
-        p.drawString(330, height - 205, "Working Days:")
-        p.drawString(330, height - 225, "UAN Number:")
-        
-        p.setFont(font_regular, 10)
-        p.setFillColorRGB(0, 0, 0)
-        
-        # Calculate dynamic font size for name to prevent overlap
-        name_font_size = 10.0
-        available_width = 330 - 165 - 10 # 155 points
-        while name_font_size > 7.0 and p.stringWidth(emp_name, font_regular, name_font_size) > available_width:
-            name_font_size -= 0.5
-            
-        p.setFont(font_regular, name_font_size)
-        p.drawString(165, height - 165, emp_name)
-        
-        # Reset font to regular 10 for other details
-        p.setFont(font_regular, 10)
-        p.drawString(165, height - 185, target_emp_id)
-        p.drawString(165, height - 205, employee.get('JoinedDate') or 'N/A')
-        p.drawString(165, height - 225, employee.get('PFNumber') or 'N/A')
-        
-        p.drawString(420, height - 165, employee.get('Designation', 'N/A'))
-        p.drawString(420, height - 185, employee.get('Department', 'Engineering'))
-        
-        # Working Days with fallback for old records
-        working_days = record.get('PaidDays')
-        if working_days is None:
-            try:
-                parts = month_year.split('_')
-                m_idx = datetime.datetime.strptime(parts[0], "%b").month
-                y_idx = int(parts[1])
-                summary = get_attendance_summary(target_emp_id, m_idx, y_idx)
-                working_days = summary['paid_days']
-            except:
-                working_days = 'N/A'
-        
-        p.drawString(420, height - 205, str(working_days))
-        p.drawString(420, height - 225, employee.get('UANNumber') or 'N/A')
-
-        # 3. Salary Table (Earnings & Deductions)
-        y = height - 270
-        
-        # Table Headers
-        p.setStrokeColorRGB(0, 0, 0)
-        p.rect(50, y - 20, 250, 20, fill=0, stroke=1) # Earnings Header
-        p.rect(310, y - 20, 250, 20, fill=0, stroke=1) # Deductions Header
-        
-        p.setFont(font_bold, 10)
-        p.setFillColorRGB(0, 0, 0) # Black text for headers
-        p.drawString(60, y - 13, "Earnings")
-        p.drawRightString(290, y - 13, "Amount")
-        p.drawString(320, y - 13, "Deductions")
-        p.drawRightString(550, y - 13, "Amount")
-        
-        y -= 20
-        p.setFont(font_regular, 10)
-        p.setFillColorRGB(0, 0, 0)
-
-        # Helper for row drawing
-        def draw_row(p, label_e, val_e, label_d, val_d, curr_y, is_tint=False):
-            p.setFillColorRGB(0, 0, 0)
-            
-            p.drawString(60, curr_y - 12, label_e)
-            if val_e is not None:
-                p.drawRightString(290, curr_y - 12, f"{currency_symbol} {float(val_e):,.2f}")
-            
-            if label_d:
-                p.drawString(320, curr_y - 12, label_d)
-                if val_d is not None:
-                    p.drawRightString(550, curr_y - 12, f"{currency_symbol} {float(val_d):,.2f}")
-            return curr_y - 18
-
-        y = draw_row(p, "Basic Salary", record.get('Basic', 0), "Income Tax (TDS)", record.get('TDS', 0), y, True)
-        y = draw_row(p, "HRA", record.get('HRA', 0), "Provident Fund (PF)", record.get('PF', 0), y, False)
-        y = draw_row(p, "Special Allowance", record.get('SpecialAllowance', 0), "ESI", record.get('ESI', 0), y, True)
-        
-        # Professional Tax (only deduction side)
-        y = draw_row(p, "", None, "Professional Tax (PT)", record.get('PT', 0), y, False)
-
-        # Increment Row (Conditional)
-        if float(record.get('IncrementAdded', 0)) > 0:
-            inc_pct = record.get('IncrementPercentage', 0)
-            monthly_inc = float(record.get('IncrementAdded', 0)) / 12
-            p.setFillColorRGB(0, 0, 0)
-            p.setFont(font_bold, 9)
-            p.drawString(60, y - 12, f"Salary Increment ({inc_pct}%)")
-            p.drawRightString(290, y - 12, f"+ {currency_symbol} {monthly_inc:,.2f}")
-            y -= 18
-
-        # Bonus Row (Conditional)
-        if float(record.get('Bonus', 0)) > 0:
-            bonus_pct = record.get('BonusPercentage', 0)
-            p.setFillColorRGB(0, 0, 0)
-            p.setFont(font_bold, 9)
-            p.drawString(60, y - 12, f"Performance Bonus ({bonus_pct}%)")
-            p.drawRightString(290, y - 12, f"+ {currency_symbol} {float(record.get('Bonus', 0)):,.2f}")
-            y -= 18
-
-        # LOP Row (Deduction on Earnings Side)
-        if float(record.get('LOPDeduction', 0)) > 0:
-            p.setFillColorRGB(0, 0, 0)
-            p.setFont(font_italic, 9)
-            p.drawString(60, y - 12, "LOP Deduction")
-            p.drawRightString(290, y - 12, f"- {currency_symbol} {float(record.get('LOPDeduction', 0)):,.2f}")
-            y -= 18
-
-        # Table Totals
-        y -= 10
-        p.setStrokeColorRGB(0, 0, 0)
-        p.line(50, y, 290, y)
-        p.line(320, y, 550, y)
-        
-        y -= 15
-        p.setFont(font_bold, 10)
-        p.setFillColorRGB(0, 0, 0)
-        p.drawString(60, y, "Adjusted Gross")
-        p.drawRightString(290, y, f"{currency_symbol} {float(record.get('AdjustedGross', 0)):,.2f}")
-        p.drawString(320, y, "Total Deductions")
-        p.drawRightString(550, y, f"{currency_symbol} {float(record.get('TotalDeductions', 0)):,.2f}")
-
-        # 4. NET PAYABLE (Highlight Box)
-        y -= 70
-        p.setStrokeColorRGB(0, 0, 0)
-        p.roundRect(50, y - 15, width - 100, 50, 8, fill=0, stroke=1)
-        
-        p.setFont(font_bold, 16)
-        p.setFillColorRGB(0, 0, 0)
-        p.drawString(75, y + 5, "NET PAYABLE")
-        p.setFont(font_bold, 20)
-        p.drawRightString(width - 75, y + 5, f"{currency_symbol} {float(record.get('NetPay', 0)):,.2f}")
-        
-        # 5. Footer
-        p.setFont(font_italic, 8)
-        p.setFillColorRGB(0, 0, 0)
-        p.drawCentredString(width / 2, 40, "This is a computer-generated document and does not require a physical signature.")
-        
-        p.showPage()
-        p.save()
-        buffer.seek(0)
-        response = HttpResponse(buffer, content_type='application/pdf')
+        pdf_bytes = generate_payslip_pdf_bytes(record, employee)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
         disposition = 'inline' if request.GET.get('inline') == '1' else 'attachment'
         response['Content-Disposition'] = f'{disposition}; filename="Payslip_{month_year}.pdf"'
         return response
@@ -1139,12 +1098,15 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                             
                         EmployeesTable.put_item(emp)
                         
-                        # Send notification & email to employee
+                        # Send notification & email to employee with PDF attachment
                         try:
                             month_name = month_year.split('_')[0].upper()
                             year_val = month_year.split('_')[1]
                             email_subject = f"Payslip for {month_name} {year_val} Generated"
-                            email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nYou can view and download your detailed payslip from the employee portal.\n\nBest regards,\nLurnexa HR Team"
+                            email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated and approved.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nPlease find your attached PDF payslip for your records. You can also view and download it anytime from the employee portal.\n\nBest regards,\nLurnexa HR Team"
+                            
+                            pdf_attachment_bytes = generate_payslip_pdf_bytes(final_payslip, emp)
+                            pdf_attachment = (f"Payslip_{month_name}_{year_val}.pdf", pdf_attachment_bytes, "application/pdf")
                             
                             send_notification(
                                 employee_id=emp_id,
@@ -1154,7 +1116,8 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                                 icon='fa-file-invoice-dollar',
                                 color='success',
                                 email_subject=email_subject,
-                                email_body=email_body
+                                email_body=email_body,
+                                attachments=[pdf_attachment]
                             )
                         except Exception as email_err:
                             print(f"Error sending payslip notification for {emp_id}: {email_err}")

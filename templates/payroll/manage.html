@@ -402,11 +402,11 @@
             });
         });
 
-        // Live Calculation Logic
+        // Live Calculation Logic (Connected directly to Org Settings)
         const GLOBAL_ESI_AMOUNT = parseFloat("{{ global_esi|default:'' }}") || null;
-    const BASIC_PERCENT = parseFloat("{{ basic_percent|default:50 }}") / 100;
-    const HRA_PERCENT = parseFloat("{{ hra_percent|default:35 }}") / 100;
-    const STD_DEDUCTION = parseFloat("{{ std_deduction|default:75000 }}");
+        const BASIC_PERCENT = (parseFloat("{{ basic_percent }}") || 0) / 100;
+        const HRA_PERCENT = (parseFloat("{{ hra_percent }}") || 0) / 100;
+        const STD_DEDUCTION = parseFloat("{{ std_deduction|default:75000 }}") || 0;
 
     const incrementInputs = document.querySelectorAll('.increment-input');
     incrementInputs.forEach(input => {
@@ -440,12 +440,11 @@
 
             if (this.value === 'manual') {
                 container.style.display = 'block';
-                if (!manualInput.value) {
-                    manualInput.value = autoLop;
+                if (manualInput.value === '') {
+                    manualInput.value = '0';
                 }
             } else {
                 container.style.display = 'none';
-                manualInput.value = '';
             }
             updateEmployeePayroll(empId);
         });
@@ -484,7 +483,7 @@
         if (lopMode === 'manual') {
             const manualInput = document.querySelector(`input[name="manual_lop_days_${empId}"]`);
             const val = manualInput ? manualInput.value.trim() : '';
-            lopDays = val !== '' ? (parseFloat(val) || 0) : autoLop;
+            lopDays = val !== '' ? (parseFloat(val) >= 0 ? parseFloat(val) : 0) : 0;
         }
 
         const currentAnnual = salaryPA + incrementAmount;
