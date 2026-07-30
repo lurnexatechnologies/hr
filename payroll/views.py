@@ -144,16 +144,16 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
     # 2. SALARY STRUCTURE (from org config)
     # =========================
     # Load org-level salary structure percentages
-    basic_pct = 0.40  # default 40% of CTC
-    hra_pct = 0.16  # default 16% of CTC
+    basic_pct = 0.50  # default 40% of CTC
+    hra_pct = 0.35  # default 16% of CTC
     try:
         from core.dynamodb_service import OrganizationsTable
         org_id = employee.get('OrgID')
         if org_id:
             org = OrganizationsTable.get_item({'OrgID': org_id})
             if org:
-                basic_pct = float(org.get('BasicPercent', 40)) / 100
-                hra_pct = float(org.get('HRAPercent', 16)) / 100
+                basic_pct = float(org.get('BasicPercent', 50)) / 100
+                hra_pct = float(org.get('HRAPercent', 35)) / 100
     except Exception:
         pass
 
@@ -478,7 +478,7 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
         page_hist = request.GET.get('page_hist')
         global_history_page = paginator_hist.get_page(page_hist)
         
-        from core.dynamodb_service import SettingsTable
+        from core.dynamodb_service import SettingsTable, OrganizationsTable
         esi_setting = SettingsTable.get_item({'SettingKey': 'Global_ESI_Amount'})
         global_esi = esi_setting.get('Value') if esi_setting else None
 
@@ -492,6 +492,21 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
             except:
                 formatted_gen_date = gen_date_str
 
+        # Load org salary structure settings
+        org_id = getattr(request.user, 'org_id', None)
+        basic_pct = 50.0
+        hra_pct = 35.0
+        std_deduction = 75000.0
+        if org_id:
+            try:
+                org = OrganizationsTable.get_item({'OrgID': org_id})
+                if org:
+                    basic_pct = float(org.get('BasicPercent', 50))
+                    hra_pct = float(org.get('HRAPercent', 35))
+                    std_deduction = float(org.get('TaxStandardDeduction', 75000))
+            except Exception:
+                pass
+
         context = {
             'payroll_data': payroll_data_page,
             'total_run': len(payroll_data),
@@ -499,7 +514,10 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
             'total_hist': len(global_history),
             'global_esi': global_esi,
             'generation_date': formatted_gen_date,
-            'active_tab': request.GET.get('active_tab', 'generate')
+            'active_tab': request.GET.get('active_tab', 'generate'),
+            'basic_percent': basic_pct,
+            'hra_percent': hra_pct,
+            'std_deduction': std_deduction,
         }
         return render(request, 'payroll/manage.html', context)
 
@@ -566,7 +584,11 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
 
                 lop_mode = request.POST.get(f'lop_mode_{emp_id}', 'automatic')
                 if lop_mode == 'manual':
-                    manual_days = float(request.POST.get(f'manual_lop_days_{emp_id}', 0))
+                    raw_manual_days = request.POST.get(f'manual_lop_days_{emp_id}', '').strip()
+                    try:
+                        manual_days = float(raw_manual_days) if raw_manual_days != '' else float(get_attendance_summary(emp_id, today.month, today.year).get('lop_days', 0))
+                    except (ValueError, TypeError):
+                        manual_days = 0.0
                     
                     if today.month == 1:
                         prev_month, prev_year = 12, today.year - 1
