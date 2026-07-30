@@ -144,18 +144,28 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
     # 2. SALARY STRUCTURE (from org config)
     # =========================
     # Load org-level salary structure percentages
-    basic_pct = 0.50  # default 40% of CTC
-    hra_pct = 0.35  # default 16% of CTC
+    basic_pct = 0.40  # default 40% of CTC
+    hra_pct = 0.16  # default 16% of CTC
     try:
         from core.dynamodb_service import OrganizationsTable
+        from core.middleware import get_current_request
         org_id = employee.get('OrgID')
+        if not org_id:
+            request = get_current_request()
+            if request and hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+                org_id = getattr(request.user, 'org_id', None)
+        
         if org_id:
             org = OrganizationsTable.get_item({'OrgID': org_id})
-            if org:
-                basic_pct = float(org.get('BasicPercent', 50)) / 100
-                hra_pct = float(org.get('HRAPercent', 35)) / 100
-    except Exception:
-        pass
+        else:
+            all_orgs = OrganizationsTable.scan()
+            org = all_orgs[0] if all_orgs else None
+
+        if org:
+            basic_pct = float(org.get('BasicPercent', 40)) / 100
+            hra_pct = float(org.get('HRAPercent', 16)) / 100
+    except Exception as e:
+        print(f"Error fetching org salary structure config: {e}")
 
     basic = basic_pct * monthly_ctc
     hra = hra_pct * monthly_ctc
@@ -494,18 +504,20 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
 
         # Load org salary structure settings
         org_id = getattr(request.user, 'org_id', None)
-        basic_pct = 50.0
-        hra_pct = 35.0
+        basic_pct = 40.0
+        hra_pct = 16.0
         std_deduction = 75000.0
-        if org_id:
-            try:
-                org = OrganizationsTable.get_item({'OrgID': org_id})
-                if org:
-                    basic_pct = float(org.get('BasicPercent', 50))
-                    hra_pct = float(org.get('HRAPercent', 35))
-                    std_deduction = float(org.get('TaxStandardDeduction', 75000))
-            except Exception:
-                pass
+        try:
+            org = OrganizationsTable.get_item({'OrgID': org_id}) if org_id else None
+            if not org:
+                all_orgs = OrganizationsTable.scan()
+                org = all_orgs[0] if all_orgs else None
+            if org:
+                basic_pct = float(org.get('BasicPercent', 40))
+                hra_pct = float(org.get('HRAPercent', 16))
+                std_deduction = float(org.get('TaxStandardDeduction', 75000))
+        except Exception as e:
+            print(f"Error fetching org settings in ManagePayrollView: {e}")
 
         context = {
             'payroll_data': payroll_data_page,

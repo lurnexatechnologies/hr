@@ -403,7 +403,7 @@
         });
 
         // Live Calculation Logic
-        const GLOBAL_ESI_AMOUNT = {% if global_esi %}parseFloat("{{ global_esi }}"){% else %}null{% endif %};
+        const GLOBAL_ESI_AMOUNT = parseFloat("{{ global_esi|default:'' }}") || null;
     const BASIC_PERCENT = parseFloat("{{ basic_percent|default:50 }}") / 100;
     const HRA_PERCENT = parseFloat("{{ hra_percent|default:35 }}") / 100;
     const STD_DEDUCTION = parseFloat("{{ std_deduction|default:75000 }}");
