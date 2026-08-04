@@ -33,40 +33,42 @@ def generate_next_employee_id():
         return 'LT-26001'
     return f"LT-26{max_id + 1:03d}"
 
-def get_managers_list(for_role=None, org_id=None):
+def get_managers_list(for_role=None, org_id=None, exclude_emp_id=None):
     """Helper to get managers based on the role of the employee being edited."""
     all_users = UsersTable.scan()
     all_employees = EmployeesTable.scan()
     managers_list = []
     seen_ids = set()
     
-    for u in all_users:
-        # Multi-Tenant isolation: Only show users belonging to the target organization
-        if org_id and u.get('OrgID') and u.get('OrgID') != org_id:
+    for e in all_employees:
+        # Multi-Tenant isolation: Only show employees belonging to the target organization
+        if org_id and e.get('OrgID') and e.get('OrgID') != org_id:
             continue
 
-        emp_id = u.get('EmployeeID')
-        role = u.get('Role')
-        if not emp_id or emp_id in seen_ids:
-            continue
-            
-        # 1. Super admin is only visible to HR ADMINs (Filtered in frontend)
-        # if role == 'Super admin' and for_role != 'HR ADMIN':
-        #     continue
-            
-        if role in ['Platform Admin', 'Platform Super Admin']:
+        emp_id = e.get('EmployeeID')
+        if not emp_id or emp_id in seen_ids or (exclude_emp_id and emp_id == exclude_emp_id):
             continue
 
-        # 2. Managers and HR ADMINs are visible to everyone else
-        if role in ['Manager', 'HR ADMIN', 'Super admin']:
-            emp_data = next((e for e in all_employees if e.get('EmployeeID') == emp_id), None)
-            if emp_data and emp_data.get('Designation') not in ['Platform Admin', 'Platform Super Admin']:
-                seen_ids.add(emp_id)
-                managers_list.append({
-                    'EmployeeID': emp_data['EmployeeID'],
-                    'Name': f"{emp_data['FirstName']} {emp_data['LastName']} ({role})"
-                })
-    return managers_list
+        if e.get('Status') == 'Resigned' or e.get('Designation') in ['Platform Admin', 'Platform Super Admin']:
+            continue
+
+        user_record = next((u for u in all_users if u.get('EmployeeID') == emp_id), None)
+        role = user_record.get('Role', 'Employee') if user_record else (e.get('Role') or 'Employee')
+
+        seen_ids.add(emp_id)
+        emp_dept = e.get('Department') or 'General'
+        designation = e.get('Designation') or role
+        managers_list.append({
+            'EmployeeID': e['EmployeeID'],
+            'Name': f"{e.get('FirstName', '')} {e.get('LastName', '')} ({designation} - {e['EmployeeID']})",
+            'FirstName': e.get('FirstName', ''),
+            'LastName': e.get('LastName', ''),
+            'Department': emp_dept,
+            'Role': role
+        })
+
+    # Sort managers list alphabetically by Name
+    return sorted(managers_list, key=lambda x: x['Name'].lower())
 
 def get_departments_list(org_id):
     try:
@@ -170,12 +172,165 @@ class EmployeeDirectoryView(FeatureRequiredMixin, HRRequiredMixin, ApprovedOnboa
             
         active_employees.sort(key=lambda x: (get_priority(x), x.get('FirstName', '').lower()))
             
+        # Build Department-Wise Hierarchy Groups
+        department_groups = {}
+        from core.dynamodb_service import ReportingHierarchyTable, OrganizationsTable
+        from core.industry_templates import get_industry_profile
+
+        org_id = getattr(self.request.user, 'org_id', None)
+        industry_profile = None
+        ind_type = 'SOFTWARE_IT'
+        if org_id:
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                ind_type = org.get('IndustryType', 'SOFTWARE_IT')
+                industry_profile = get_industry_profile(ind_type)
+
+        INDUSTRY_LEADER_LABELS = {
+            'SOFTWARE_IT': 'Engineering Manager / Lead',
+            'RETAIL_SUPERMARKET': 'Store Section / Billing Head',
+            'HOSPITAL_HEALTHCARE': 'Chief Medical Officer / HOD',
+            'AUTOMOBILE_SHOWROOM': 'Showroom GM / Sales Manager',
+            'MANUFACTURING_TILES': 'Plant Production Head',
+            'SEEDS_AGRICULTURE': 'Agri Division Lead',
+            'POULTRY_PROCESSING': 'Plant Operations Manager',
+            'EDUCATION_SCHOOL_COLLEGE': 'Principal / Dean / HOD',
+            'EDUCATION': 'Principal / Dean / HOD',
+        }
+        leader_label = INDUSTRY_LEADER_LABELS.get(ind_type, 'Department Leader')
+
+        # Query all reporting hierarchy
+        hierarchies = ReportingHierarchyTable.scan() or []
+        hierarchy_map = {h.get('EmployeeID'): h for h in hierarchies}
+
+        for emp in active_employees:
+            dept_name = emp.get('Department') or 'General'
+            if dept_name not in department_groups:
+                department_groups[dept_name] = {
+                    'name': dept_name,
+                    'hod': None,
+                    'managers': [],
+                    'staff': []
+                }
+            
+            emp_id = emp.get('EmployeeID')
+            role = emp.get('SystemRole', 'Employee')
+            
+            if role in ['HR ADMIN', 'Super admin'] or 'Head' in emp.get('Designation', '') or 'HOD' in emp.get('Designation', '') or 'Chief' in emp.get('Designation', ''):
+                if not department_groups[dept_name]['hod']:
+                    department_groups[dept_name]['hod'] = emp
+                else:
+                    department_groups[dept_name]['managers'].append(emp)
+            elif role == 'Manager' or 'Manager' in emp.get('Designation', '') or 'Lead' in emp.get('Designation', '') or 'Supervisor' in emp.get('Designation', ''):
+                department_groups[dept_name]['managers'].append(emp)
+            else:
+                department_groups[dept_name]['staff'].append(emp)
+
+        for d_name, d_data in department_groups.items():
+            if not d_data['hod']:
+                if d_data['managers']:
+                    d_data['hod'] = d_data['managers'].pop(0)
+                elif d_data['staff']:
+                    d_data['hod'] = d_data['staff'].pop(0)
+
+        # Build Dynamic Reporting Hierarchy Tree starting from Super Admin
+        emp_dict = {emp['EmployeeID']: emp for emp in active_employees}
+        children_map = {}
+        roots = []
+        
+        for emp in active_employees:
+            eid = emp['EmployeeID']
+            h = hierarchy_map.get(eid, {})
+            parent_id = h.get('PrimaryManagerID') or h.get('ManagerID')
+            
+            if parent_id and parent_id in emp_dict and parent_id != eid:
+                if parent_id not in children_map:
+                    children_map[parent_id] = []
+                children_map[parent_id].append(eid)
+            else:
+                roots.append(eid)
+                
+        ind_name = industry_profile.get('name', 'Enterprise HRMS') if industry_profile else 'Enterprise HRMS'
+        ind_icon = industry_profile.get('icon', 'bi-building') if industry_profile else 'bi-building'
+
+        def build_tree_node(eid):
+            emp_info = emp_dict.get(eid, {})
+            photo = emp_info.get('PassportPhoto', '')
+            if photo and not photo.startswith('http'):
+                photo = f"/media/{photo}"
+                
+            children_eids = children_map.get(eid, [])
+            return {
+                'id': eid,
+                'name': f"{emp_info.get('FirstName', '')} {emp_info.get('LastName', '')}".strip() or eid,
+                'designation': emp_info.get('Designation', 'Staff'),
+                'department': emp_info.get('Department', 'General'),
+                'role': emp_info.get('SystemRole', 'Employee'),
+                'industry_name': ind_name,
+                'industry_icon': ind_icon,
+                'photo': photo,
+                'email': emp_info.get('Email', ''),
+                'children': [build_tree_node(c_id) for c_id in children_eids]
+            }
+
+        # Find Super Admin of the organization to place as absolute root
+        super_admin_emp = None
+        for u in all_users:
+            u_role = (u.get('Role') or '').strip().upper()
+            u_org = u.get('OrgID')
+            if org_id and u_org and u_org != org_id:
+                continue
+            if u_role in ['SUPER ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']:
+                sa_eid = u.get('EmployeeID')
+                if sa_eid:
+                    super_admin_emp = EmployeesTable.get_item({'EmployeeID': sa_eid})
+                    if not super_admin_emp:
+                        super_admin_emp = {
+                            'EmployeeID': sa_eid,
+                            'FirstName': u.get('FirstName', 'Super'),
+                            'LastName': u.get('LastName', 'Admin'),
+                            'Email': u.get('Email', ''),
+                            'Designation': 'Super Admin / CEO',
+                            'Department': 'Executive HQ',
+                            'SystemRole': 'Super admin'
+                        }
+                    break
+
+        if super_admin_emp:
+            sa_eid = super_admin_emp['EmployeeID']
+            photo = super_admin_emp.get('PassportPhoto', '')
+            if photo and not photo.startswith('http'):
+                photo = f"/media/{photo}"
+                
+            sa_node = {
+                'id': sa_eid,
+                'name': f"{super_admin_emp.get('FirstName', 'Super')} {super_admin_emp.get('LastName', 'Admin')}".strip(),
+                'designation': super_admin_emp.get('Designation', 'Super Admin / CEO'),
+                'department': super_admin_emp.get('Department', 'Executive HQ'),
+                'role': 'Super admin',
+                'industry_name': ind_name,
+                'industry_icon': ind_icon,
+                'photo': photo,
+                'email': super_admin_emp.get('Email', ''),
+                'children': [build_tree_node(r_id) for r_id in roots if r_id != sa_eid]
+            }
+            org_tree_data = [sa_node]
+        else:
+            org_tree_data = [build_tree_node(r_id) for r_id in roots]
+
+        import json
+        context['org_tree_json'] = json.dumps(org_tree_data)
+
         # Pagination
         paginator = Paginator(active_employees, 10)
         page_number = self.request.GET.get('page')
         page_obj = paginator.get_page(page_number)
         
         context['employees'] = page_obj
+        context['department_groups'] = department_groups
+        context['industry_profile'] = industry_profile
+        context['leader_label'] = leader_label
+        context['org_tree_data'] = org_tree_data
         context['total_count'] = len(active_employees)
         context['query'] = self.request.GET.get('q', '')
         return context
@@ -476,9 +631,39 @@ class AddEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
     def get(self, request):
         managers = get_managers_list(for_role='Employee')
         departments = get_departments_list(request.user.org_id)
+        
+        org_id = getattr(request.user, 'org_id', None)
+        industry_type = 'SOFTWARE_IT'
+        if org_id:
+            try:
+                from core.dynamodb_service import OrganizationsTable
+                org_item = OrganizationsTable.get_item({'OrgID': org_id})
+                if org_item:
+                    industry_type = org_item.get('IndustryType', 'SOFTWARE_IT')
+            except Exception:
+                pass
+
+        from core.industry_templates import get_industry_profile
+        industry_profile = get_industry_profile(industry_type)
+
+        custom_roles = {}
+        if org_id:
+            try:
+                from core.dynamodb_service import OrganizationsTable
+                org_item = OrganizationsTable.get_item({'OrgID': org_id})
+                if org_item:
+                    custom_roles = org_item.get('CustomRoles', {}) or {}
+            except Exception:
+                pass
+
+        if not custom_roles and industry_profile and 'default_roles' in industry_profile:
+            custom_roles = industry_profile['default_roles']
+
         return render(request, 'employees/add_employee.html', {
             'managers': managers,
-            'departments': departments
+            'departments': departments,
+            'industry_profile': industry_profile,
+            'custom_roles': custom_roles
         })
 
     def post(self, request):
@@ -629,6 +814,13 @@ class AddEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
         except Exception:
             prorated_val = '12.0'
 
+        # Extract dynamic industry custom fields
+        custom_fields = {}
+        for key, val in request.POST.items():
+            if key.startswith('custom_field_'):
+                field_key = key.replace('custom_field_', '')
+                custom_fields[field_key] = val
+
         employee_item = {
             'EmployeeID': employee_id,
             'UserID': user_id,
@@ -640,6 +832,7 @@ class AddEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
             'Designation': designation,
             'EmploymentType': employment_type,
             'OrgID': request.user.org_id,
+            'CustomFields': custom_fields,
             'InternshipPeriod': internship_period,
             'EmploymentStatus': employment_status,
             'ProbationPeriod': probation_period,
@@ -705,7 +898,8 @@ class AddEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
         if manager_id:
             ReportingHierarchyTable.put_item({
                 'ManagerID': manager_id,
-                'EmployeeID': employee_id
+                'EmployeeID': employee_id,
+                'Department': department or 'General'
             })
         
         messages.success(request, f"Employee {first_name} {last_name} created successfully with ID {employee_id}.")
@@ -743,17 +937,34 @@ class EditEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
                 messages.error(request, "Access Denied: Only Super Admin can modify HR Admin profiles.")
                 return redirect('employee_profile', emp_id=emp_id)
 
-        managers = get_managers_list(for_role=system_role)
+        managers = get_managers_list(for_role=system_role, org_id=getattr(request.user, 'org_id', None), exclude_emp_id=emp_id)
         user_permissions = user_record.get('Permissions', []) if user_record else []
         
         departments = get_departments_list(request.user.org_id)
+        industry_profile = {}
+        if request.user.org_id:
+            try:
+                from core.dynamodb_service import OrganizationsTable
+                from core.industry_templates import get_industry_profile
+                org_item = OrganizationsTable.get_item({'OrgID': request.user.org_id})
+                if org_item:
+                    custom_roles = org_item.get('CustomRoles', {}) or {}
+                    ind_type = org_item.get('IndustryType', 'SOFTWARE_IT')
+                    industry_profile = get_industry_profile(ind_type)
+                    if not custom_roles:
+                        custom_roles = industry_profile.get('default_roles', {}) if industry_profile else {}
+            except Exception:
+                pass
+
         return render(request, 'employees/edit_employee.html', {
             'employee': employee,
             'system_role': system_role,
             'managers': managers,
             'current_manager_id': current_manager_id,
             'user_permissions': user_permissions,
-            'departments': departments
+            'departments': departments,
+            'custom_roles': custom_roles,
+            'industry_profile': industry_profile
         })
 
     def post(self, request, emp_id):
@@ -821,6 +1032,16 @@ class EditEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
             'AadharNumber': request.POST.get('aadhar_number', '').strip(),
             'PanNumber': request.POST.get('pan_number', '').strip().upper(),
         }
+
+        # Extract dynamic industry custom fields
+        custom_fields = employee.get('CustomFields', {}) or {}
+        if not isinstance(custom_fields, dict):
+            custom_fields = {}
+        for key, val in request.POST.items():
+            if key.startswith('custom_field_'):
+                field_key = key.replace('custom_field_', '')
+                custom_fields[field_key] = val
+        update_data['CustomFields'] = custom_fields
 
         # --- Aadhar & PAN Validation ---
         aadhar_number = update_data.get('AadharNumber')
@@ -1031,7 +1252,8 @@ class EditEmployeeView(FeatureRequiredMixin, HRRequiredMixin, View):
                 # Add new link
                 ReportingHierarchyTable.put_item({
                     'ManagerID': manager_id,
-                    'EmployeeID': emp_id
+                    'EmployeeID': emp_id,
+                    'Department': update_data.get('Department') or 'General'
                 })
 
             messages.success(request, f"Profile for {employee['FirstName']} updated.")
@@ -1096,12 +1318,12 @@ class BulkOnboardingLinkView(FeatureRequiredMixin, HRRequiredMixin, View):
             header = next(csv_data, None)
             
             org_id = getattr(request.user, 'org_id', None)
-            org_name = "Lurnexa"
+            org_name = "Kyro People"
             if org_id:
                 from core.dynamodb_service import OrganizationsTable
                 org = OrganizationsTable.get_item({'OrgID': org_id})
                 if org:
-                    org_name = org.get('Name', 'Lurnexa')
+                    org_name = org.get('Name', 'Kyro People')
             
             success_count = 0
             
@@ -1220,6 +1442,8 @@ class GenerateOnboardingLinkView(FeatureRequiredMixin, HRRequiredMixin, View):
             'EmploymentStatus': request.POST.get('employment_status', 'Full Time'),
             'ProbationPeriod': request.POST.get('probation_period', '0'),
             'ManagerID': request.POST.get('manager_id'),
+            'PrimaryManagerID': request.POST.get('manager_id'),
+            'SecondaryManagerID': request.POST.get('secondary_manager_id'),
             'JoinedDate': request.POST.get('joining_date'),
             'FullTimeDate': '' if request.POST.get('employment_type') == 'Intern' else (request.POST.get('fulltime_date') or request.POST.get('joining_date')),
             'Used': False,
@@ -1230,12 +1454,12 @@ class GenerateOnboardingLinkView(FeatureRequiredMixin, HRRequiredMixin, View):
         link = request.build_absolute_uri(f'/employees/self-onboarding/{token}/')
         
         org_id = getattr(request.user, 'org_id', None)
-        org_name = "Lurnexa"
+        org_name = "Kyro People"
         if org_id:
             from core.dynamodb_service import OrganizationsTable
             org = OrganizationsTable.get_item({'OrgID': org_id})
             if org:
-                org_name = org.get('Name', 'Lurnexa')
+                org_name = org.get('Name', 'Kyro People')
 
         # Send Email
         subject = f'Welcome to {org_name} - Your Onboarding Link'
@@ -1278,12 +1502,12 @@ class SelfOnboardingView(View):
         
         # Check employee limit
         org_id = token_data.get('OrgID')
-        org_name = "Lurnexa"
+        org_name = "Kyro People"
         if org_id:
             from core.dynamodb_service import OrganizationsTable
             org = OrganizationsTable.get_item({'OrgID': org_id})
             if org:
-                org_name = org.get('Name', 'Lurnexa')
+                org_name = org.get('Name', 'Kyro People')
 
         if org_id:
             from core.utils import can_add_employee
@@ -1316,13 +1540,21 @@ class SelfOnboardingView(View):
         except Exception as e:
             print(f"Error fetching onboarding policies: {e}")
 
+        industry_type = 'SOFTWARE_IT'
+        if org:
+            industry_type = org.get('IndustryType', 'SOFTWARE_IT')
+        
+        from core.industry_templates import get_industry_profile
+        industry_profile = get_industry_profile(industry_type)
+
         return render(request, 'employees/self_onboarding.html', {
             'token': token,
             'target_email': token_data.get('TargetEmail'),
             'assigned_id': token_data.get('EmployeeID'),
             'token_data': token_data,
             'onboarding_policies': onboarding_policies,
-            'org_name': org_name
+            'org_name': org_name,
+            'industry_profile': industry_profile
         })
 
     def post(self, request, token):
@@ -1331,12 +1563,12 @@ class SelfOnboardingView(View):
             return render(request, 'core/error.html', {'message': 'This link has already been used or is invalid.'})
 
         org_id = token_data.get('OrgID')
-        org_name = "Lurnexa"
+        org_name = "Kyro People"
         if org_id:
             from core.dynamodb_service import OrganizationsTable
             org = OrganizationsTable.get_item({'OrgID': org_id})
             if org:
-                org_name = org.get('Name', 'Lurnexa')
+                org_name = org.get('Name', 'Kyro People')
 
         # Check employee limit
         org_id = token_data.get('OrgID')
@@ -1526,6 +1758,14 @@ class SelfOnboardingView(View):
             'Balance_CO': '0.0',
             'LastLeaveRefresh': get_local_date().strftime('%Y-%m')
         }
+
+        # Extract dynamic industry custom fields
+        custom_fields = {}
+        for key, val in request.POST.items():
+            if key.startswith('custom_field_'):
+                field_key = key.replace('custom_field_', '')
+                custom_fields[field_key] = val
+        employee_item['CustomFields'] = custom_fields
         EmployeesTable.put_item(employee_item)
 
         # Auto-acknowledge onboarding policies
@@ -1545,9 +1785,12 @@ class SelfOnboardingView(View):
 
         # Handle Reporting Hierarchy
         manager_id = token_data.get('ManagerID')
-        if manager_id:
+        secondary_manager_id = token_data.get('SecondaryManagerID')
+        if manager_id or secondary_manager_id:
             ReportingHierarchyTable.put_item({
                 'ManagerID': manager_id,
+                'PrimaryManagerID': manager_id,
+                'SecondaryManagerID': secondary_manager_id,
                 'EmployeeID': employee_id
             })
 
@@ -1617,6 +1860,20 @@ class ReviewOnboardingView(FeatureRequiredMixin, HRAdminOnlyMixin, TemplateView)
         context = super().get_context_data(**kwargs)
         emp_id = self.kwargs.get('emp_id')
         context['employee'] = EmployeesTable.get_item({'EmployeeID': emp_id})
+        
+        industry_type = 'SOFTWARE_IT'
+        org_id = getattr(self.request.user, 'org_id', None)
+        if org_id:
+            try:
+                from core.dynamodb_service import OrganizationsTable
+                org_item = OrganizationsTable.get_item({'OrgID': org_id})
+                if org_item:
+                    industry_type = org_item.get('IndustryType', 'SOFTWARE_IT')
+            except Exception:
+                pass
+        from core.industry_templates import get_industry_profile
+        context['industry_profile'] = get_industry_profile(industry_type)
+
         context['document_fields'] = [
             ('PassportPhoto', 'Passport Photo'),
             ('AadharCard', 'Aadhar Card'),
@@ -1712,12 +1969,12 @@ class ApproveOnboardingActionView(FeatureRequiredMixin, HRAdminOnlyMixin, View):
         emp_email = employee.get('Email')
         if emp_email:
             org_id = employee.get('OrgID')
-            org_name = "Lurnexa"
+            org_name = "Kyro People"
             if org_id:
                 from core.dynamodb_service import OrganizationsTable
                 org = OrganizationsTable.get_item({'OrgID': org_id})
                 if org:
-                    org_name = org.get('Name', 'Lurnexa')
+                    org_name = org.get('Name', 'Kyro People')
             if action == 'approve' and employee['OnboardingStatus'] == 'Approved':
                 email_subj = f"Onboarding Approved - Welcome to {org_name}!"
                 email_body = f"Hi {employee['FirstName']},\n\nCongratulations! Your onboarding details and documents have been verified and approved. You can now log in to the {org_name} HR Admin portal using your credentials.\n\nLink: {request.build_absolute_uri('/')}\n\nWelcome to the team!\n\nBest regards,\n{org_name} HR Admin"
@@ -1872,10 +2129,25 @@ class ToggleActiveStatusView(FeatureRequiredMixin, HRRequiredMixin, View):
                 ExpressionAttributeValues=expr_vals
             )
             
-            status_text = "activated" if new_status else "inactivated"
-            messages.success(request, f"Profile for {employee.get('FirstName')} has been {status_text}.")
+            status_text = "activated" if new_status else "deactivated"
+            msg = f"Profile for {employee.get('FirstName')} has been {status_text}."
+            messages.success(request, msg)
+
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax') == '1':
+                from django.http import JsonResponse
+                return JsonResponse({
+                    'success': True,
+                    'is_active': new_status,
+                    'status_text': status_text,
+                    'emp_id': emp_id,
+                    'message': msg
+                })
         except Exception as e:
-            messages.error(request, f"Error updating status: {e}")
+            msg = f"Error updating status: {e}"
+            messages.error(request, msg)
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax') == '1':
+                from django.http import JsonResponse
+                return JsonResponse({'success': False, 'message': msg}, status=400)
             
         # Redirect back to where we came from if possible
         referer = request.META.get('HTTP_REFERER')

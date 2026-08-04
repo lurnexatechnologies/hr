@@ -65,7 +65,7 @@
         
         // Handle persistent device_id loading/generation
         (function() {
-            let devId = localStorage.getItem('lurnexa_device_id');
+            let devId = localStorage.getItem('kyro_device_id');
             if (!devId) {
                 // Try cookie fallback
                 const match = document.cookie.match(new RegExp('(^| )device_id=([^;]+)'));
@@ -75,7 +75,7 @@
                     // Generate new persistent device ID
                     devId = 'dev-' + Math.random().toString(36).substring(2, 15) + '-' + Date.now().toString(36);
                 }
-                localStorage.setItem('lurnexa_device_id', devId);
+                localStorage.setItem('kyro_device_id', devId);
             }
             document.getElementById('login_device_id').value = devId;
         })();

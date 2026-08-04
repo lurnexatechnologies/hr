@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Site Map - Kyro People | A Product by Lurnexa Technologies{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sitemap-hero {
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+        color: #ffffff;
+        border-radius: 20px;
+        position: relative;
+        overflow: hidden;
+    }
+    .sitemap-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(circle, rgba(99,102,241,0.25) 0%, rgba(255,255,255,0) 70%);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+    .sitemap-card {
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 18px;
+        background: #ffffff;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .sitemap-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.07) !important;
+        border-color: rgba(99, 102, 241, 0.25);
+    }
+    .sitemap-link-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 10px;
+        color: #475569;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.93rem;
+        transition: all 0.2s ease;
+    }
+    .sitemap-link-item:hover {
+        background-color: #f8fafc;
+        color: #4f46e5;
+        transform: translateX(4px);
+    }
+    .sitemap-link-item i {
+        transition: transform 0.2s ease;
+    }
+    .sitemap-link-item:hover i {
+        transform: translateX(3px);
+    }
+    .search-input-group {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 14px;
+        padding: 4px;
+    }
+    .search-input-group input {
+        background: transparent;
+        border: none;
+        color: #ffffff;
+    }
+    .search-input-group input::placeholder {
+        color: rgba(255, 255, 255, 0.65);
+    }
+    .search-input-group input:focus {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4" style="max-width: 1320px;">
+    <!-- Header Section -->
+    <div class="sitemap-hero p-4 p-md-5 mb-4 shadow-sm">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+                <div class="d-inline-flex align-items-center gap-2 px-3 py-1.5 rounded-pill bg-white bg-opacity-10 text-white mb-3 small fw-semibold" style="letter-spacing: 0.5px;">
+                    <i class="fa-solid fa-sitemap text-warning"></i> SYSTEM DIRECTORY & NAVIGATION
+                </div>
+                <h1 class="display-6 fw-bold mb-2 text-white">Kyro People Site Map</h1>
+                <p class="mb-0 text-white-50 fs-6">
+                    Quickly navigate to any module, workforce tool, payroll compliance portal, or system feature.
+                </p>
+            </div>
+            <div class="col-lg-5">
+                <div class="search-input-group d-flex align-items-center px-3 py-1">
+                    <i class="fa-solid fa-magnifying-glass text-white-50 me-2"></i>
+                    <input type="text" id="sitemapSearchInput" class="form-control text-white" placeholder="Search pages or features..." onkeyup="filterSitemap()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sitemap Navigation Cards Grid -->
+    <div class="row g-4" id="sitemapGrid">
+        <!-- Main Application & Authentication -->
+        <div class="col-md-6 col-lg-4 sitemap-module-card">
+            <div class="card h-100 sitemap-card p-4 shadow-sm">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-sm bg-primary bg-opacity-10 text-primary rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="fa-solid fa-house fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">Public & Portal</h5>
+                        <small class="text-muted">Landing & Authentication</small>
+                    </div>
+                </div>
+                <div class="sitemap-links-list">
+                    <a href="/" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-primary small"></i>Landing Page</a>
+                    <a href="{% url 'login' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-primary small"></i>Login Portal</a>
+                    <a href="{% url 'forgot_password' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-primary small"></i>Password Recovery</a>
+                    <a href="{% url 'offline' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-primary small"></i>Offline Application Mode</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- HR & Employee Management -->
+        <div class="col-md-6 col-lg-4 sitemap-module-card">
+            <div class="card h-100 sitemap-card p-4 shadow-sm">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-sm bg-success bg-opacity-10 text-success rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="fa-solid fa-users fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">People & Workforce</h5>
+                        <small class="text-muted">Directory & Team Management</small>
+                    </div>
+                </div>
+                <div class="sitemap-links-list">
+                    <a href="{% url 'index' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-success small"></i>Role Dashboard</a>
+                    <a href="{% url 'employee_directory' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-success small"></i>Employee Directory</a>
+                    <a href="{% url 'my_team' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-success small"></i>My Team</a>
+                    <a href="{% url 'onboarding_requests' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-success small"></i>Employee Onboarding</a>
+                    <a href="{% url 'ex_employee_directory' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-success small"></i>Ex-Employee Archive</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance & Leave Management -->
+        <div class="col-md-6 col-lg-4 sitemap-module-card">
+            <div class="card h-100 sitemap-card p-4 shadow-sm">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-sm bg-warning bg-opacity-10 text-warning rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="fa-solid fa-calendar-check fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">Time & Attendance</h5>
+                        <small class="text-muted">Leaves, Shifts & Calendar</small>
+                    </div>
+                </div>
+                <div class="sitemap-links-list">
+                    <a href="{% url 'attendance_history' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-warning small"></i>Attendance Log</a>
+                    <a href="{% url 'apply_leave' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-warning small"></i>Apply Leave</a>
+                    <a href="{% url 'leave_history' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-warning small"></i>Leave History</a>
+                    <a href="{% url 'company_calendar' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-warning small"></i>Holiday Calendar</a>
+                    <a href="{% url 'shift_roster' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-warning small"></i>Shift Roster</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payroll & Compliance -->
+        <div class="col-md-6 col-lg-4 sitemap-module-card">
+            <div class="card h-100 sitemap-card p-4 shadow-sm">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-sm bg-info bg-opacity-10 text-info rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="fa-solid fa-file-invoice-dollar fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">Payroll & Compliance</h5>
+                        <small class="text-muted">Payslips, PF & Statutory</small>
+                    </div>
+                </div>
+                <div class="sitemap-links-list">
+                    <a href="{% url 'manage_payroll' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-info small"></i>Payroll Management</a>
+                    <a href="{% url 'payslips_view' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-info small"></i>Digital Payslips</a>
+                    <a href="{% url 'historical_payroll' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-info small"></i>Historical Payroll</a>
+                    <a href="{% url 'pf_management' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-info small"></i>PF Statutory Compliance</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflows & Helpdesk -->
+        <div class="col-md-6 col-lg-4 sitemap-module-card">
+            <div class="card h-100 sitemap-card p-4 shadow-sm">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-sm bg-danger bg-opacity-10 text-danger rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="fa-solid fa-diagram-project fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">Workflows & Tickets</h5>
+                        <small class="text-muted">Expenses, WFH & Support</small>
+                    </div>
+                </div>
+                <div class="sitemap-links-list">
+                    <a href="{% url 'expenses_view' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-danger small"></i>Expense Claims</a>
+                    <a href="{% url 'apply_wfh' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-danger small"></i>WFH Requests</a>
+                    <a href="{% url 'ticket_list' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-danger small"></i>Helpdesk Tickets</a>
+                    <a href="{% url 'employee_letters' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-danger small"></i>Employee Letters</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Governance & Legal -->
+        <div class="col-md-6 col-lg-4 sitemap-module-card">
+            <div class="card h-100 sitemap-card p-4 shadow-sm">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-sm bg-indigo bg-opacity-10 text-indigo rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="fa-solid fa-shield-halved fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">Governance & Policies</h5>
+                        <small class="text-muted">Terms, Policies & Legal</small>
+                    </div>
+                </div>
+                <div class="sitemap-links-list">
+                    <a href="{% url 'policies' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-indigo small"></i>Company Policies</a>
+                    <a href="{% url 'privacy_policy' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-indigo small"></i>Privacy Policy</a>
+                    <a href="{% url 'terms_of_service' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-indigo small"></i>Terms of Service</a>
+                    <a href="{% url 'sitemap_html' %}" class="sitemap-link-item"><i class="fa-solid fa-chevron-right me-2 text-indigo small"></i>HTML Site Map</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sitemap Footer Credit -->
+    <div class="mt-5 text-center p-4 bg-white rounded-4 border border-light shadow-sm">
+        <p class="mb-1 fw-bold text-dark fs-6">KYRO PEOPLE</p>
+        <p class="text-muted small mb-0">
+            A Product by <strong>Lurnexa Technologies</strong>. All rights reserved. &copy; 2026
+        </p>
+    </div>
+</div>
+
+<script>
+function filterSitemap() {
+    const query = document.getElementById('sitemapSearchInput').value.toLowerCase().trim();
+    const moduleCards = document.querySelectorAll('.sitemap-module-card');
+
+    moduleCards.forEach(card => {
+        const linkItems = card.querySelectorAll('.sitemap-link-item');
+        let cardHasMatch = false;
+
+        linkItems.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (query === '' || text.includes(query)) {
+                item.style.display = 'flex';
+                cardHasMatch = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        if (cardHasMatch) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

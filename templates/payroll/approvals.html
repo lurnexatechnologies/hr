@@ -2,7 +2,7 @@
 {% load static %}
 {% load custom_filters %}
 
-{% block title %}Payroll Approvals - Lurnexa{% endblock %}
+{% block title %}Payroll Approvals - Kyro People{% endblock %}
 {% block nav_payroll_approvals %}active{% endblock %}
 
 
@@ -23,7 +23,7 @@
                         <div class="fw-bold small text-dark" style="font-size: 0.85rem;">Payroll Gen Date</div>
                         <div class="text-muted" style="font-size: 0.75rem;">
                             {% if payroll_generation_date %}
-                                Set to: <strong class="text-primary">{{ payroll_generation_date }}</strong>
+                                Set to: <strong class="text-primary">{{ payroll_generation_date_formatted }}</strong>
                             {% else %}
                                 Active: <strong class="text-secondary">30th of month</strong>
                             {% endif %}
@@ -32,7 +32,12 @@
                 </div>
                 <form action="{% url 'set_payroll_generation_date' %}" method="POST" class="d-flex align-items-center gap-1 mb-0">
                     {% csrf_token %}
-                    <input type="date" name="generation_date" class="form-control form-control-sm rounded-pill border-light" value="{{ payroll_generation_date }}" style="width: 130px; font-size: 0.75rem;" required>
+                    <select name="generation_date" class="form-select form-select-sm rounded-pill border-light" style="width: 145px; font-size: 0.75rem;" required>
+                        <option value="" disabled {% if not payroll_generation_date %}selected{% endif %}>Select Day</option>
+                        {% for day in days_list %}
+                            <option value="{{ day.value }}" {% if payroll_generation_date == day.value %}selected{% endif %}>{{ day.label }}</option>
+                        {% endfor %}
+                    </select>
                     <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" style="font-size: 0.75rem;">Set</button>
                     {% if payroll_generation_date %}
                         <button type="submit" name="clear" value="true" class="btn btn-sm btn-outline-danger rounded-pill px-2" style="font-size: 0.75rem;" title="Reset to Default"><i class="fa-solid fa-trash-can"></i></button>
@@ -135,14 +140,10 @@
                                         <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#viewDetails{{ req.RequestID }}">
                                             <i class="fa-solid fa-list-check me-1"></i> Details
                                         </button>
-                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); Lurnexa.confirm({title: 'Authorize Payroll', message: 'Authorize this payroll run? This will initiate the disbursement workflow.', onConfirm: () => this.submit()});">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="approve">
-                                            <button type="submit" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm">
-                                                <i class="fa-solid fa-check me-1"></i> Authorize
-                                            </button>
-                                        </form>
-                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); Lurnexa.confirm({title: 'Reject Payroll', message: 'Reject this payroll run?', onConfirm: () => this.submit()});">
+                                        <button type="button" class="btn btn-sm btn-success px-3 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#schedulePayslipModal{{ req.RequestID }}">
+                                            <i class="fa-solid fa-calendar-check me-1"></i> Authorize & Schedule
+                                        </button>
+                                        <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); KyroPeople.confirm({title: 'Reject Payroll', message: 'Reject this payroll run?', onConfirm: () => this.submit()});">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="reject">
                                             <button type="submit" class="btn btn-sm btn-outline-danger px-3 rounded-pill">
@@ -412,6 +413,64 @@
             <div class="modal-footer border-0 p-4 pt-0">
                 <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Payslip Release Modal -->
+<div class="modal fade" id="schedulePayslipModal{{ req.RequestID }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header text-white p-4" style="background: linear-gradient(135deg, #4f46e5, #3730a3); border-radius: 20px 20px 0 0;">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0"><i class="fa-solid fa-clock-rotate-left me-2"></i>Authorize & Schedule Payslips</h5>
+                    <small class="text-white-50">Set automatic payslip release date for {{ req.MonthYear|upper }}</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'process_payroll_approval' req.RequestID %}" method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="approve">
+                <div class="modal-body p-4">
+                    <div class="p-3 bg-light rounded-3 mb-3 border">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Batch Period:</span>
+                            <span class="fw-bold text-dark small">{{ req.MonthYear|upper }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Total Employees:</span>
+                            <span class="fw-bold text-dark small">{{ req.EmployeeCount }} Employees</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted small">Total Liability:</span>
+                            <span class="fw-bold text-success small">₹ {{ req.TotalNetPay|format_currency }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark small">
+                            <i class="fa-solid fa-calendar-day text-indigo me-1"></i> Payslip Release Date (Defaults to Next Day)
+                        </label>
+                        <input type="date" name="scheduled_release_date" class="form-control form-control-lg border-2 shadow-sm rounded-3 fw-bold" value="{{ tomorrow_date }}" min="{% now 'Y-m-d' %}" required>
+                    </div>
+
+                    <div class="p-3 rounded-3 border border-indigo-subtle bg-indigo-soft" style="background-color: #f5f3ff;">
+                        <div class="d-flex align-items-center mb-1">
+                            <i class="fa-solid fa-clock text-indigo me-2 fs-5" style="color: #4f46e5;"></i>
+                            <span class="fw-bold text-indigo small" style="color: #4f46e5;">Automatic Scheduled Release: Next Day Morning at 08:00 AM</span>
+                        </div>
+                        <p class="text-muted mb-0" style="font-size: 0.82rem; line-height: 1.4;">
+                            Upon approval, payslips are automatically scheduled for the <strong>next date morning (08:00 AM)</strong>. On <strong>{{ tomorrow_formatted }} at 08:00 AM</strong>, payslips will be published to all <strong>{{ req.EmployeeCount }} employees</strong> and email notifications will be automatically dispatched.
+                        </p>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 p-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm fw-bold">
+                        <i class="fa-solid fa-paper-plane me-1"></i> Authorize & Schedule
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

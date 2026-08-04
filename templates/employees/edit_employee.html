@@ -348,7 +348,7 @@
                         <div class="col-md-4">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Department <span
                                     class="text-danger">*</span></label>
-                            <select class="form-select form-select-lg bg-light border-0" name="department" required>
+                            <select class="form-select form-select-lg bg-light border-0" name="department" id="department_select" onchange="filterEditManagersByDepartment()" required>
                                 <option value="" disabled>Select Department</option>
                                 {% for dept in departments %}
                                 <option value="{{ dept.Name }}" {% if employee.Department == dept.Name %}selected{% endif %}>{{ dept.Name }}</option>
@@ -359,9 +359,12 @@
                             <label class="form-label fw-semibold small text-uppercase text-muted">Work Shift <span
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-lg bg-light border-0" name="shift" required>
+                                {% for s in industry_profile.default_shifts %}
+                                <option value="{{ s.name }}" {% if employee.Shift == s.name %}selected{% endif %}>{{ s.name }} ({{ s.start_time }} - {{ s.end_time }})</option>
+                                {% empty %}
                                 <option value="Day Shift" {% if employee.Shift == 'Day Shift' or not employee.Shift %}selected{% endif %}>Day Shift</option>
-                                <option value="Night Shift" {% if employee.Shift == 'Night Shift' %}selected{% endif %}>
-                                    Night Shift</option>
+                                <option value="Night Shift" {% if employee.Shift == 'Night Shift' %}selected{% endif %}>Night Shift</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -430,22 +433,25 @@
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-lg bg-light border-0" name="role" id="role"
                                 onchange="toggleManagerSelect()" required>
-                                <option value="Employee" {% if system_role == 'Employee' %}selected{% endif %}>
-                                    Employee</option>
-                                <option value="Manager" {% if system_role == 'Manager' %}selected{% endif %}>
-                                    Manager</option>
-                                <option value="HR ADMIN" {% if system_role == 'HR ADMIN' %}selected{% endif %}>HR ADMIN
-                                </option>
+                                {% for crole_name, crole_info in custom_roles.items %}
+                                <option value="{{ crole_name }}" {% if system_role == crole_name %}selected{% endif %}>{{ crole_name }}</option>
+                                {% empty %}
+                                <option value="Employee" {% if system_role == 'Employee' %}selected{% endif %}>Employee</option>
+                                <option value="Manager" {% if system_role == 'Manager' %}selected{% endif %}>Manager</option>
+                                <option value="HR ADMIN" {% if system_role == 'HR ADMIN' %}selected{% endif %}>HR ADMIN</option>
                                 <option value="Super admin" {% if system_role == 'Super admin' %}selected{% endif %}>Super admin</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-4" id="manager_select_div">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Reporting Manager
                                 <span class="text-danger">*</span></label>
-                            <select class="form-select form-select-lg bg-light border-0" name="manager_id" required>
+                            <select class="form-select form-select-lg bg-light border-0" name="manager_id" id="manager_select" required>
                                 <option value="">Select Reporting Authority...</option>
                                 {% for m in managers %}
-                                <option value="{{ m.EmployeeID }}" {% if m.EmployeeID == current_manager_id %}selected{% endif %}>{{ m.Name }}</option>
+                                {% if m.EmployeeID != employee.EmployeeID %}
+                                <option value="{{ m.EmployeeID }}" data-department="{{ m.Department }}" {% if m.EmployeeID == current_manager_id %}selected{% endif %}>{{ m.Name }} [{% if m.Department %}{{ m.Department }}{% else %}General{% endif %}]</option>
+                                {% endif %}
                                 {% endfor %}
                             </select>
                         </div>
@@ -453,6 +459,47 @@
                     </div>
                 </div>
             </div>
+
+            {% if industry_profile.custom_fields %}
+            <!-- Industry Specific Dynamic Custom Fields -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-indigo-soft text-indigo rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid {{ industry_profile.icon|default:'fa-sliders' }}"></i>
+                        </span>
+                        <h5 class="fw-bold mb-0">{{ industry_profile.name }} Domain Specs</h5>
+                    </div>
+                    <p class="text-muted small mb-0">Fields customized specifically for your organization domain.</p>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for field in industry_profile.custom_fields %}
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">
+                                {{ field.label }} {% if field.required %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+                            {% if field.type == 'select' %}
+                            <select class="form-select form-select-lg bg-light border-0" name="custom_field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                                <option value="" disabled>Select {{ field.label }}</option>
+                                {% for opt in field.options %}
+                                <option value="{{ opt }}" {% for c_key, c_val in employee.CustomFields.items %}{% if c_key == field.key and c_val == opt %}selected{% endif %}{% endfor %}>{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                            {% elif field.type == 'number' %}
+                            <input type="number" step="any" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" value="{% for c_key, c_val in employee.CustomFields.items %}{% if c_key == field.key %}{{ c_val }}{% endif %}{% empty %}{{ field.default|default:'' }}{% endfor %}" {% if field.required %}required{% endif %}>
+                            {% elif field.type == 'date' %}
+                            <input type="date" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" value="{% for c_key, c_val in employee.CustomFields.items %}{% if c_key == field.key %}{{ c_val }}{% endif %}{% endfor %}" {% if field.required %}required{% endif %}>
+                            {% else %}
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" placeholder="{{ field.label }}" value="{% for c_key, c_val in employee.CustomFields.items %}{% if c_key == field.key %}{{ c_val }}{% endif %}{% endfor %}" {% if field.required %}required{% endif %}>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Step 4: Banking Information -->
             <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
@@ -578,58 +625,22 @@
     function toggleManagerSelect() {
         const roleSelect = document.getElementById('role');
         const managerDiv = document.getElementById('manager_select_div');
-        const label = managerDiv.querySelector('label');
+        if (!roleSelect || !managerDiv) return;
+
         const select = managerDiv.querySelector('select');
         const options = select.querySelectorAll('option');
 
-        if (roleSelect.value === 'Employee') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting Manager/HR ADMIN';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(Manager)') || opt.text.includes('(HR ADMIN)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'Manager') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting HR ADMIN';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(HR ADMIN)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'HR ADMIN') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting Super admin';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(Super admin)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'Super admin') {
+        if (roleSelect.value === 'Super admin') {
             managerDiv.style.display = 'none';
             select.required = false;
+        } else {
+            managerDiv.style.display = 'block';
+            select.required = true;
+            options.forEach(opt => {
+                opt.style.display = 'block';
+                opt.hidden = false;
+                opt.disabled = false;
+            });
         }
     }
 
@@ -751,25 +762,25 @@
     }
 
     function convertToPermanent() {
-        Lurnexa.confirm({
+        KyroPeople.confirm({
             title: 'Convert to Permanent',
             message: 'Are you sure you want to convert this intern to a permanent employee?',
             onConfirm: () => {
                 document.getElementById('employment_type').value = 'Permanent';
                 toggleInternshipField();
-                Lurnexa.alert("Employment type changed to Permanent. Please save the record to finalize.", "Status Updated");
+                KyroPeople.alert("Employment type changed to Permanent. Please save the record to finalize.", "Status Updated");
             }
         });
     }
 
     function convertToFullTime() {
-        Lurnexa.confirm({
+        KyroPeople.confirm({
             title: 'Convert to Full Time',
             message: 'Are you sure you want to convert this employee from Probation to Full Time?',
             onConfirm: () => {
                 document.getElementById('employment_status').value = 'Full Time';
                 toggleProbationField();
-                Lurnexa.alert("Status changed to Full Time. Please save the record to finalize.", "Status Updated");
+                KyroPeople.alert("Status changed to Full Time. Please save the record to finalize.", "Status Updated");
             }
         });
     }
@@ -800,5 +811,30 @@
             this.value = this.value.replace(/[^A-Za-z\s]/g, '');
         });
     });
+
+    function filterEditManagersByDepartment() {
+        const deptSelect = document.getElementById('department_select');
+        const mgrSelect = document.getElementById('manager_select');
+        if (!deptSelect || !mgrSelect) return;
+
+        const selectedDept = deptSelect.value;
+        const options = mgrSelect.querySelectorAll('option');
+
+        options.forEach(opt => {
+            if (!opt.value) return;
+            const optDept = opt.getAttribute('data-department');
+            if (selectedDept && optDept === selectedDept) {
+                opt.style.fontWeight = 'bold';
+                if (!opt.text.includes('★ Dept Leader')) {
+                    opt.text = opt.text + ' ★ Dept Leader';
+                }
+            } else {
+                opt.style.fontWeight = 'normal';
+                opt.text = opt.text.replace(' ★ Dept Leader', '');
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', filterEditManagersByDepartment);
 </script>
 {% endblock %}

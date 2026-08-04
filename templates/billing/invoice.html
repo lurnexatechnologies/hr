@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice #{{ invoice.InvoiceNumber }} - Lurnexa</title>
+    <title>Invoice #{{ invoice.InvoiceNumber }} - Kyro People</title>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/img/namelesslogolurnexa.png?v=4">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/namelesslogolurnexa.png?v=4">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -413,10 +416,12 @@
         <div class="invoice-header">
             <div class="header-top">
                 <div class="brand-logo">
-                    <div class="brand-logo-icon">🌿</div>
+                    <div class="brand-logo-icon">
+                        <img src="/static/img/namelesslogolurnexa.png?v=4" alt="Kyro People" style="width: 32px; height: 32px; object-fit: contain;">
+                    </div>
                     <div>
-                        <div class="brand-name">Lurnexa</div>
-                        <div class="brand-tagline">Human Resource Management</div>
+                        <div class="brand-name">Kyro People</div>
+                        <div class="brand-tagline">Key Your Resources</div>
                     </div>
                 </div>
                 <div class="invoice-badge">
@@ -449,7 +454,7 @@
             <div class="parties-row">
                 <div class="party-block">
                     <div class="party-label">From</div>
-                    <div class="party-name">Lurnexa Technologies</div>
+                    <div class="party-name">Kyro People</div>
                     <div class="party-detail">
                         HRMS Platform Services<br>
                         Hyderabad, Telangana, India<br>
@@ -543,7 +548,7 @@
                 This is a computer-generated invoice and does not require a physical signature.<br>
                 For billing queries, please contact <strong>info@lurnexatechnologies.in</strong>
             </div>
-            <div class="footer-brand">Lurnexa Technologies</div>
+            <div class="footer-brand">Kyro People</div>
         </div>
     </div>
 </body>

@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}Role & Feature Permission Management - Kyro People{% endblock %}
+{% block nav_manage_roles %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-0">Role & Feature Permission Management</h2>
+        <p class="text-muted small">Create custom roles for your industry, assign allowed feature modules, bind HR policies, and scope permissions.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-indigo rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#createRoleModal">
+            <i class="fa-solid fa-plus-circle me-2"></i> Create Custom Role
+        </button>
+    </div>
+</div>
+
+<!-- Existing Custom Roles Cards -->
+<div class="row g-4 mb-5">
+    {% for r_name, r_info in custom_roles.items %}
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 18px;">
+            <div class="card-header bg-white pt-4 border-0 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="badge bg-indigo-soft text-indigo p-3 me-3 rounded-3 fs-5">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold text-dark mb-0">{{ r_name }}</h5>
+                        <small class="text-muted">{{ r_info.Description|default:'Custom Organization Role' }}</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary border-0" 
+                            onclick="editCustomRole('{{ r_name|escapejs }}')">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit
+                    </button>
+                    <form method="POST" action="{% url 'manage_roles' %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_role">
+                        <input type="hidden" name="role_name" value="{{ r_name }}">
+                        <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="confirmDeleteRole(this, '{{ r_name|escapejs }}')">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                
+                <!-- Assigned Features -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-uppercase text-indigo small mb-2"><i class="fa-solid fa-cubes me-1"></i> Assigned Feature Modules ({{ r_info.Features|length }})</label>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for f_key in r_info.Features %}
+                        <span class="badge bg-light text-dark border px-2 py-1 small fw-semibold">
+                            <i class="fa-solid fa-check text-success me-1"></i> {{ f_key }}
+                        </span>
+                        {% empty %}
+                        <span class="text-muted small">No custom features assigned.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Role WFH & Leave Rules -->
+                <div class="mb-3 p-3 bg-light rounded-3 border">
+                    <label class="form-label fw-bold text-uppercase text-primary small mb-2"><i class="fa-solid fa-house-laptop me-1"></i> WFH & Leave Policy Rules</label>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        {% if r_info.wfh_allowed %}
+                        <span class="badge bg-success-soft text-success px-2 py-1 small fw-semibold">
+                            <i class="fa-solid fa-check-circle me-1"></i> WFH Allowed (Max {{ r_info.max_wfh_per_month|default:0 }} Days/Mo)
+                        </span>
+                        {% else %}
+                        <span class="badge bg-danger-soft text-danger px-2 py-1 small fw-semibold">
+                            <i class="fa-solid fa-ban me-1"></i> WFH Disabled
+                        </span>
+                        {% endif %}
+                        <span class="badge bg-info-soft text-info px-2 py-1 small fw-semibold">
+                            <i class="fa-solid fa-calendar-check me-1"></i> Annual Leave Quota: {{ r_info.leave_quota_annual|default:12 }} Days
+                        </span>
+                        {% if r_info.blackout_weekends %}
+                        <span class="badge bg-warning-soft text-warning px-2 py-1 small fw-semibold">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i> Weekend Leave Blackout
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Bound HR Policies -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-uppercase text-danger small mb-2"><i class="fa-solid fa-file-shield me-1"></i> Bound HR Policies ({{ r_info.Policies|length }})</label>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for p_id in r_info.Policies %}
+                        <span class="badge bg-danger-soft text-danger px-2 py-1 small fw-semibold">
+                            <i class="fa-solid fa-shield-halved me-1"></i> Policy ID: {{ p_id }}
+                        </span>
+                        {% empty %}
+                        <span class="text-muted small">No specific policies bound.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Granted Permissions -->
+                <div>
+                    <label class="form-label fw-bold text-uppercase text-success small mb-2"><i class="fa-solid fa-key me-1"></i> System Permissions</label>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for perm in r_info.Permissions %}
+                        <span class="badge bg-success-soft text-success px-2 py-1 small fw-semibold">
+                            {{ perm }}
+                        </span>
+                        {% empty %}
+                        <span class="text-muted small">Standard View-Only Access</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <i class="fa-solid fa-user-gear fa-3x text-muted mb-3 d-block"></i>
+        <h5 class="fw-bold text-dark">No Custom Roles Configured</h5>
+        <p class="text-muted small mb-3">Super Admins can configure custom roles (e.g. Cashier, ICU Nurse, Kiln Operator, Sales Consultant) to assign exact features and policies.</p>
+        <button class="btn btn-indigo" data-bs-toggle="modal" data-bs-target="#createRoleModal">
+            <i class="fa-solid fa-plus-circle me-2"></i> Create Custom Role Now
+        </button>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal: Create / Edit Role -->
+<div class="modal fade" id="createRoleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <form method="POST" action="{% url 'manage_roles' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_role">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-indigo"><i class="fa-solid fa-user-shield me-2"></i> Configure Custom Industry Role</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Role Title / Name <span class="text-danger">*</span></label>
+                        <input type="text" name="role_name" id="modal_role_name" class="form-control form-control-lg bg-light border-0" required placeholder="e.g. Billing Cashier / ICU Nurse / Kiln Operator / Sales Consultant">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Role Description</label>
+                        <input type="text" name="description" id="modal_description" class="form-control bg-light border-0" placeholder="Brief description of role responsibilities...">
+                    </div>
+
+                    <!-- Role-Based WFH & Leave Rules -->
+                    <div class="card p-3 mb-4 border-0 bg-light rounded-4">
+                        <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-house-laptop me-2"></i> Role-Based Leave & WFH Rules</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" name="wfh_allowed" id="modal_wfh_allowed" checked>
+                                    <label class="form-check-label fw-semibold text-dark small" for="modal_wfh_allowed">Allow WFH Requests for this Role</label>
+                                </div>
+                                <div class="form-floating">
+                                    <input type="number" name="max_wfh_per_month" class="form-control" id="modal_max_wfh" value="4" min="0" max="31">
+                                    <label for="modal_max_wfh">Max WFH Days Allowed per Month</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-2">
+                                    <input type="number" name="leave_quota_annual" class="form-control" id="modal_leave_quota" value="18" min="0" max="365">
+                                    <label for="modal_leave_quota">Annual Paid Leave Quota (Days)</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="blackout_weekends" id="modal_blackout">
+                                    <label class="form-check-label fw-semibold text-dark small" for="modal_blackout">Restrict Leaves on Weekends (Blackout)</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Feature Module Selection -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-indigo"><i class="fa-solid fa-cubes me-2"></i> Assign Allowed Feature Modules</label>
+                        <p class="text-muted small mb-2">Select which feature modules employees with this role can access.</p>
+                        <div class="row g-2" style="max-height: 200px; overflow-y: auto;">
+                            {% for f_key, f_info in feature_registry.items %}
+                            <div class="col-md-6">
+                                <div class="form-check p-2 bg-light rounded-3">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="features" value="{{ f_key }}" id="modal_feat_{{ f_key }}">
+                                    <label class="form-check-label fw-semibold small text-dark" for="modal_feat_{{ f_key }}">
+                                        {{ f_info.0 }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Policy Binding Selection -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-danger"><i class="fa-solid fa-file-shield me-2"></i> Bind Mandatory HR & Operational Policies</label>
+                        <p class="text-muted small mb-2">Select approved HR policies that apply specifically to this role.</p>
+                        <div class="row g-2" style="max-height: 150px; overflow-y: auto;">
+                            {% for p in approved_policies %}
+                            <div class="col-md-6">
+                                <div class="form-check p-2 bg-danger-soft rounded-3">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="policies" value="{{ p.PolicyID }}" id="modal_pol_{{ p.PolicyID }}">
+                                    <label class="form-check-label fw-semibold small text-dark" for="modal_pol_{{ p.PolicyID }}">
+                                        {{ p.Title }} (v{{ p.Version }})
+                                    </label>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-muted small p-2">No approved HR policies available for binding.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- System Permission Grants -->
+                    <div>
+                        <label class="form-label fw-bold text-success"><i class="fa-solid fa-key me-2"></i> System Permission Grants</label>
+                        <div class="row g-2">
+                            {% for p_code, p_label in available_permissions %}
+                            <div class="col-md-6">
+                                <div class="form-check p-2 bg-light rounded-3">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="permissions" value="{{ p_code }}" id="modal_perm_{{ p_code }}">
+                                    <label class="form-check-label fw-semibold small text-dark" for="modal_perm_{{ p_code }}">
+                                        {{ p_label }} (`{{ p_code }}`)
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-indigo px-4">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Save Custom Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Department Live Tracking Configuration -->
+<div class="modal fade" id="trackingDeptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <form method="POST" action="{% url 'manage_roles' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_tracking_departments">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-indigo"><i class="fa-solid fa-location-dot me-2"></i> Configure Live Tracking Departments</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Select which departments should have GPS Live Location Tracking enabled for field & sales operations.</p>
+                    
+                    <div class="card p-3 border-0 bg-light rounded-4">
+                        {% for dept in departments %}
+                        <div class="form-check p-2 bg-white rounded-3 mb-2 border shadow-sm">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="tracking_departments" value="{{ dept }}" id="dept_track_{{ forloop.counter }}"
+                                   {% if dept in tracking_departments %}checked{% endif %}>
+                            <label class="form-check-label fw-semibold small text-dark" for="dept_track_{{ forloop.counter }}">
+                                <i class="fa-solid fa-building text-primary me-2"></i> {{ dept }}
+                            </label>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small py-2">No departments found in organization directory.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-indigo px-4">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Save Tracking Departments
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ custom_roles|json_script:"custom-roles-data" }}
+<script>
+function confirmDeleteRole(btn, roleName) {
+    const form = btn.closest('form');
+    KyroPeople.confirm({
+        title: 'Delete Role',
+        message: `Are you sure you want to delete custom role "${roleName}"?`,
+        onConfirm: () => {
+            HTMLFormElement.prototype.submit.call(form);
+        }
+    });
+}
+
+function editCustomRole(roleName) {
+    const customRolesData = JSON.parse(document.getElementById('custom-roles-data').textContent || '{}');
+    const roleInfo = customRolesData[roleName];
+    if (!roleInfo) return;
+
+    // Set Role Name (readonly for existing role name to preserve dictionary key)
+    const roleNameInput = document.getElementById('modal_role_name');
+    roleNameInput.value = roleName;
+    roleNameInput.readOnly = true;
+
+    // Set Description
+    document.getElementById('modal_description').value = roleInfo.Description || '';
+
+    // Set WFH & Leave Rules
+    document.getElementById('modal_wfh_allowed').checked = !!roleInfo.wfh_allowed;
+    document.getElementById('modal_max_wfh').value = roleInfo.max_wfh_per_month !== undefined ? roleInfo.max_wfh_per_month : 4;
+    document.getElementById('modal_leave_quota').value = roleInfo.leave_quota_annual !== undefined ? roleInfo.leave_quota_annual : 18;
+    document.getElementById('modal_blackout').checked = !!roleInfo.blackout_weekends;
+
+    // Set Feature Checkboxes
+    const assignedFeatures = roleInfo.Features || [];
+    document.querySelectorAll('input[name="features"]').forEach(cb => {
+        cb.checked = assignedFeatures.includes(cb.value);
+    });
+
+    // Set Policy Checkboxes
+    const boundPolicies = roleInfo.Policies || [];
+    document.querySelectorAll('input[name="policies"]').forEach(cb => {
+        cb.checked = boundPolicies.includes(cb.value);
+    });
+
+    // Set Permission Checkboxes
+    const grantedPerms = roleInfo.Permissions || [];
+    document.querySelectorAll('input[name="permissions"]').forEach(cb => {
+        cb.checked = grantedPerms.includes(cb.value);
+    });
+
+    // Update Modal Title
+    const modalTitle = document.querySelector('#createRoleModal .modal-title');
+    if (modalTitle) {
+        modalTitle.innerHTML = '<i class="fa-solid fa-user-pen me-2"></i> Edit Role & Permissions: ' + roleName;
+    }
+
+    // Open Modal
+    const roleModal = new bootstrap.Modal(document.getElementById('createRoleModal'));
+    roleModal.show();
+}
+
+// Reset modal when creating a new role
+document.addEventListener('DOMContentLoaded', function() {
+    const createModalEl = document.getElementById('createRoleModal');
+    if (createModalEl) {
+        createModalEl.addEventListener('hidden.bs.modal', function () {
+            const roleNameInput = document.getElementById('modal_role_name');
+            roleNameInput.readOnly = false;
+            roleNameInput.value = '';
+            document.getElementById('modal_description').value = '';
+            document.getElementById('modal_wfh_allowed').checked = true;
+            document.getElementById('modal_max_wfh').value = 4;
+            document.getElementById('modal_leave_quota').value = 18;
+            document.getElementById('modal_blackout').checked = false;
+
+            document.querySelectorAll('input[name="features"]').forEach(cb => cb.checked = false);
+            document.querySelectorAll('input[name="policies"]').forEach(cb => cb.checked = false);
+            document.querySelectorAll('input[name="permissions"]').forEach(cb => cb.checked = false);
+
+            const modalTitle = document.querySelector('#createRoleModal .modal-title');
+            if (modalTitle) {
+                modalTitle.innerHTML = '<i class="fa-solid fa-user-shield me-2"></i> Configure Custom Industry Role';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

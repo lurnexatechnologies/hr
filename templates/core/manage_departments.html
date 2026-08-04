@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Departments - Lurnexa{% endblock %}
+{% block title %}Departments - Kyro People{% endblock %}
 
 {% block nav_departments %}active{% endblock %}
 
@@ -24,6 +24,17 @@
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">Description (Optional)</label>
                             <textarea name="department_desc" class="form-control bg-light border-0 py-2" rows="3" placeholder="Brief details about department operations..."></textarea>
+                        </div>
+                        <div class="mb-4 p-3 bg-light rounded-3 border">
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" name="live_tracking_enabled" id="live_tracking_enabled">
+                                <label class="form-check-label fw-bold text-dark small cursor-pointer" for="live_tracking_enabled">
+                                    <i class="fa-solid fa-location-dot text-indigo me-1"></i> Enable Automatic Live Tracking
+                                </label>
+                            </div>
+                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                                Automatically tracks GPS location for any user registered in this department.
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 py-2" style="border-radius: 10px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none;">
                             <i class="fa-solid fa-plus me-1"></i> Add Department
@@ -50,7 +61,7 @@
                                 <tr>
                                     <th class="border-0 small fw-bold py-3">Department Name</th>
                                     <th class="border-0 small fw-bold py-3">Description</th>
-                                    <th class="border-0 small fw-bold py-3">Department ID</th>
+                                    <th class="border-0 small fw-bold py-3">Live Tracking Status</th>
                                     <th class="border-0 small fw-bold py-3 text-end">Actions</th>
                                 </tr>
                             </thead>
@@ -62,17 +73,36 @@
                                             <div class="icon-sm bg-indigo-light rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background-color: #f1f5f9;">
                                                 <i class="fa-solid fa-building text-indigo" style="color: #6366f1;"></i>
                                             </div>
-                                            <span class="fw-semibold text-main">{{ dept.Name }}</span>
+                                            <div>
+                                                <span class="fw-semibold text-main d-block">{{ dept.Name }}</span>
+                                                <code class="text-muted extra-small" style="font-size: 0.7rem;">{{ dept.DepartmentID }}</code>
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="py-3 text-muted small">
                                         {{ dept.Description|default:"No description provided" }}
                                     </td>
                                     <td class="py-3">
-                                        <code class="text-muted small">{{ dept.DepartmentID }}</code>
+                                        <form method="POST" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="toggle_tracking">
+                                            <input type="hidden" name="department_id" value="{{ dept.DepartmentID }}">
+                                            <input type="hidden" name="enabled" value="{% if dept.LiveTrackingEnabled %}false{% else %}true{% endif %}">
+                                            <button type="submit" class="btn btn-sm border-0 bg-transparent p-0">
+                                                {% if dept.LiveTrackingEnabled %}
+                                                <span class="badge bg-success-soft text-success px-3 py-2 rounded-pill fw-bold" title="Click to disable live location tracking">
+                                                    <i class="fa-solid fa-location-dot me-1"></i> Auto-Tracking ON
+                                                </span>
+                                                {% else %}
+                                                <span class="badge bg-light text-muted border px-3 py-2 rounded-pill fw-semibold" title="Click to enable live location tracking">
+                                                    <i class="fa-solid fa-location-slash me-1"></i> Auto-Tracking OFF
+                                                </span>
+                                                {% endif %}
+                                            </button>
+                                        </form>
                                     </td>
                                     <td class="py-3 text-end">
-                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this department?');">
+                                        <form method="POST" style="display:inline;" onsubmit="event.preventDefault(); const form = this; KyroPeople.confirm({title: 'Delete Department', message: 'Are you sure you want to delete this department?', onConfirm: () => form.submit()});">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="delete_department">
                                             <input type="hidden" name="department_id" value="{{ dept.DepartmentID }}">

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Departments & Workflows - {{ org.Name }} - Lurnexa{% endblock %}
+{% block title %}Departments & Workflows - {{ org.Name }} - Kyro People{% endblock %}
 {% block nav_platform_orgs %}{% if request.user.role == 'Platform Admin' %}active{% endif %}{% endblock %}
 {% block nav_workflows %}{% if request.user.role == 'Super admin' %}active{% endif %}{% endblock %}
 
@@ -152,12 +152,23 @@
                         {% csrf_token %}
                         <input type="hidden" name="action" value="create_department">
                         <div class="mb-3">
-                            <label class="form-label">Department Name</label>
+                            <label class="form-label fw-semibold">Department Name</label>
                             <input type="text" name="department_name" class="form-control" placeholder="e.g. Customer Support" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Description (Optional)</label>
+                            <label class="form-label fw-semibold">Description (Optional)</label>
                             <textarea name="department_desc" class="form-control" rows="2" placeholder="Brief details about department operations..."></textarea>
+                        </div>
+                        <div class="mb-3 p-3 bg-light rounded-3 border">
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" name="live_tracking_enabled" id="live_tracking_enabled_wf">
+                                <label class="form-check-label fw-bold text-dark small cursor-pointer" for="live_tracking_enabled_wf">
+                                    <i class="fa-solid fa-location-dot text-indigo me-1"></i> Enable Live Tracking
+                                </label>
+                            </div>
+                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                                Automatically tracks GPS location for users in this department.
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-indigo w-100 rounded-pill py-2">
                             <i class="fa-solid fa-plus me-1"></i> Add Department
@@ -174,11 +185,38 @@
                             {% for dept in departments %}
                                 <div class="list-group-item d-flex justify-content-between align-items-center border-0 border-bottom px-2 py-3 bg-transparent">
                                     <div>
-                                        <div class="fw-bold text-dark">{{ dept.Name }}</div>
+                                        <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                            <span>{{ dept.Name }}</span>
+                                            {% if not is_platform_admin %}
+                                            <form method="post" class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="toggle_tracking">
+                                                <input type="hidden" name="department_id" value="{{ dept.DepartmentID }}">
+                                                <input type="hidden" name="enabled" value="{% if dept.LiveTrackingEnabled %}false{% else %}true{% endif %}">
+                                                <button type="submit" class="btn btn-sm border-0 bg-transparent p-0">
+                                                    {% if dept.LiveTrackingEnabled %}
+                                                    <span class="badge bg-success-soft text-success rounded-pill fw-bold" style="font-size: 0.65rem;" title="Click to disable live tracking">
+                                                        <i class="fa-solid fa-location-dot me-1"></i> Tracking ON
+                                                    </span>
+                                                    {% else %}
+                                                    <span class="badge bg-light text-muted border rounded-pill fw-semibold" style="font-size: 0.65rem;" title="Click to enable live tracking">
+                                                        <i class="fa-solid fa-location-slash me-1"></i> Tracking OFF
+                                                    </span>
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+                                            {% else %}
+                                                {% if dept.LiveTrackingEnabled %}
+                                                <span class="badge bg-success-soft text-success rounded-pill fw-bold" style="font-size: 0.65rem;">
+                                                    <i class="fa-solid fa-location-dot me-1"></i> Tracking ON
+                                                </span>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
                                         <div class="text-muted small">{{ dept.Description|default:"No description" }}</div>
                                     </div>
                                     {% if not is_platform_admin %}
-                                    <form method="post" onsubmit="return confirm('Are you sure you want to delete this department?');">
+                                    <form method="post" onsubmit="event.preventDefault(); const form = this; KyroPeople.confirm({title: 'Delete Department', message: 'Are you sure you want to delete this department?', onConfirm: () => form.submit()});">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_department">
                                         <input type="hidden" name="department_id" value="{{ dept.DepartmentID }}">
@@ -232,6 +270,11 @@
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link rounded-pill fw-bold" id="wfh-tab" data-bs-toggle="pill" data-bs-target="#wfh-workflow" type="button" role="tab">
                                     <i class="fa-solid fa-house-laptop me-1"></i> WFH Requests
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link rounded-pill fw-bold" id="resignation-tab" data-bs-toggle="pill" data-bs-target="#resignation-workflow" type="button" role="tab">
+                                    <i class="fa-solid fa-user-minus me-1"></i> Resignation Approvals
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
@@ -345,6 +388,40 @@
                                 {% endfor %}
                             </div>
 
+                            <!-- Resignation Workflow Tab -->
+                            <div class="tab-pane fade" id="resignation-workflow" role="tabpanel">
+                                {% for role in roles_list %}
+                                    <div class="mb-4 p-3 border rounded-4 bg-white shadow-sm">
+                                        <div class="role-section-title">
+                                            <i class="fa-solid fa-user-tie text-indigo"></i> When submitted by: <span class="text-indigo">{{ role }}</span>
+                                        </div>
+                                        <div class="row g-2 align-items-center mb-3">
+                                            <div class="{% if is_platform_admin %}col-12{% else %}col-md-7{% endif %}">
+                                                <input type="hidden" id="resignation_request_{{ role }}_input" name="resignation_request_{{ role }}" value="">
+                                                <div id="resignation_request_{{ role }}_container" class="workflow-chain-container">
+                                                    <!-- Javascript will populate steps here -->
+                                                </div>
+                                            </div>
+                                            {% if not is_platform_admin %}
+                                            <div class="col-md-5 d-flex gap-2">
+                                                <select id="resignation_request_{{ role }}_select" class="form-select form-select-sm rounded-3" style="min-width: 140px;">
+                                                    {% for approver in approvers_pool %}
+                                                        <option value="{{ approver }}">{{ approver }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <button type="button" class="btn btn-indigo btn-action-custom text-nowrap" onclick="addWorkflowStep('resignation_request', '{{ role }}')">
+                                                    <i class="fa-solid fa-plus"></i> Add
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-action-custom text-nowrap" onclick="clearWorkflowSteps('resignation_request', '{{ role }}')">
+                                                    Clear
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
                             <!-- Payroll Workflow Tab -->
                             <div class="tab-pane fade" id="payroll-workflow" role="tabpanel">
                                 <div class="mb-4 p-3 border rounded-4 bg-white shadow-sm">
@@ -387,35 +464,22 @@
 <script id="workflow-rules-data" type="application/json">
     {{ workflow_rules_json|safe }}
 </script>
+<script id="roles-list-data" type="application/json">
+    {{ roles_list_json|safe }}
+</script>
 
 <script>
     // Initialize standard dynamic workflows data model
-    const workflows = {
-        leave_request: {
-            Employee: [],
-            Manager: [],
-            'HR ADMIN': [],
-            'Super admin': []
-        },
-        expense_claim: {
-            Employee: [],
-            Manager: [],
-            'HR ADMIN': [],
-            'Super admin': []
-        },
-        wfh_request: {
-            Employee: [],
-            Manager: [],
-            'HR ADMIN': [],
-            'Super admin': []
-        },
-        payroll_approval: {
-            Employee: [],
-            Manager: [],
-            'HR ADMIN': [],
-            'Super admin': []
-        }
-    };
+    const serverRoles = JSON.parse(document.getElementById('roles-list-data')?.textContent || '["Employee","Manager","HR ADMIN","Super admin"]');
+    const types = ['leave_request', 'expense_claim', 'wfh_request', 'resignation_request', 'payroll_approval'];
+
+    const workflows = {};
+    types.forEach(t => {
+        workflows[t] = {};
+        serverRoles.forEach(r => {
+            workflows[t][r] = [];
+        });
+    });
 
     // Load initial configuration from server if exists
     try {
@@ -423,10 +487,9 @@
         if (dataEl && dataEl.textContent.trim()) {
             const serverRules = JSON.parse(dataEl.textContent);
             for (const type in serverRules) {
-                if (workflows[type]) {
-                    for (const role in serverRules[type]) {
-                        workflows[type][role] = serverRules[type][role] || [];
-                    }
+                if (!workflows[type]) workflows[type] = {};
+                for (const role in serverRules[type]) {
+                    workflows[type][role] = serverRules[type][role] || [];
                 }
             }
         }
@@ -493,11 +556,10 @@
 
     // Initial render
     document.addEventListener("DOMContentLoaded", () => {
-        const types = ['leave_request', 'expense_claim', 'wfh_request', 'payroll_approval'];
-        const roles = ['Employee', 'Manager', 'HR ADMIN', 'Super admin'];
+        const types = ['leave_request', 'expense_claim', 'wfh_request', 'resignation_request', 'payroll_approval'];
         
         types.forEach(t => {
-            roles.forEach(r => {
+            serverRoles.forEach(r => {
                 renderWorkflow(t, r);
             });
         });

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Company Policies - Lurnexa{% endblock %}
+{% block title %}Company Policies - Kyro People{% endblock %}
 {% block nav_policies %}active{% endblock %}
 
 {% block extra_css %}
@@ -11,7 +11,7 @@
 <div class="d-flex justify-content-between align-items-center mb-5">
     <div>
         <h2 class="page-title mb-2">Corporate Policies & Guidelines</h2>
-        <p class="text-muted fs-5 mb-0">Ensuring transparency, ethics, and a safe workplace for the Lurnexa family.</p>
+        <p class="text-muted fs-5 mb-0">Ensuring transparency, ethics, and a safe workplace for the Kyro People family.</p>
     </div>
     {% if request.user.role == 'HR ADMIN' %}
     <button class="btn btn-primary px-4 py-2 fw-bold rounded-3 shadow-sm" data-bs-toggle="modal"
@@ -32,7 +32,7 @@
                     title="Edit Policy">
                     <i class="fa-solid fa-pen-to-square text-primary smaller"></i>
                 </button>
-                <form action="{% url 'delete_policy' %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Delete Policy', message: 'Are you sure you want to delete this policy?', onConfirm: () => form.submit()});">
+                <form action="{% url 'delete_policy' %}" method="POST" class="d-inline" onsubmit="event.preventDefault(); const form = this; KyroPeople.confirm({title: 'Delete Policy', message: 'Are you sure you want to delete this policy?', onConfirm: () => form.submit()});">
                     {% csrf_token %}
                     <input type="hidden" name="policy_id" value="{{ p.PolicyID }}">
                     <button type="submit" class="btn btn-sm btn-light rounded-circle shadow-sm"
@@ -189,7 +189,7 @@
             <div class="policy-modal-header d-flex justify-content-between align-items-center" id="policyHeader" style="padding: 24px 32px;">
                 <div>
                     <h3 class="fw-bold mb-1" id="policyTitle">Policy Title</h3>
-                    <p class="mb-0 opacity-75 small" id="policyMeta">Official Lurnexa Document</p>
+                    <p class="mb-0 opacity-75 small" id="policyMeta">Official Kyro People Document</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>

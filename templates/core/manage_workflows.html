@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Custom Approval Workflows - Kyro People{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-0">Custom Approval Workflow Builder</h2>
+        <p class="text-muted small">Configure custom multi-step approval chains for Leave, WFH, Expenses, Shift Swaps & Exit workflows per role.</p>
+    </div>
+</div>
+
+<!-- Workflow Builder Form -->
+<div class="card border-0 shadow-sm mb-5" style="border-radius: 20px;">
+    <div class="card-header bg-white pt-4 border-0">
+        <h5 class="fw-bold text-indigo mb-0"><i class="fa-solid fa-diagram-project me-2"></i> Configure Custom Approval Chain</h5>
+    </div>
+    <div class="card-body p-4">
+        <form method="POST" action="{% url 'manage_workflows' %}">
+            {% csrf_token %}
+            
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Request Category / Type <span class="text-danger">*</span></label>
+                    <select name="request_type" class="form-select form-select-lg bg-light border-0" required>
+                        <option value="" selected disabled>Select Request Type...</option>
+                        {% for r_code, r_label in request_types %}
+                        <option value="{{ r_code }}">{{ r_label }} (`{{ r_code }}`)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Submitter Role <span class="text-danger">*</span></label>
+                    <select name="submitter_role" class="form-select form-select-lg bg-light border-0" required>
+                        <option value="" selected disabled>Select Submitter Role...</option>
+                        {% for r_name in custom_roles.keys %}
+                        <option value="{{ r_name }}">{{ r_name }}</option>
+                        {% empty %}
+                        <option value="Employee">Employee</option>
+                        <option value="Manager">Manager</option>
+                        <option value="HR ADMIN">HR ADMIN</option>
+                        <option value="Super admin">Super admin</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Approval Steps Builder -->
+            <div class="mb-4 p-4 bg-light rounded-4">
+                <label class="form-label fw-bold text-indigo mb-3"><i class="fa-solid fa-layer-group me-2"></i> Sequential Approval Steps (Ordered Chain)</label>
+                
+                <div id="stepsContainer">
+                    <div class="row g-3 align-items-center mb-3 step-row">
+                        <div class="col-auto">
+                            <span class="badge bg-indigo rounded-circle p-2 fs-6" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">1</span>
+                        </div>
+                        <div class="col-md-8">
+                            <select name="approval_steps" class="form-select bg-white border">
+                                <option value="">Select Approver Role...</option>
+                                <option value="Shift Manager">Shift / Operational Manager</option>
+                                {% for r_name in custom_roles.keys %}
+                                <option value="{{ r_name }}">{{ r_name }}</option>
+                                {% empty %}
+                                <option value="Manager">Manager</option>
+                                <option value="HR ADMIN">HR ADMIN</option>
+                                <option value="Super admin">Super Admin</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-outline-danger border-0 btn-sm remove-step-btn" onclick="this.closest('.step-row').remove();"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-sm btn-outline-indigo mt-2" onclick="addStepRow()">
+                    <i class="fa-solid fa-plus me-1"></i> Add Approval Step
+                </button>
+            </div>
+
+            <button type="submit" class="btn btn-indigo px-5 py-2 fw-bold rounded-pill">
+                <i class="fa-solid fa-floppy-disk me-2"></i> Save Approval Workflow
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Active Workflows Matrix -->
+<div class="card border-0 shadow-sm" style="border-radius: 20px;">
+    <div class="card-header bg-white pt-4 border-0">
+        <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-list-check me-2"></i> Active Organization Workflows</h5>
+    </div>
+    <div class="card-body p-4">
+        {% if workflow_rules %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Request Category</th>
+                        <th>Submitter Role</th>
+                        <th>Configured Approval Steps</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req_type, roles_map in workflow_rules.items %}
+                    {% for sub_role, steps_list in roles_map.items %}
+                    <tr>
+                        <td class="fw-bold text-indigo">{{ req_type }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ sub_role }}</span></td>
+                        <td>
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                {% for step in steps_list %}
+                                <span class="badge bg-indigo-soft text-indigo px-2 py-1">
+                                    Step {{ forloop.counter }}: {{ step }}
+                                </span>
+                                {% if not forloop.last %}<i class="fa-solid fa-arrow-right text-muted small"></i>{% endif %}
+                                {% empty %}
+                                <span class="badge bg-success-soft text-success px-2 py-1"><i class="fa-solid fa-bolt me-1"></i> Auto-Approved (0 Steps)</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+            <i class="fa-solid fa-sitemap fa-2x mb-2 d-block text-secondary"></i>
+            No custom workflow rules configured. The system is currently using default 1-step manager approval chains.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function addStepRow() {
+    const container = document.getElementById('stepsContainer');
+    const stepCount = container.querySelectorAll('.step-row').length + 1;
+    const div = document.createElement('div');
+    div.className = 'row g-3 align-items-center mb-3 step-row';
+    div.innerHTML = `
+        <div class="col-auto">
+            <span class="badge bg-indigo rounded-circle p-2 fs-6" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">${stepCount}</span>
+        </div>
+        <div class="col-md-8">
+            <select name="approval_steps" class="form-select bg-white border">
+                <option value="">Select Approver Role...</option>
+                <option value="Shift Manager">Shift / Operational Manager (Secondary Manager)</option>
+                <option value="Manager">Primary Functional Manager / HOD</option>
+                <option value="HR ADMIN">HR ADMIN</option>
+                <option value="Super admin">Super Admin</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-outline-danger border-0 btn-sm remove-step-btn" onclick="this.closest('.step-row').remove();"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    `;
+    container.appendChild(div);
+}
+</script>
+{% endblock %}

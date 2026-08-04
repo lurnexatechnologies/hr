@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}HR Attendance Dashboard - Lurnexa{% endblock %}
+{% block title %}HR Attendance Dashboard - Kyro People{% endblock %}
 {% block nav_hr_attendance %}active{% endblock %}
 
 
@@ -9,7 +9,9 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="fw-bold text-dark mb-1">{% if is_today %}Attendance Dashboard{% else %}Historical Attendance{% endif %}</h3>
+            <div class="d-flex align-items-center gap-2">
+                <h3 class="fw-bold text-dark mb-1">{% if is_today %}Attendance Dashboard{% else %}Historical Attendance{% endif %}</h3>
+            </div>
             <p class="text-muted small">Tracking for <strong>{{ view_date }}</strong></p>
         </div>
         <div class="d-flex align-items-center gap-3">

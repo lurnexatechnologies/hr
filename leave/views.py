@@ -49,7 +49,7 @@ class AddHolidayView(FeatureRequiredMixin, HRRequiredMixin, View):
                     icon='fa-umbrella-beach',
                     color='info',
                     email_subject=f"New Holiday: {name}",
-                    email_body=f"Hi {emp.get('FirstName', '')},\n\nPlease note that a new holiday has been added to the company calendar.\n\nHoliday: {name}\nDate: {date}\nType: {h_type}\n\nBest regards,\nLurnexa HR Admin"
+                    email_body=f"Hi {emp.get('FirstName', '')},\n\nPlease note that a new holiday has been added to the company calendar.\n\nHoliday: {name}\nDate: {date}\nType: {h_type}\n\nBest regards,\nKyro People HR Admin"
                 )
         except Exception as e:
             print(f"Error sending holiday notifications: {e}")
@@ -461,6 +461,29 @@ class ApplyLeaveView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardin
                     msg += "."
                 messages.error(request, msg)
                 return redirect('apply_leave')
+
+        # Check Super Admin Role Weekend Blackout Rules
+        org_id = getattr(request.user, 'org_id', None)
+        user_role = getattr(request.user, 'role', '')
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org and org.get('CustomRoles'):
+                custom_roles = org.get('CustomRoles', {})
+                if user_role in custom_roles:
+                    role_rule = custom_roles[user_role]
+                    if role_rule.get('blackout_weekends'):
+                        try:
+                            s_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
+                            e_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
+                            curr_dt = s_dt
+                            while curr_dt <= e_dt:
+                                if curr_dt.weekday() in [5, 6]:
+                                    messages.error(request, f"Weekend leave is restricted for role '{user_role}' by Super Admin (Weekend Blackout Policy).")
+                                    return redirect('apply_leave')
+                                curr_dt += datetime.timedelta(days=1)
+                        except Exception:
+                            pass
         
         # --- Parental Leave Validation ---
         if 'Maternity' in leave_type or 'Paternity' in leave_type:
@@ -570,7 +593,7 @@ class ApplyLeaveView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardin
                 icon='fa-calendar-plus',
                 color='info',
                 email_subject=f"Leave Application: {emp_name}",
-                email_body=f"Hi,\n\n{emp_name} has submitted a new leave application for {leave_type}.\nDates: {start_date} to {end_date}\nReason: {reason}\n\nPlease log in to the Lurnexa portal to review and take action.\n\nBest regards,\nLurnexa HR Admin"
+                email_body=f"Hi,\n\n{emp_name} has submitted a new leave application for {leave_type}.\nDates: {start_date} to {end_date}\nReason: {reason}\n\nPlease log in to the Kyro People portal to review and take action.\n\nBest regards,\nKyro People HR Admin"
             )
 
         messages.success(request, f"Leave applied successfully for {working_days} working day(s) and sent for approval.")
@@ -865,13 +888,13 @@ class ApproveLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
                 title = "Leave Approved"
                 message = f"Your {leave_type} leave from {leave_date} has been fully approved."
                 email_subject = "Leave Request Approved"
-                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been APPROVED.\n\nBest regards,\nLurnexa HR Admin"
+                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been APPROVED.\n\nBest regards,\nKyro People HR Admin"
                 color = 'success'
             else:
                 title = f"Leave Approved: {new_status}"
                 message = f"Your {leave_type} leave request from {leave_date} has been approved and moved to the next stage."
                 email_subject = "Leave Request Approved - Next Stage"
-                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been approved and forwarded to: {new_status}.\n\nBest regards,\nLurnexa HR Admin"
+                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been approved and forwarded to: {new_status}.\n\nBest regards,\nKyro People HR Admin"
                 color = 'primary'
 
             print(f"DEBUG: Calling send_notification for {emp_id} | Email: {employee.get('Email') if employee else 'NONE'} | Type: {leave_type}")
@@ -926,7 +949,7 @@ class RejectLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
                 icon='fa-calendar-times',
                 color='danger',
                 email_subject="Leave Request Rejected",
-                email_body=f"Hi {emp_name},\n\nYour leave request for {leave_date} has been REJECTED.\n\nPlease contact your manager for more details.\n\nBest regards,\nLurnexa HR Admin"
+                email_body=f"Hi {emp_name},\n\nYour leave request for {leave_date} has been REJECTED.\n\nPlease contact your manager for more details.\n\nBest regards,\nKyro People HR Admin"
             )
             print(f"DEBUG: send_notification rejection finished for {emp_id}")
         except Exception as e:
@@ -1058,7 +1081,7 @@ class EncashEarnedLeaveView(FeatureRequiredMixin, HRRequiredMixin, View):
                     f"- Total Payout Amount: ₹{total_payout:,.2f}\n\n"
                     f"Your Earned Leave balance has been reset to 0.0.\n\n"
                     f"Best regards,\n"
-                    f"Lurnexa HR Admin"
+                    f"Kyro People HR Admin"
                 )
             )
 

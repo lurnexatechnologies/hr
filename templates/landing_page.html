@@ -6,40 +6,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Primary SEO Metadata -->
-    <title>Lurnexa HRMS - Best HR Management System, Human Resource Software & HR Activities Platform</title>
-    <meta name="description" content="Lurnexa HRMS is India's leading Human Resource Management System (HRMS). Streamline HR management, automate human resource activities, manage payroll, biometric attendance, employee performance, and organizational workflows.">
-    <meta name="keywords" content="hrms, hr, hr management, management, manage, hr activities, human resource, management activities, hr management software, human resource management system, best hrms software, payroll management, attendance tracking, human resource software india, lurnexa hrms">
-    <meta name="author" content="Lurnexa Technologies">
+    <title>Kyro People - Best HR Management System, Human Resource Software & HR Activities Platform</title>
+    <meta name="description" content="Kyro People is India's leading Human Resource Management System (HRMS). Streamline HR management, automate human resource activities, manage payroll, biometric attendance, employee performance, and organizational workflows.">
+    <meta name="keywords" content="hrms, hr, hr management, management, manage, hr activities, human resource, management activities, hr management software, human resource management system, best hrms software, payroll management, attendance tracking, human resource software india, kyro people">
+    <meta name="author" content="Kyro People">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
 
     <!-- Open Graph / Facebook SEO -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <meta property="og:title" content="Lurnexa HRMS - Best HR Management System & HR Activities Software">
-    <meta property="og:description" content="Streamline HR management, human resource activities, automated payroll, AI biometric attendance, and employee workflows with Lurnexa HRMS.">
-    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/lurnexa_dashboard_mockup.png' %}">
-    <meta property="og:site_name" content="Lurnexa HRMS">
+    <meta property="og:title" content="Kyro People - Best HR Management System & HR Activities Software">
+    <meta property="og:description" content="Streamline HR management, human resource activities, automated payroll, AI biometric attendance, and employee workflows with Kyro People.">
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}">
+    <meta property="og:image:secure_url" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:logo" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}">
+    <meta property="og:site_name" content="Kyro People">
 
     <!-- Twitter Card SEO -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <meta name="twitter:title" content="Lurnexa HRMS - Best HR Management System & HR Activities Software">
-    <meta name="twitter:description" content="Streamline HR management, human resource activities, automated payroll, AI biometric attendance, and employee workflows with Lurnexa HRMS.">
-    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/lurnexa_dashboard_mockup.png' }}">
+    <meta name="twitter:title" content="Kyro People - Best HR Management System & HR Activities Software">
+    <meta name="twitter:description" content="Streamline HR management, human resource activities, automated payroll, AI biometric attendance, and employee workflows with Kyro People.">
+    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' }}">
 
     <!-- Rich JSON-LD Multi-Schema for Google Search Engine Indexing -->
     <script type="application/ld+json">
     [
       {
         "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Kyro People",
+        "url": "{{ request.scheme }}://{{ request.get_host }}/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}",
+          "width": "512",
+          "height": "512"
+        },
+        "image": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}"
+      },
+      {
+        "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Lurnexa HRMS",
+        "name": "Kyro People",
         "operatingSystem": "All",
         "applicationCategory": "BusinessApplication",
         "applicationSubCategory": "Human Resource Management System (HRMS)",
-        "description": "Lurnexa HRMS is a comprehensive Human Resource Management System for managing HR activities, payroll automation, statutory PF/ESI compliance, facial biometric attendance, and employee self-service.",
+        "description": "Kyro People is a comprehensive Human Resource Management System for managing HR activities, payroll automation, statutory PF/ESI compliance, facial biometric attendance, and employee self-service.",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -47,7 +68,7 @@
         },
         "publisher": {
           "@type": "Organization",
-          "name": "Lurnexa Technologies",
+          "name": "Kyro People",
           "url": "{{ request.scheme }}://{{ request.get_host }}/",
           "logo": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/namelesslogolurnexa.png' %}"
         }
@@ -55,7 +76,7 @@
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "Lurnexa HRMS",
+        "name": "Kyro People",
         "url": "{{ request.scheme }}://{{ request.get_host }}/",
         "keywords": "hrms, hr, hr management, management, manage, hr activities, human resource, management activities"
       },
@@ -65,26 +86,26 @@
         "mainEntity": [
           {
             "@type": "Question",
-            "name": "What is Lurnexa HRMS?",
+            "name": "What is Kyro People?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Lurnexa HRMS is an all-in-one Human Resource Management System designed to handle all HR management and employee activities including onboarding, leave tracking, facial attendance, automated payroll processing, and statutory compliance."
+              "text": "Kyro People is an all-in-one Human Resource Management System designed to handle all HR management and employee activities including onboarding, leave tracking, facial attendance, automated payroll processing, and statutory compliance."
             }
           },
           {
             "@type": "Question",
-            "name": "How does Lurnexa automate HR activities and management?",
+            "name": "How does Kyro People automate HR activities and management?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Lurnexa automates multi-tier leave approvals, Work From Home (WFH) requests, expense claims, Provident Fund (PF) calculations, and digital payslip generation, saving over 15 hours of manual HR work monthly."
+              "text": "Kyro People automates multi-tier leave approvals, Work From Home (WFH) requests, expense claims, Provident Fund (PF) calculations, and digital payslip generation, saving over 15 hours of manual HR work monthly."
             }
           },
           {
             "@type": "Question",
-            "name": "Is Lurnexa HRMS statutory compliant for Indian companies?",
+            "name": "Is Kyro People statutory compliant for Indian companies?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes, Lurnexa HRMS is 100% statutory compliant with Indian labor laws, automatically computing Provident Fund (PF), Employee State Insurance (ESI), Professional Tax (PT), and Income Tax deductions."
+              "text": "Yes, Kyro People is 100% statutory compliant with Indian labor laws, automatically computing Provident Fund (PF), Employee State Insurance (ESI), Professional Tax (PT), and Income Tax deductions."
             }
           }
         ]
@@ -103,6 +124,12 @@
     <link href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
+    <script>
+        // Client-side fallback for native Mobile App / Capacitor / WebView
+        if (window.Capacitor || window.AndroidBridge || navigator.userAgent.includes('Capacitor') || navigator.userAgent.includes('KyroMobileApp')) {
+            window.location.href = "{% url 'login' %}";
+        }
+    </script>
     <style>
         :root {
             --primary: #9B5DE5;
@@ -387,8 +414,11 @@
     <nav id="navbar" class="navbar navbar-expand-lg fixed-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="#">
-                <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa HRMS Logo" height="32" class="me-2"> 
-                <span class="fw-bold">Lurnexa <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1" style="font-size: 0.75rem; font-weight: 600;">HRMS</span></span>
+                <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People Logo" height="32" class="me-2"> 
+                <div class="d-flex flex-column">
+                    <span class="fw-bold lh-1">Kyro <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1" style="font-size: 0.75rem; font-weight: 600;">People</span></span>
+                    <small class="text-muted fw-semibold" style="font-size: 0.6rem; letter-spacing: 0.8px;">Key Your Resources</small>
+                </div>
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <i class="fa-solid fa-bars"></i>
@@ -423,7 +453,7 @@
                         <i class="fa-solid fa-sparkles me-1 text-warning"></i> Next-Gen Enterprise HRMS Platform
                     </span>
                     <h1 class="hero-title fw-extrabold display-4 mb-3">Next-Gen HRMS & HR Management System</h1>
-                    <p class="hero-subtitle fs-5 text-muted mb-4">Streamline all human resource & management activities with Lurnexa HRMS—the automated, statutory-compliant HR management platform built for modern enterprises.</p>
+                    <p class="hero-subtitle fs-5 text-muted mb-4">Streamline all human resource & management activities with Kyro People the automated, statutory-compliant HR management platform built for modern enterprises.</p>
                     <div class="d-flex flex-wrap gap-3">
                         <a href="#contact" class="btn btn-signin shadow-lg px-4 py-3 rounded-pill fs-6 fw-bold" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;">
                             <i class="fa-solid fa-calendar-check me-2"></i>Book a Free Demo
@@ -438,7 +468,7 @@
                         <div class="position-absolute badge bg-success bg-opacity-90 text-white rounded-pill px-3 py-2 shadow-sm z-3" style="font-size: 0.85rem; top: -12px; left: -12px;">
                             <i class="fa-solid fa-shield-check me-1"></i> Live HRMS Dashboard
                         </div>
-                        <img src="{% static 'img/lurnexa_dashboard_mockup.png' %}" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80';" alt="Lurnexa HRMS Dashboard Interface" class="img-fluid rounded-4 shadow-lg border border-2 border-white">
+                        <img src="{% static 'img/lurnexa_dashboard_mockup.png' %}" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80';" alt="Kyro People Dashboard Interface" class="img-fluid rounded-4 shadow-lg border border-2 border-white">
                     </div>
                 </div>
             </div>
@@ -527,7 +557,7 @@
                             <i class="fa-solid fa-sliders me-2 text-warning"></i> Complete Flexibility
                         </span>
                         <h2 class="display-5 fw-bold mb-3">Tailored to Your Organizational DNA.</h2>
-                        <p class="fs-6 mb-4 text-white opacity-75">We don't force you into a rigid box. Lurnexa adapts to your custom hierarchy, company policies, and approval workflows seamlessly.</p>
+                        <p class="fs-6 mb-4 text-white opacity-75">We don't force you into a rigid box. Kyro People adapts to your custom hierarchy, company policies, and approval workflows seamlessly.</p>
                         
                         <div class="d-flex flex-wrap gap-2 mt-3">
                             <span class="badge bg-white bg-opacity-10 text-white px-3 py-2 rounded-pill border border-white border-opacity-10"><i class="fa-solid fa-check text-success me-2"></i> Custom Leave Policies</span>
@@ -635,31 +665,31 @@
             <div class="section-header text-center mb-5">
                 <span class="section-tag">Got Questions?</span>
                 <h2 class="display-6 fw-bold text-dark">Frequently Asked Questions</h2>
-                <p class="text-muted fs-6">Everything you need to know about Lurnexa HRMS & HR management activities.</p>
+                <p class="text-muted fs-6">Everything you need to know about Kyro People & HR management activities.</p>
             </div>
             
             <div class="accordion accordion-flush" id="faqAccordion">
                 <div class="accordion-item border rounded-4 mb-3 shadow-sm">
                     <h3 class="accordion-header" id="faqHeadingOne">
                         <button class="accordion-button fw-bold text-dark fs-6 rounded-4 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapseOne">
-                            What is Lurnexa HRMS and how does it help in HR management activities?
+                            What is Kyro People and how does it help in HR management activities?
                         </button>
                     </h3>
                     <div id="faqCollapseOne" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body text-muted small">
-                            Lurnexa HRMS is a comprehensive Human Resource Management System (HRMS) designed to automate all HR management activities including self-onboarding, leave tracking, facial biometric attendance, automated payroll, and statutory PF/ESI compliance.
+                            Kyro People is a comprehensive Human Resource Management System (HRMS) designed to automate all HR management activities including self-onboarding, leave tracking, facial biometric attendance, automated payroll, and statutory PF/ESI compliance.
                         </div>
                     </div>
                 </div>
                 <div class="accordion-item border rounded-4 mb-3 shadow-sm">
                     <h3 class="accordion-header" id="faqHeadingTwo">
                         <button class="accordion-button fw-bold text-dark fs-6 rounded-4 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapseTwo">
-                            How does Lurnexa HRMS ensure statutory compliance for Indian businesses?
+                            How does Kyro People ensure statutory compliance for Indian businesses?
                         </button>
                     </h3>
                     <div id="faqCollapseTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body text-muted small">
-                            Lurnexa HRMS is 100% statutory compliant. It automatically calculates Provident Fund (PF), Employee State Insurance (ESI), Professional Tax (PT), and Income Tax deductions, generating instant digital payslips and Form-16 reports.
+                            Kyro People is 100% statutory compliant. It automatically calculates Provident Fund (PF), Employee State Insurance (ESI), Professional Tax (PT), and Income Tax deductions, generating instant digital payslips and Form-16 reports.
                         </div>
                     </div>
                 </div>
@@ -671,7 +701,7 @@
                     </h3>
                     <div id="faqCollapseThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body text-muted small">
-                            Lurnexa uses 1:1 facial biometric descriptor vector matching against the employee's uploaded profile photo. Employees complete live face verification during WFH or clock-in, eliminating buddy punching completely.
+                            Kyro People uses 1:1 facial biometric descriptor vector matching against the employee's uploaded profile photo. Employees complete live face verification during WFH or clock-in, eliminating buddy punching completely.
                         </div>
                     </div>
                 </div>
@@ -686,7 +716,7 @@
                 <div class="col-lg-5 mb-5 mb-lg-0">
                     <span class="section-tag">Get in Touch</span>
                     <h2 class="display-5 fw-bold mb-4">Book a Guided Product Demo.</h2>
-                    <p class="text-muted mb-4 fs-5">See how Lurnexa HRMS can streamline your payroll, attendance, and HR workflows in 15 minutes.</p>
+                    <p class="text-muted mb-4 fs-5">See how Kyro People can streamline your payroll, attendance, and HR workflows in 15 minutes.</p>
                     
                     <div class="d-flex align-items-center mb-4">
                         <div class="feature-icon mb-0 me-3 text-indigo bg-indigo bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 55px; height: 55px;">
@@ -749,7 +779,8 @@
     <!-- Footer -->
     <footer class="bg-dark text-white py-4 mt-5">
         <div class="container text-center small text-white-50">
-            <p class="mb-0">&copy; 2026 Lurnexa Technologies. All rights reserved. | <a href="/core/privacy-policy/" class="text-white-50">Privacy Policy</a> | <a href="/core/terms-of-service/" class="text-white-50">Terms of Service</a></p>
+            <p class="mb-1 text-white fw-semibold">Kyro People &bull; <span class="text-white-50 fw-normal">A Product by Lurnexa Technologies</span></p>
+            <p class="mb-0">&copy; 2026 Kyro People. All rights reserved. | <a href="{% url 'sitemap_html' %}" class="text-white-50">Site Map</a> | <a href="/core/privacy-policy/" class="text-white-50">Privacy Policy</a> | <a href="/core/terms-of-service/" class="text-white-50">Terms of Service</a></p>
         </div>
     </footer>
 

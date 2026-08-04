@@ -1,68 +1,197 @@
 {% extends 'base.html' %}
 {% load static %}
+{% block title %}Payroll Vault Access - Kyro People{% endblock %}
 {% block nav_manage_payroll %}active{% endblock %}
 
 {% block content %}
 <div class="container d-flex justify-content-center align-items-center" style="min-height: 80vh;">
-        <div class="card shadow-lg border-0 payroll-card-hover" style="max-width: 450px; width: 100%; border-radius: 15px; overflow: hidden;">
-            <div class="card-header payroll-card-header text-white p-4 text-center border-0">
-                <div class="mb-3">
-                    <i class="fas fa-lock-open fa-3x mb-3 text-warning"></i>
-                </div>
-                <h3 class="fw-bold mb-0">Payroll Vault Access</h3>
-                <p class="text-white-50 small mt-2">Restricted Area: Additional Verification Required</p>
+    <div class="card shadow-lg border-0 payroll-card-hover" style="max-width: 460px; width: 100%; border-radius: 16px; overflow: hidden;">
+        
+        <!-- Header -->
+        <div class="card-header payroll-card-header text-white p-4 text-center border-0" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+            <div class="mb-3">
+                {% if is_locked %}
+                    <i class="fas fa-lock fa-3x mb-3 text-danger" style="animation: pulse 1.5s infinite;"></i>
+                {% else %}
+                    <i class="fas fa-shield-alt fa-3x mb-3 text-warning"></i>
+                {% endif %}
             </div>
-            <div class="card-body p-4 p-md-5">
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">Payroll Manager ID</label>
-                        <div class="input-group payroll-login-input">
-                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-user-shield text-muted"></i></span>
-                            <input type="text" name="payroll_id" class="form-control bg-light border-start-0 py-2" placeholder="Enter Payroll ID" required>
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">Access PIN / Password</label>
-                        <div class="input-group payroll-login-input">
-                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-key text-muted"></i></span>
-                            <input type="password" name="payroll_password" id="payrollPassword" class="form-control bg-light border-start-0 py-2" placeholder="••••••••" required>
-                            <button class="btn btn-light border" type="button" onclick="togglePayrollPassword()" style="border-radius: 0 8px 8px 0;">
-                                <i class="fas fa-eye text-muted" id="eyeIcon"></i>
-                            </button>
-                        </div>
-                    </div>
+            <h3 class="fw-bold mb-1">Payroll Vault Access</h3>
+            <p class="text-white-50 small mt-2 mb-0">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Restricted Area &mdash; Re-authentication Required
+            </p>
+        </div>
 
-                    <script>
-                        function togglePayrollPassword() {
-                            const passwordInput = document.getElementById('payrollPassword');
-                            const eyeIcon = document.getElementById('eyeIcon');
-                            if (passwordInput.type === 'password') {
-                                passwordInput.type = 'text';
-                                eyeIcon.classList.remove('fa-eye');
-                                eyeIcon.classList.add('fa-eye-slash');
-                            } else {
-                                passwordInput.type = 'password';
-                                eyeIcon.classList.remove('fa-eye-slash');
-                                eyeIcon.classList.add('fa-eye');
-                            }
-                        }
-                    </script>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-payroll-dark py-2 fw-bold">
-                            <i class="fas fa-unlock me-2 text-warning"></i> Unlock Payroll
-                        </button>
-                        <a href="{% url 'hr_dashboard' %}" class="btn btn-link text-muted text-decoration-none">
-                            <i class="fas fa-arrow-left me-1"></i> Return to Dashboard
-                        </a>
+        <!-- Body -->
+        <div class="card-body p-4 p-md-5">
+            <!-- Flash Messages -->
+            {% if messages %}
+            <div class="mb-3">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show py-2 px-3 rounded-3 border-0 shadow-sm smaller" role="alert">
+                    {% if 'error' in message.tags %}
+                        <i class="fas fa-times-circle me-1"></i>
+                    {% elif 'success' in message.tags %}
+                        <i class="fas fa-check-circle me-1"></i>
+                    {% elif 'warning' in message.tags %}
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                    {% else %}
+                        <i class="fas fa-info-circle me-1"></i>
+                    {% endif %}
+                    {{ message }}
+                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if is_locked %}
+            <!-- Lockout State -->
+            <div class="text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-user-lock fa-4x text-danger opacity-75"></i>
+                </div>
+                <h5 class="fw-bold text-danger">Access Temporarily Locked</h5>
+                <p class="text-muted smaller mb-3">Too many failed attempts. Please wait before trying again.</p>
+                <div class="bg-danger bg-opacity-10 rounded-3 p-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                        <i class="fas fa-clock text-danger"></i>
+                        <span class="fw-bold text-danger" id="lockoutTimer">--:--</span>
                     </div>
-                </form>
+                    <small class="text-muted">Time remaining until unlock</small>
+                </div>
+                <a href="{% url 'dashboard_redirect' %}" class="btn btn-outline-secondary rounded-pill px-4">
+                    <i class="fas fa-arrow-left me-1"></i> Return to Dashboard
+                </a>
             </div>
-            <div class="card-footer bg-light p-3 text-center border-0">
-                <small class="text-muted"><i class="fas fa-info-circle me-1"></i> For security, this access expires when your session ends.</small>
-            </div>
+
+            {{ remaining_seconds|default:0|json_script:"lockout-remaining-data" }}
+            <script>
+                (function() {
+                    const dataEl = document.getElementById('lockout-remaining-data');
+                    let remaining = dataEl ? parseInt(dataEl.textContent, 10) || 0 : 0;
+                    const timerEl = document.getElementById('lockoutTimer');
+                    function update() {
+                        if (remaining <= 0) {
+                            window.location.reload();
+                            return;
+                        }
+                        const min = Math.floor(remaining / 60);
+                        const sec = remaining % 60;
+                        if (timerEl) {
+                            timerEl.textContent = min.toString().padStart(2, '0') + ':' + sec.toString().padStart(2, '0');
+                        }
+                        remaining--;
+                        setTimeout(update, 1000);
+                    }
+                    update();
+                })();
+            </script>
+
+            {% else %}
+            <!-- Login Form -->
+            <form method="post" id="payrollLoginForm">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-uppercase text-muted" style="letter-spacing: 0.5px;">
+                        <i class="fas fa-user-shield me-1"></i> Vault Username
+                    </label>
+                    <div class="input-group payroll-login-input">
+                        <span class="input-group-text bg-light border-end-0" style="border-radius: 10px 0 0 10px;">
+                            <i class="fas fa-user text-muted"></i>
+                        </span>
+                        <input type="text" 
+                               name="payroll_username" 
+                               id="payrollUsername" 
+                               class="form-control bg-light border-start-0 py-2" 
+                               placeholder="Enter your Vault username" 
+                               required 
+                               autocomplete="username"
+                               autofocus
+                               style="border-radius: 0 10px 10px 0;">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold small text-uppercase text-muted" style="letter-spacing: 0.5px;">
+                        <i class="fas fa-key me-1"></i> Vault Password
+                    </label>
+                    <div class="input-group payroll-login-input">
+                        <span class="input-group-text bg-light border-end-0" style="border-radius: 10px 0 0 10px;">
+                            <i class="fas fa-lock text-muted"></i>
+                        </span>
+                        <input type="password" 
+                               name="payroll_password" 
+                               id="payrollPassword" 
+                               class="form-control bg-light border-start-0 py-2" 
+                               placeholder="Enter your Vault password" 
+                               required 
+                               autocomplete="current-password"
+                               style="border-radius: 0;">
+                        <button class="btn btn-light border" type="button" onclick="togglePayrollPassword()" style="border-radius: 0 10px 10px 0;">
+                            <i class="fas fa-eye text-muted" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                    <div class="form-text smaller mt-2">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Enter your separate Payroll Vault credentials.
+                    </div>
+                </div>
+
+                <script>
+                    function togglePayrollPassword() {
+                        const passwordInput = document.getElementById('payrollPassword');
+                        const eyeIcon = document.getElementById('eyeIcon');
+                        if (passwordInput.type === 'password') {
+                            passwordInput.type = 'text';
+                            eyeIcon.classList.remove('fa-eye');
+                            eyeIcon.classList.add('fa-eye-slash');
+                        } else {
+                            passwordInput.type = 'password';
+                            eyeIcon.classList.remove('fa-eye-slash');
+                            eyeIcon.classList.add('fa-eye');
+                        }
+                    }
+
+                    // Prevent double-submission
+                    document.getElementById('payrollLoginForm').addEventListener('submit', function(e) {
+                        const btn = this.querySelector('button[type="submit"]');
+                        if (btn.disabled) {
+                            e.preventDefault();
+                            return;
+                        }
+                        btn.disabled = true;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Verifying...';
+                    });
+                </script>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-payroll-dark py-2 fw-bold" style="border-radius: 10px;">
+                        <i class="fas fa-unlock me-2 text-warning"></i> Unlock Payroll Vault
+                    </button>
+                    <a href="{% url 'dashboard_redirect' %}" class="btn btn-link text-muted text-decoration-none smaller">
+                        <i class="fas fa-arrow-left me-1"></i> Return to Dashboard
+                    </a>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="card-footer bg-light p-3 text-center border-0">
+            <small class="text-muted">
+                <i class="fas fa-shield-alt me-1"></i>
+                This access expires when you log out or navigate away from payroll.
+            </small>
         </div>
     </div>
 </div>
-{% endblock %}
 
+<style>
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+</style>
+{% endblock %}

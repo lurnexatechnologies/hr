@@ -1,234 +1,474 @@
 {% extends "base.html" %}
 {% load employee_filters %}
 
-{% block title %}Employee Directory - Lurnexa{% endblock %}
+{% block title %}Employee Directory & Organization Hierarchy - Kyro People{% endblock %}
 {% block nav_employees %}active{% endblock %}
 
 {% block content %}
+<style>
+/* --- Connected Tree Diagram Styling --- */
+.org-tree-container {
+    width: 100%;
+    overflow-x: auto;
+    padding: 40px 24px;
+    background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+    border-radius: 24px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.04);
+}
+
+.tree-node-card {
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 16px 20px;
+    min-width: 230px;
+    max-width: 260px;
+    display: inline-block;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.08);
+    position: relative;
+    z-index: 2;
+}
+
+.tree-node-card:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 16px 32px rgba(99, 102, 241, 0.22);
+    border-color: #6366f1;
+}
+
+.tree-node-card.root-node {
+    border: 2px solid #6366f1;
+    background: linear-gradient(135deg, #ffffff 0%, #f4f3ff 100%);
+    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.15);
+}
+
+.tree-node-card.manager-node {
+    border-color: #a5b4fc;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.tree-node-card .avatar-box {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 auto 10px;
+    border: 3px solid #6366f1;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* CSS Vector Tree Hierarchy Lines */
+.tree, .tree ul, .tree li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+}
+
+.tree {
+    display: flex;
+    justify-content: center;
+}
+
+.tree ul {
+    display: flex;
+    justify-content: center;
+    padding-top: 25px;
+}
+
+.tree li {
+    float: left;
+    text-align: center;
+    list-style-type: none;
+    position: relative;
+    padding: 25px 12px 0 12px;
+    transition: all 0.3s;
+}
+
+/* Vertical Line down from parent */
+.tree li::before, .tree li::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 50%;
+    border-top: 2px solid #6366f1;
+    width: 50%;
+    height: 25px;
+}
+
+.tree li::after {
+    right: auto;
+    left: 50%;
+    border-left: 2px solid #6366f1;
+}
+
+.tree li:only-child::after, .tree li:only-child::before {
+    display: none;
+}
+
+.tree li:only-child {
+    padding-top: 0;
+}
+
+.tree li:first-child::before, .tree li:last-child::after {
+    border: 0 none;
+}
+
+.tree li:last-child::before {
+    border-right: 2px solid #6366f1;
+    border-radius: 0 10px 0 0;
+}
+
+.tree li:first-child::after {
+    border-radius: 10px 0 0 0;
+}
+
+/* Line down to children */
+.tree ul::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    border-left: 2px solid #6366f1;
+    width: 0;
+    height: 25px;
+}
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h2 class="page-title mb-1">Employee Directory</h2>
-        <p class="text-muted">Manage and view all team members here.</p>
+        <h2 class="page-title mb-1">Employee Directory & Organization Hierarchy</h2>
+        <p class="text-muted mb-0">Department-wise split and dynamic top-to-bottom reporting tree diagram.</p>
     </div>
-    {% if request.user.role == 'HR ADMIN' %}
+    {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
     <div class="d-flex gap-2">
         <a href="{% url 'ex_employee_directory' %}" class="btn btn-outline-secondary shadow-sm rounded-3"><i class="fa-solid fa-user-xmark me-2"></i> Ex-Employees</a>
-        <a href="{% url 'add_employee' %}" class="btn btn-primary shadow-sm rounded-3"><i class="fa-solid fa-user-plus me-2"></i> Add Employee</a>
+        <a href="{% url 'add_employee' %}" class="btn btn-indigo shadow-sm rounded-3"><i class="fa-solid fa-user-plus me-2"></i> Add Employee</a>
     </div>
     {% endif %}
 </div>
 
-<div class="card h-100">
-    <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-3">
-        <form method="GET" action="{% url 'employee_directory' %}" class="row g-3 w-100 mx-0 align-items-center">
-            <div class="col-12 col-md-6 position-relative px-0 pe-md-2 mb-3 mb-md-0">
-                <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
-                <input type="text" name="q" class="form-control ps-5 shadow-sm rounded-pill border-0 bg-light" 
-                    placeholder="Search by name, ID or department..." value="{{ query|default:'' }}" style="padding-left: 45px !important;">
+<!-- Search & Nav Tabs Bar -->
+<div class="card border-0 shadow-sm mb-4" style="border-radius: 18px;">
+    <div class="card-body p-3">
+        <div class="row g-3 align-items-center">
+            <!-- Nav Tabs -->
+            <div class="col-lg-6">
+                <ul class="nav nav-pills" id="directoryTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold py-2 px-3" id="list-tab" data-bs-toggle="tab" data-bs-target="#listView" type="button" role="tab">
+                            <i class="fa-solid fa-list me-2"></i> All Employees ({{ total_count }})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold py-2 px-3" id="tree-tab" data-bs-toggle="tab" data-bs-target="#treeView" type="button" role="tab">
+                            <i class="fa-solid fa-diagram-nested me-2"></i> Visual Org Tree Diagram
+                        </button>
+                    </li>
+                </ul>
             </div>
-
-            <div class="col-6 col-md-3 px-0 pe-1 ps-md-2 pe-md-2">
-                <select name="dept" class="form-select form-select-sm shadow-sm rounded-pill border-0 bg-light px-3 py-2" onchange="this.form.submit()">
-                    <option value="">All Departments</option>
-                    {% for d in departments %}
-                    <option value="{{ d }}" {% if selected_dept == d %}selected{% endif %}>{{ d }}</option>
-                    {% endfor %}
-                </select>
+            
+            <!-- Filters & Search -->
+            <div class="col-lg-6">
+                <form method="GET" action="{% url 'employee_directory' %}" class="row g-2 align-items-center">
+                    <div class="col-md-6 position-relative">
+                        <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                        <input type="text" name="q" class="form-control ps-5 shadow-sm rounded-pill border-0 bg-light" 
+                            placeholder="Search name, ID, designation..." value="{{ query|default:'' }}" style="padding-left: 45px !important;">
+                    </div>
+                    <div class="col-md-6">
+                        <select name="dept" class="form-select shadow-sm rounded-pill border-0 bg-light" onchange="this.form.submit()">
+                            <option value="">All Departments</option>
+                            {% for d in departments %}
+                            <option value="{{ d }}" {% if selected_dept == d %}selected{% endif %}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
             </div>
-            <div class="col-6 col-md-3 px-0 ps-1 ps-md-2 pe-md-2">
-                <select name="role" class="form-select form-select-sm shadow-sm rounded-pill border-0 bg-light px-3 py-2" onchange="this.form.submit()">
-                    <option value="">All Roles</option>
-                    {% for r in roles %}
-                    <option value="{{ r }}" {% if selected_role == r %}selected{% endif %}>{{ r }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </form>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light text-muted" style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">
-                    <tr>
-                        <th class="ps-4 border-0 py-3">Employee</th>
-                        <th class="border-0 py-3">ID</th>
-                        <th class="border-0 py-3">Department</th>
-                        <th class="border-0 py-3">Role</th>
-                        <th class="border-0 py-3">Status</th>
-                        {% if request.user.role == 'HR ADMIN' %}
-                        <th class="pe-4 border-0 py-3 text-end">Account Control</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for emp in employees %}
-                    <tr>
-                        <td class="ps-4 py-3" style="cursor: pointer;" title="View Profile">
-                            <a href="{% url 'employee_profile' emp.EmployeeID %}" class="text-decoration-none text-dark d-block">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar shadow-sm me-3 overflow-hidden" style="width: 45px; height: 45px; background: rgba(26, 79, 139, 0.1); color: var(--brand-color); display: flex; align-items: center; justify-content: center;">
-                                        {% if emp.PassportPhoto %}
-                                            <img src="{% if emp.PassportPhoto|slice:':4' == 'http' %}{{ emp.PassportPhoto }}{% else %}/media/{{ emp.PassportPhoto }}{% endif %}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
-                                        {% else %}
-                                            {{ emp.FirstName|make_list|first|default:"E" }}
-                                        {% endif %}
-                                    </div>
-                                    <div>
-                                        <h6 class="mb-0 fw-bold">{{ emp.FirstName }} {{ emp.LastName }}</h6>
-                                        <small class="text-muted">{{ emp.Email }}</small>
-                                    </div>
-                                </div>
-                            </a>
-                        </td>
-                        <td class="text-muted">{{ emp.EmployeeID }}</td>
-                        <td class="text-muted">{{ emp.Department|default:"-" }}</td>
-                        <td class="text-muted">
-                            <div class="fw-bold text-dark">{{ emp.Designation|default:"-" }}</div>
-                            <div class="d-flex align-items-center gap-2 mt-1">
-                                <div class="smaller text-primary fw-bold" style="font-size: 0.75rem;">{{ emp.JoinedDate|calculate_tenure }}</div>
-                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1" style="font-size: 0.7rem;">
-                                    <i class="fa-solid {% if emp.Shift == 'Night Shift' %}fa-moon{% else %}fa-sun{% endif %} me-1"></i>{{ emp.Shift|default:"Day Shift" }}
-                                </span>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                {% if emp.EmploymentType == 'Intern' %}
-                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-3">Intern</span>
-                                {% elif emp.EmploymentStatus == 'Probation' %}
-                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 rounded-pill px-3">Probation</span>
-                                {% else %}
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3">Full Time</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        {% if request.user.role == 'HR ADMIN' %}
-                        <td class="pe-4 text-end">
-                            {% if emp.EmployeeID != request.user.employee_id %}
-                                {% if emp.IsActive %}
-                                    <a href="{% url 'toggle_active_status' emp.EmployeeID %}" 
-                                       data-name="{{ emp.FirstName }} {{ emp.LastName }}" 
-                                       data-id="{{ emp.EmployeeID }}"
-                                       class="btn btn-sm btn-outline-warning rounded-pill px-3 py-1 d-inline-flex align-items-center gap-2 btn-inactivate" 
-                                       style="font-size: 0.7rem; font-weight: 700; min-width: 110px; justify-content: center;">
-                                        <i class="fa-solid fa-user-slash"></i> Inactivate
-                                    </a>
-                                {% else %}
-                                    <div class="d-flex gap-2">
-                                        <a href="{% url 'toggle_active_status' emp.EmployeeID %}" 
-                                           data-name="{{ emp.FirstName }} {{ emp.LastName }}" 
-                                           data-id="{{ emp.EmployeeID }}"
-                                           class="btn btn-sm btn-success rounded-pill px-3 py-1 d-inline-flex align-items-center gap-2 btn-activate" 
-                                           style="font-size: 0.7rem; font-weight: 700; min-width: 110px; justify-content: center;">
-                                            <i class="fa-solid fa-user-check"></i> Activate
-                                        </a>
-                                        <a href="{% url 'move_to_ex_employee' emp.EmployeeID %}" 
-                                           data-name="{{ emp.FirstName }} {{ emp.LastName }}" 
-                                           data-id="{{ emp.EmployeeID }}"
-                                           class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1 d-inline-flex align-items-center gap-2 btn-move-ex" 
-                                           style="font-size: 0.7rem; font-weight: 700; min-width: 150px; justify-content: center;">
-                                            <i class="fa-solid fa-user-xmark"></i> Move to Ex-Employee
-                                        </a>
-                                    </div>
-                                {% endif %}
-                            {% else %}
-                                <span class="text-muted small">--</span>
-                            {% endif %}
-                        </td>
-                        {% endif %}
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">
-                            <i class="fa-solid fa-folder-open mb-3" style="font-size: 2rem;"></i><br>
-                            No employees found.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
         </div>
-    </div>
-    <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center text-muted small">
-        <span>Showing {{ employees.start_index }} - {{ employees.end_index }} out of {{ total_count }} entries</span>
-        <nav>
-            <ul class="pagination pagination-sm mb-0">
-                {% if employees.has_previous %}
-                    <li class="page-item"><a class="page-link" href="?page={{ employees.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% for f in selected_filters %}&f={{ f }}{% endfor %}">Previous</a></li>
-                {% else %}
-                    <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                {% endif %}
-                
-                <li class="page-item active"><a class="page-link" href="#">{{ employees.number }}</a></li>
-                
-                {% if employees.has_next %}
-                    <li class="page-item"><a class="page-link" href="?page={{ employees.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% for f in selected_filters %}&f={{ f }}{% endfor %}">Next</a></li>
-                {% else %}
-                    <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
-                {% endif %}
-            </ul>
-        </nav>
     </div>
 </div>
 
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Inactivate handler
-    const inactivateBtns = document.querySelectorAll('.btn-inactivate');
-    inactivateBtns.forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const href = this.getAttribute('href');
-            const empName = this.getAttribute('data-name');
-            const empId = this.getAttribute('data-id');
-            Lurnexa.confirm({
-                title: 'Confirm Inactivation',
-                message: `Are you sure you want to make employee ${empName} (${empId}) inactive?`,
-                onConfirm: function() {
-                    window.location.href = href;
-                }
-            });
-        });
-    });
+<!-- Tab Content Views -->
+<div class="tab-content" id="directoryTabContent">
 
-    // Activate handler
-    const activateBtns = document.querySelectorAll('.btn-activate');
-    activateBtns.forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const href = this.getAttribute('href');
-            const empName = this.getAttribute('data-name');
-            const empId = this.getAttribute('data-id');
-            Lurnexa.confirm({
-                title: 'Confirm Activation',
-                message: `Are you sure you want to activate employee ${empName} (${empId})?`,
-                onConfirm: function() {
-                    window.location.href = href;
-                }
-            });
-        });
-    });
+    <!-- TAB 1: All Employees Table View -->
+    <div class="tab-pane fade show active" id="listView" role="tabpanel">
+        <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px;">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted" style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">
+                        <tr>
+                            <th class="ps-4 border-0 py-3">Employee</th>
+                            <th class="border-0 py-3">ID</th>
+                            <th class="border-0 py-3">Department</th>
+                            <th class="border-0 py-3">Designation</th>
+                            <th class="border-0 py-3">Role</th>
+                            <th class="pe-4 border-0 py-3 text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in employees %}
+                        <tr>
+                            <td class="ps-4 py-3">
+                                <a href="{% url 'employee_profile' emp.EmployeeID %}" class="text-decoration-none text-dark d-block">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar shadow-sm me-3 overflow-hidden rounded-circle" style="width: 40px; height: 40px; background: rgba(99, 102, 241, 0.1);">
+                                            {% if emp.PassportPhoto %}
+                                                <img src="{% if emp.PassportPhoto|slice:':4' == 'http' %}{{ emp.PassportPhoto }}{% else %}/media/{{ emp.PassportPhoto }}{% endif %}" style="width: 100%; height: 100%; object-fit: cover;">
+                                            {% else %}
+                                                <div class="w-100 h-100 bg-indigo text-white d-flex align-items-center justify-content-center fw-bold">
+                                                    {{ emp.FirstName|make_list|first|default:"E" }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-0 fw-bold">{{ emp.FirstName }} {{ emp.LastName }}</h6>
+                                            <small class="text-muted">{{ emp.Email }}</small>
+                                        </div>
+                                    </div>
+                                </a>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ emp.EmployeeID }}</span></td>
+                            <td><span class="fw-semibold text-indigo">{{ emp.Department|default:"General" }}</span></td>
+                            <td>{{ emp.Designation|default:"Staff" }}</td>
+                            <td><span class="badge bg-indigo-soft text-indigo">{{ emp.SystemRole|default:"Employee" }}</span></td>
+                            <td class="pe-4 text-end" id="action-cell-{{ emp.EmployeeID }}">
+                                {% if emp.EmployeeID == request.user.employee_id or emp.SystemRole == 'Super admin' %}
+                                    <a href="{% url 'employee_profile' emp.EmployeeID %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">View Profile</a>
+                                {% else %}
+                                    {% if emp.IsActive %}
+                                        <button onclick="openToggleActiveModal('{{ emp.EmployeeID }}', '{{ emp.FirstName|escapejs }} {{ emp.LastName|escapejs }}', true)" class="btn btn-sm btn-outline-danger rounded-pill px-3 toggle-btn-{{ emp.EmployeeID }}"><i class="fa-solid fa-user-slash me-1"></i> Deactivate</button>
+                                    {% else %}
+                                        <button onclick="openToggleActiveModal('{{ emp.EmployeeID }}', '{{ emp.FirstName|escapejs }} {{ emp.LastName|escapejs }}', false)" class="btn btn-sm btn-outline-success rounded-pill px-3 toggle-btn-{{ emp.EmployeeID }}"><i class="fa-solid fa-user-check me-1"></i> Activate</button>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">No employees found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    // Move to Ex-Employee handler
-    const moveExBtns = document.querySelectorAll('.btn-move-ex');
-    moveExBtns.forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const href = this.getAttribute('href');
-            const empName = this.getAttribute('data-name');
-            const empId = this.getAttribute('data-id');
-            Lurnexa.confirm({
-                title: 'Confirm Move to Ex-Employee',
-                message: `Are you sure you want to move employee ${empName} (${empId}) to Ex-Employees? This will set their Last Working Date to today and remove them from the active list.`,
-                onConfirm: function() {
-                    window.location.href = href;
-                }
-            });
-        });
-    });
-});
+    <!-- TAB 2: Dynamic Connected Visual Org Chart Tree Diagram -->
+    <div class="tab-pane fade" id="treeView" role="tabpanel">
+        <div class="card border-0 shadow-sm p-4" style="border-radius: 20px;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="fw-bold text-indigo mb-0"><i class="fa-solid fa-diagram-nested me-2"></i> Dynamic Reporting Hierarchy Tree Diagram</h5>
+                <span class="badge bg-indigo-soft text-indigo px-3 py-2 fs-6"><i class="fa-solid fa-link me-1"></i> Auto-Generated from Reporting Manager Records</span>
+            </div>
+            
+            <div class="org-tree-container">
+                <div class="tree text-center" id="orgTreeRoot">
+                    <!-- Dynamic Tree Nodes Rendered Here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script type="application/json" id="orgTreeDataJson">
+    {{ org_tree_json|default:'[]'|safe }}
 </script>
-{% endblock %}
 
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    let rawData = [];
+    try {
+        const jsonText = document.getElementById('orgTreeDataJson').textContent;
+        rawData = JSON.parse(jsonText || '[]');
+    } catch(e) {
+        rawData = [];
+    }
+    const treeContainer = document.getElementById('orgTreeRoot');
+
+    function renderNodeHTML(node, isRoot = false) {
+        let avatarHTML = node.photo ? 
+            `<img src="${node.photo}" style="width:100%; height:100%; object-fit:cover;">` : 
+            `<div class="w-100 h-100 bg-indigo text-white d-flex align-items-center justify-content-center fw-bold fs-5">${node.name.charAt(0)}</div>`;
+
+        let cardClass = isRoot ? 'tree-node-card root-node' : (node.children && node.children.length > 0 ? 'tree-node-card manager-node' : 'tree-node-card');
+        
+        let roleBadge = '';
+        if (isRoot) {
+            roleBadge = '<span class="badge bg-gradient-warning text-dark fw-bold mb-1 shadow-sm"><i class="fa-solid fa-crown me-1"></i> Super Admin / CEO</span>';
+        } else if (node.role === 'HR ADMIN') {
+            roleBadge = `<span class="badge bg-success-soft text-success fw-bold mb-1"><i class="fa-solid fa-user-shield me-1"></i> ${node.department || 'HR ADMIN'}</span>`;
+        } else if (node.role === 'Manager' || (node.children && node.children.length > 0)) {
+            roleBadge = `<span class="badge bg-indigo-soft text-indigo fw-bold mb-1"><i class="fa-solid fa-user-tie me-1"></i> ${node.department || 'Manager'}</span>`;
+        } else {
+            roleBadge = `<span class="badge bg-light text-secondary border mb-1">${node.department || 'Staff'}</span>`;
+        }
+
+        let indBadge = `<div class="mb-2"><span class="badge bg-light text-dark border-0 shadow-sm" style="font-size: 0.7rem;"><i class="bi ${node.industry_icon || 'bi-building'} me-1 text-indigo"></i> ${node.industry_name || 'Industry Profile'}</span></div>`;
+        
+        let directReportsBadge = (node.children && node.children.length > 0) ? 
+            `<div class="mt-2"><span class="badge bg-indigo text-white rounded-pill px-2 py-1" style="font-size:0.68rem;"><i class="fa-solid fa-users me-1"></i> ${node.children.length} Direct Report${node.children.length > 1 ? 's' : ''}</span></div>` : '';
+
+        let html = `
+            <li>
+                <div class="${cardClass}">
+                    ${roleBadge}
+                    ${indBadge}
+                    <div class="avatar-box shadow-sm">${avatarHTML}</div>
+                    <h6 class="fw-bold mb-1 text-dark">${node.name}</h6>
+                    <div class="text-indigo fw-bold small text-truncate mb-1">${node.designation}</div>
+                    <a href="/employees/profile/${node.id}/" class="btn btn-xs btn-outline-indigo rounded-pill px-3 py-1 fw-semibold" style="font-size: 0.75rem;">View Profile</a>
+                    ${directReportsBadge}
+                </div>
+        `;
+
+        if (node.children && node.children.length > 0) {
+            html += `<ul>`;
+            node.children.forEach(child => {
+                html += renderNodeHTML(child, false);
+            });
+            html += `</ul>`;
+        }
+
+        html += `</li>`;
+        return html;
+    }
+
+    if (rawData && rawData.length > 0) {
+        let rootHTML = `<ul>`;
+        rawData.forEach(rootNode => {
+            rootHTML += renderNodeHTML(rootNode, true);
+        });
+        rootHTML += `</ul>`;
+        treeContainer.innerHTML = rootHTML;
+    } else {
+        treeContainer.innerHTML = `<div class="p-4 text-muted">No reporting structure nodes available to build tree.</div>`;
+    }
+});
+
+let currentToggleEmpId = null;
+let currentToggleIsActive = false;
+let currentToggleEmpName = '';
+
+function openToggleActiveModal(empId, empName, isActive) {
+    currentToggleEmpId = empId;
+    currentToggleIsActive = isActive;
+    currentToggleEmpName = empName;
+
+    const modalTitle = document.getElementById('toggleModalTitle');
+    const modalBody = document.getElementById('toggleModalBodyText');
+    const confirmBtn = document.getElementById('confirmToggleBtn');
+    const modalHeaderIcon = document.getElementById('toggleModalIcon');
+
+    if (isActive) {
+        modalTitle.innerText = "Deactivate Employee Profile";
+        modalHeaderIcon.className = "fa-solid fa-triangle-exclamation text-danger fs-1 mb-3";
+        modalBody.innerHTML = `Are you sure you want to deactivate <strong class="text-dark">${empName}</strong>? <br><small class="text-muted">The employee will be restricted from logging into the platform until reactivated.</small>`;
+        confirmBtn.className = "btn btn-danger px-4 rounded-pill fw-bold";
+        confirmBtn.innerText = "Deactivate Now";
+    } else {
+        modalTitle.innerText = "Reactivate Employee Profile";
+        modalHeaderIcon.className = "fa-solid fa-circle-check text-success fs-1 mb-3";
+        modalBody.innerHTML = `Reactivate access for <strong class="text-dark">${empName}</strong>? <br><small class="text-muted">The employee will regain full system access immediately.</small>`;
+        confirmBtn.className = "btn btn-success px-4 rounded-pill fw-bold";
+        confirmBtn.innerText = "Reactivate Now";
+    }
+
+    const modalEl = document.getElementById('toggleActiveModal');
+    const bsModal = new bootstrap.Modal(modalEl);
+    bsModal.show();
+}
+
+function executeToggleActive() {
+    if (!currentToggleEmpId) return;
+
+    const confirmBtn = document.getElementById('confirmToggleBtn');
+    const originalText = confirmBtn.innerText;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Updating...`;
+
+    fetch(`/employees/toggle-active/${currentToggleEmpId}/?ajax=1`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = originalText;
+
+        const modalEl = document.getElementById('toggleActiveModal');
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+
+        if (data.success) {
+            const cell = document.getElementById(`action-cell-${currentToggleEmpId}`);
+            if (cell) {
+                const newIsActive = data.is_active;
+                const safeName = currentToggleEmpName.replace(/'/g, "\\'");
+                if (newIsActive) {
+                    cell.innerHTML = `<button onclick="openToggleActiveModal('${currentToggleEmpId}', '${safeName}', true)" class="btn btn-sm btn-outline-danger rounded-pill px-3 toggle-btn-${currentToggleEmpId}"><i class="fa-solid fa-user-slash me-1"></i> Deactivate</button>`;
+                } else {
+                    cell.innerHTML = `<button onclick="openToggleActiveModal('${currentToggleEmpId}', '${safeName}', false)" class="btn btn-sm btn-outline-success rounded-pill px-3 toggle-btn-${currentToggleEmpId}"><i class="fa-solid fa-user-check me-1"></i> Activate</button>`;
+                }
+            }
+
+            // Realtime Toast Alert
+            showToastAlert(data.message, 'success');
+        } else {
+            showToastAlert(data.message || 'Error updating status.', 'danger');
+        }
+    })
+    .catch(err => {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = originalText;
+        showToastAlert('Communication error. Please try again.', 'danger');
+    });
+}
+
+function showToastAlert(msg, type) {
+    const toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) return;
+    const toastId = 'toast-' + Date.now();
+    const alertHTML = `
+        <div id="${toastId}" class="toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0 shadow-lg mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="border-radius: 12px;">
+            <div class="d-flex">
+                <div class="toast-body fw-semibold">
+                    <i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'} me-2"></i> ${msg}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    toastContainer.insertAdjacentHTML('beforeend', alertHTML);
+    const toastEl = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+    toast.show();
+}
+</script>
+
+<!-- Realtime Bootstrap Modal for Employee Status Toggle -->
+<div class="modal fade" id="toggleActiveModal" tabindex="-1" aria-labelledby="toggleModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 24px;">
+            <div class="modal-body text-center p-4 p-md-5">
+                <i id="toggleModalIcon" class="fa-solid fa-triangle-exclamation text-danger fs-1 mb-3"></i>
+                <h4 class="fw-bold mb-2" id="toggleModalTitle">Deactivate Employee Profile</h4>
+                <p class="text-secondary fs-6 mb-4" id="toggleModalBodyText">Are you sure you want to change this employee's active status?</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <button type="button" class="btn btn-light px-4 rounded-pill fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="confirmToggleBtn" onclick="executeToggleActive()" class="btn btn-danger px-4 rounded-pill fw-bold">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Floating Toast Container for Realtime Notifications -->
+<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;"></div>
 {% endblock %}

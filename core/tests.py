@@ -401,17 +401,18 @@ class BusinessLogicTestSuite(TestCase):
             
         self.set_session_data({'user_id': 'mock-super-admin-id-unique'})
         
-        # 1. Super Admin sets custom payroll generation date to today
-        today_str = datetime.date.today().isoformat()
+        # 1. Super Admin sets custom payroll generation date to today's day of month
+        today_day = datetime.date.today().day
+        today_day_str = str(today_day)
         response = self.client.post('/payroll/approvals/set-generation-date/', {
-            'generation_date': today_str
+            'generation_date': today_day_str
         }, follow=True)
         self.assertEqual(response.status_code, 200)
         
         # Verify it is in the database
         setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
         self.assertIsNotNone(setting)
-        self.assertEqual(setting.get('Value'), today_str)
+        self.assertEqual(setting.get('Value'), today_day_str)
 
         # Create fresh HR Admin user
         hr_user = {
@@ -433,13 +434,13 @@ class BusinessLogicTestSuite(TestCase):
             'selected_employees': ['LT-26004']
         }, follow=True)
         messages = self.get_msg_texts(response)
-        self.assertFalse(any("date set by Super Admin" in m or "30th of the month" in m for m in messages))
+        self.assertFalse(any("Payroll Run Failed" in m for m in messages))
 
-        # 2. Super Admin sets custom payroll generation date to a different date (e.g. tomorrow)
+        # 2. Super Admin sets custom payroll generation date to a different day (e.g. tomorrow's day)
         self.set_session_data({'user_id': super_user['UserID']})
-        tomorrow_str = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+        other_day_str = str((today_day % 28) + 1)
         self.client.post('/payroll/approvals/set-generation-date/', {
-            'generation_date': tomorrow_str
+            'generation_date': other_day_str
         }, follow=True)
 
         # HR Admin attempts to run payroll on a non-configured date
@@ -451,7 +452,7 @@ class BusinessLogicTestSuite(TestCase):
             'selected_employees': ['LT-26004']
         }, follow=True)
         messages = self.get_msg_texts(response)
-        self.assertTrue(any("Payroll Run Failed: Today is" in m and "Payroll can only be executed on the date set by Super Admin" in m for m in messages), f"Messages: {messages}")
+        self.assertTrue(any("Payroll Run Failed: Today is" in m and "Payroll can only be executed" in m for m in messages), f"Messages: {messages}")
 
         # 3. Super Admin clears the custom payroll generation date
         self.set_session_data({'user_id': super_user['UserID']})

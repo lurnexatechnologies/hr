@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Notifications - Lurnexa{% endblock %}
+{% block title %}Notifications - Kyro People{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -10,7 +10,7 @@
                 <h4 class="fw-bold mb-0">Notifications</h4>
                 <div class="d-flex gap-2">
                     <button class="btn btn-light btn-sm px-3" style="border-radius: 8px;" onclick="markAllNotificationsAsRead(event)">Mark all as read</button>
-                    <form action="{% url 'clear_notifications' %}" method="POST" onsubmit="event.preventDefault(); const form = this; Lurnexa.confirm({title: 'Clear All Notifications', message: 'Are you sure you want to clear all notifications permanently?', onConfirm: () => form.submit()}); return false;">
+                    <form action="{% url 'clear_notifications' %}" method="POST" onsubmit="event.preventDefault(); const form = this; KyroPeople.confirm({title: 'Clear All Notifications', message: 'Are you sure you want to clear all notifications permanently?', onConfirm: () => form.submit()}); return false;">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline-danger btn-sm px-3" style="border-radius: 8px;">
                             <i class="fa-solid fa-trash-can me-2"></i> Clear All
@@ -39,7 +39,7 @@
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                                 <li><a class="dropdown-item py-2 small" href="{% url 'notification_detail' n.Timestamp %}"><i class="fa-regular fa-eye me-2"></i> View Details</a></li>
-                                <li><a class="dropdown-item py-2 small text-danger" href="{% url 'delete_notification' n.Timestamp %}" onclick="event.preventDefault(); const url = this.href; Lurnexa.confirm({title: 'Delete Notification', message: 'Are you sure you want to delete this notification?', onConfirm: () => window.location.href = url});"><i class="fa-regular fa-trash-can me-2"></i> Delete</a></li>
+                                <li><a class="dropdown-item py-2 small text-danger" href="{% url 'delete_notification' n.Timestamp %}" onclick="event.preventDefault(); const url = this.href; KyroPeople.confirm({title: 'Delete Notification', message: 'Are you sure you want to delete this notification?', onConfirm: () => window.location.href = url});"><i class="fa-regular fa-trash-can me-2"></i> Delete</a></li>
                             </ul>
                         </div>
                     </div>
@@ -72,7 +72,7 @@ document.getElementById('load-more-btn')?.addEventListener('click', function() {
         .then(response => response.json())
         .then(data => {
             if (data.error) {
-                Lurnexa.alert('Error loading notifications: ' + data.error, 'Error');
+                KyroPeople.alert('Error loading notifications: ' + data.error, 'Error');
                 return;
             }
             
@@ -95,7 +95,7 @@ document.getElementById('load-more-btn')?.addEventListener('click', function() {
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                                 <li><a class="dropdown-item py-2 small" href="/core/notifications/detail/${encodeURIComponent(n.Timestamp)}/"><i class="fa-regular fa-eye me-2"></i> View Details</a></li>
-                                <li><a class="dropdown-item py-2 small text-danger" href="/core/notifications/delete/${encodeURIComponent(n.Timestamp)}/" onclick="event.preventDefault(); const url = this.href; Lurnexa.confirm({title: 'Delete Notification', message: 'Are you sure you want to delete this notification?', onConfirm: () => window.location.href = url});"><i class="fa-regular fa-trash-can me-2"></i> Delete</a></li>
+                                <li><a class="dropdown-item py-2 small text-danger" href="/core/notifications/delete/${encodeURIComponent(n.Timestamp)}/" onclick="event.preventDefault(); const url = this.href; KyroPeople.confirm({title: 'Delete Notification', message: 'Are you sure you want to delete this notification?', onConfirm: () => window.location.href = url});"><i class="fa-regular fa-trash-can me-2"></i> Delete</a></li>
                             </ul>
                         </div>
                     </div>

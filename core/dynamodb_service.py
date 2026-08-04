@@ -70,7 +70,22 @@ class TableService:
     def _get_table(self):
         return get_dynamodb_resource().Table(self.table_name)
 
+    def _execute_with_retry(self, operation):
+        try:
+            return operation()
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+                logger.warning(f"Table {self.table_name} does not exist. Auto-initializing DynamoDB tables...")
+                try:
+                    initialize_dynamodb_tables()
+                except Exception as init_err:
+                    logger.error(f"Error during auto-initialization of tables: {init_err}")
+                return operation()
+            raise e
+
     def put_item(self, item):
+        from core.utils import convert_floats_to_decimals
+        item = convert_floats_to_decimals(item)
         if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             org_id = None
             try:
@@ -83,11 +98,12 @@ class TableService:
                 pass
             if org_id and 'OrgID' not in item:
                 item['OrgID'] = org_id
-        return self._get_table().put_item(Item=item)
+        return self._execute_with_retry(lambda: self._get_table().put_item(Item=item))
 
     def get_item(self, key):
-        item = self._get_table().get_item(Key=key).get('Item')
-        if item and self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+        res = self._execute_with_retry(lambda: self._get_table().get_item(Key=key))
+        item = res.get('Item') if isinstance(res, dict) else None
+        if item and self.table_name not in ['Lurnexa_Users', 'Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             org_id = None
             is_plat_admin = False
             try:
@@ -109,14 +125,17 @@ class TableService:
         return item
 
     def delete_item(self, key):
-        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+        if self.table_name not in ['Lurnexa_Users', 'Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             item = self.get_item(key)
             if item is None:
                 return None
-        return self._get_table().delete_item(Key=key)
+        return self._execute_with_retry(lambda: self._get_table().delete_item(Key=key))
         
     def update_item(self, **kwargs):
-        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+        from core.utils import convert_floats_to_decimals
+        if 'ExpressionAttributeValues' in kwargs and kwargs['ExpressionAttributeValues']:
+            kwargs['ExpressionAttributeValues'] = convert_floats_to_decimals(kwargs['ExpressionAttributeValues'])
+        if self.table_name not in ['Lurnexa_Users', 'Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             key = kwargs.get('Key')
             if key:
                 item = self.get_item(key)
@@ -125,10 +144,10 @@ class TableService:
                         {'Error': {'Code': 'ConditionalCheckFailedException', 'Message': 'Access Denied: Tenant Isolation Violation'}},
                         'UpdateItem'
                     )
-        return self._get_table().update_item(**kwargs)
+        return self._execute_with_retry(lambda: self._get_table().update_item(**kwargs))
 
     def _apply_tenant_isolation(self, kwargs):
-        if self.table_name in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+        if self.table_name in ['Lurnexa_Users', 'Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             return kwargs
 
         org_id = None
@@ -161,7 +180,12 @@ class TableService:
         kwargs = self._apply_tenant_isolation(kwargs)
         table = self._get_table()
         limit = kwargs.get('Limit')
-        response = table.query(**kwargs)
+        try:
+            response = self._execute_with_retry(lambda: table.query(**kwargs))
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+                return []
+            raise e
         items = response.get('Items', [])
         
         while 'LastEvaluatedKey' in response:
@@ -170,10 +194,10 @@ class TableService:
             kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
             if limit:
                 kwargs['Limit'] = limit - len(items)
-            response = table.query(**kwargs)
+            response = self._execute_with_retry(lambda: table.query(**kwargs))
             items.extend(response.get('Items', []))
 
-        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+        if self.table_name not in ['Lurnexa_Users', 'Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             if is_organization_context():
                 items = [item for item in items if not is_platform_admin_item(item)]
         return items
@@ -182,7 +206,12 @@ class TableService:
         kwargs = self._apply_tenant_isolation(kwargs)
         table = self._get_table()
         limit = kwargs.get('Limit')
-        response = table.scan(**kwargs)
+        try:
+            response = self._execute_with_retry(lambda: table.scan(**kwargs))
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+                return []
+            raise e
         items = response.get('Items', [])
         
         while 'LastEvaluatedKey' in response:
@@ -191,10 +220,10 @@ class TableService:
             kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
             if limit:
                 kwargs['Limit'] = limit - len(items)
-            response = table.scan(**kwargs)
+            response = self._execute_with_retry(lambda: table.scan(**kwargs))
             items.extend(response.get('Items', []))
 
-        if self.table_name not in ['Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
+        if self.table_name not in ['Lurnexa_Users', 'Lurnexa_Organizations', 'Lurnexa_Subscriptions']:
             if is_organization_context():
                 items = [item for item in items if not is_platform_admin_item(item)]
         return items
@@ -240,12 +269,31 @@ FeedbackReviewAssignmentsTable = TableService('Lurnexa_FeedbackReviewAssignments
 FeedbackReviewResponsesTable = TableService('Lurnexa_FeedbackReviewResponses')
 FeedbackDevelopmentPlansTable = TableService('Lurnexa_FeedbackDevelopmentPlans')
 FeedbackAuditLogsTable = TableService('Lurnexa_FeedbackAuditLogs')
+SalesLiveLocationTable = TableService('Lurnexa_SalesLiveLocation')
+SalesLocationHistoryTable = TableService('Lurnexa_SalesLocationHistory')
+ShiftRostersTable = TableService('Lurnexa_ShiftRosters')
+ShiftSwapsTable = TableService('Lurnexa_ShiftSwaps')
+TicketsTable = TableService('Lurnexa_Tickets')
+TicketCommentsTable = TableService('Lurnexa_TicketComments')
 
 def initialize_dynamodb_tables():
     """
     Helper function to create all required DynamoDB tables.
     """
     tables_to_create = [
+        {
+            'TableName': 'Lurnexa_SalesLiveLocation',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'EmployeeID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_SalesLocationHistory',
+            'KeySchema': [{'AttributeName': 'EmployeeID', 'KeyType': 'HASH'}, {'AttributeName': 'Timestamp', 'KeyType': 'RANGE'}],
+            'AttributeDefinitions': [
+                {'AttributeName': 'EmployeeID', 'AttributeType': 'S'},
+                {'AttributeName': 'Timestamp', 'AttributeType': 'S'}
+            ],
+        },
         {
             'TableName': 'Lurnexa_Roles',
             'KeySchema': [{'AttributeName': 'OrgID', 'KeyType': 'HASH'}, {'AttributeName': 'RoleID', 'KeyType': 'RANGE'}],
@@ -530,6 +578,26 @@ def initialize_dynamodb_tables():
             'TableName': 'Lurnexa_FeedbackAuditLogs',
             'KeySchema': [{'AttributeName': 'LogID', 'KeyType': 'HASH'}],
             'AttributeDefinitions': [{'AttributeName': 'LogID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_ShiftRosters',
+            'KeySchema': [{'AttributeName': 'RosterID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'RosterID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_ShiftSwaps',
+            'KeySchema': [{'AttributeName': 'SwapID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'SwapID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_Tickets',
+            'KeySchema': [{'AttributeName': 'TicketID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'TicketID', 'AttributeType': 'S'}],
+        },
+        {
+            'TableName': 'Lurnexa_TicketComments',
+            'KeySchema': [{'AttributeName': 'CommentID', 'KeyType': 'HASH'}],
+            'AttributeDefinitions': [{'AttributeName': 'CommentID', 'AttributeType': 'S'}],
         }
     ]
 

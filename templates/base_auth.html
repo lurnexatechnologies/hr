@@ -5,17 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>{% block title %}Login - Lurnexa{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}Access the Lurnexa HRMS platform. Enter your credentials to log in or request a password reset.{% endblock %}">
+    <title>{% block title %}Login - Kyro People{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Access the Kyro People platform. Enter your credentials to log in or request a password reset.{% endblock %}">
     <meta name="robots" content="index, nofollow">
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
-    <!-- Web App Manifest & iOS App Meta -->
-    <link rel="manifest" href="{% url 'manifest_json' %}">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Lurnexa">
-    <link rel="apple-touch-icon" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
 
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
@@ -30,19 +27,159 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    <style>
+        /* Base Auth Layout Overrides */
+        .auth-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: none;
+            overflow: hidden;
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            z-index: 5;
+        }
+
+        .auth-header {
+            background-color: #ffffff;
+            padding: 35px 30px 10px;
+            text-align: center;
+        }
+
+        .brand-logo-slot {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .login-target-logo {
+            height: 44px;
+            width: auto;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .auth-header-text {
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.7s ease, transform 0.7s ease;
+        }
+
+        .auth-header-text.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .auth-header h3 {
+            font-weight: 800;
+            color: #1a4f8b;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+
+        .auth-header p {
+            color: #64748b;
+            font-size: 0.88rem;
+        }
+
+        .auth-body-container {
+            opacity: 0;
+            transform: translateY(25px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 10px 35px 35px;
+        }
+
+        .auth-body-container.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Floating Hero Logo for Entrance Animation */
+        .hero-logo-flyer {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(2.2);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            will-change: transform, opacity;
+            transition: transform 1s cubic-bezier(0.34, 1.25, 0.64, 1), opacity 0.4s ease;
+        }
+
+        .hero-logo-badge {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(56, 189, 248, 0.4);
+            animation: heroPulse 1.2s infinite ease-in-out alternate;
+            transition: all 1s cubic-bezier(0.34, 1.25, 0.64, 1);
+        }
+
+        .hero-logo-img {
+            height: 58px;
+            width: auto;
+        }
+
+        .hero-logo-tagline {
+            margin-top: 14px;
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #1a4f8b;
+            letter-spacing: -0.3px;
+            transition: opacity 0.4s ease;
+        }
+
+        @keyframes heroPulse {
+            0% { transform: scale(1); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(56, 189, 248, 0.3); }
+            100% { transform: scale(1.06); box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4), 0 0 40px rgba(129, 140, 248, 0.6); }
+        }
+    </style>
 </head>
 <body>
+    <!-- Floating Logo Flyer for Landing Animation (Only on fresh page open or refresh) -->
+    {% if not messages and request.method != 'POST' %}
+    <div class="hero-logo-flyer" id="heroFlyer">
+        <div class="hero-logo-badge" id="heroBadge">
+            <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="hero-logo-img">
+        </div>
+        <div class="hero-logo-tagline" id="heroTagline">Kyro People <small class="d-block text-white-50 fs-6 fw-normal">A Product by Lurnexa Technologies</small></div>
+    </div>
+    {% endif %}
+
     <div class="auth-wrapper">
         <div class="container d-flex justify-content-center">
-            <div class="auth-card">
+            <div class="auth-card" id="authCard">
                 <div class="auth-header">
-                    <div class="brand-logo">
-                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Lurnexa" style="height: 40px; width: auto;">
+                    <div class="brand-logo-slot">
+                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="login-target-logo" id="targetLogo" style="{% if messages or request.method == 'POST' %}opacity: 1;{% endif %}">
                     </div>
-                    <h3>Lurnexa</h3>
-                    <p>{% block subtitle %}Enter your credentials to access your account{% endblock %}</p>
+                    <div class="auth-header-text {% if messages or request.method == 'POST' %}show{% endif %}" id="headerText">
+                        <h3>Kyro People</h3>
+                        <p class="text-muted fw-semibold mb-1" style="font-size: 0.75rem; letter-spacing: 1px;">Key Your Resources</p>
+                        <p>{% block subtitle %}Enter your credentials to access your account{% endblock %}</p>
+                    </div>
                 </div>
-                <div class="auth-body">
+                <div class="auth-body-container {% if messages or request.method == 'POST' %}show{% endif %}" id="authBodyContainer">
                     {% if messages %}
                         {% for message in messages %}
                             <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -58,8 +195,73 @@
     </div>
     
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-    <!-- Service Worker Registration -->
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const flyer = document.getElementById('heroFlyer');
+            const targetLogo = document.getElementById('targetLogo');
+            const headerText = document.getElementById('headerText');
+            const authBodyContainer = document.getElementById('authBodyContainer');
+
+            // If intro flyer is not rendered (e.g. form resubmitted with invalid credentials), show login form immediately
+            if (!flyer) {
+                if (targetLogo) targetLogo.style.opacity = '1';
+                if (headerText) headerText.classList.add('show');
+                if (authBodyContainer) authBodyContainer.classList.add('show');
+                return;
+            }
+
+            const badge = document.getElementById('heroBadge');
+            const tagline = document.getElementById('heroTagline');
+            const flyerImg = document.querySelector('.hero-logo-img');
+
+            // Phase 1: Hold centered logo briefly for intro impact (650ms)
+            setTimeout(function() {
+                if (!targetLogo || !flyer || !flyerImg) return;
+
+                // Stop pulse animation
+                badge.style.animation = 'none';
+
+                // Fade out tagline & badge styling smooth
+                if (tagline) tagline.style.opacity = '0';
+                badge.style.background = 'transparent';
+                badge.style.boxShadow = 'none';
+                badge.style.border = 'none';
+
+                // Calculate exact center coordinates & scale ratio
+                const tRect = targetLogo.getBoundingClientRect();
+                const fRect = flyerImg.getBoundingClientRect();
+
+                const tCenterX = tRect.left + tRect.width / 2;
+                const tCenterY = tRect.top + tRect.height / 2;
+                const fCenterX = fRect.left + fRect.width / 2;
+                const fCenterY = fRect.top + fRect.height / 2;
+
+                const deltaX = tCenterX - fCenterX;
+                const deltaY = tCenterY - fCenterY;
+                const targetScale = tRect.height > 0 ? (tRect.height / fRect.height) : 0.68;
+
+                // Move & scale flyer directly onto the exact center & size of target logo
+                flyer.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px)) scale(${targetScale})`;
+
+                // Phase 2: As logo completes journey, reveal target logo, text, and fields
+                setTimeout(function() {
+                    flyer.style.opacity = '0';
+                    targetLogo.style.opacity = '1';
+                    
+                    if (headerText) headerText.classList.add('show');
+                    if (authBodyContainer) authBodyContainer.classList.add('show');
+
+                    // Remove flyer element after transition ends
+                    setTimeout(function() {
+                        if (flyer && flyer.parentNode) flyer.parentNode.removeChild(flyer);
+                    }, 350);
+
+                }, 900);
+
+            }, 650);
+        });
+
+        // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('{% url "service_worker_js" %}')

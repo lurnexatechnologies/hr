@@ -654,6 +654,96 @@
                                 </div>
                             </div>
 
+                            <!-- Industry-Adaptive Onboarding Requirements -->
+                            {% if industry_profile and industry_profile.onboarding_config %}
+                            <div class="glass-card mb-4 animate-slide-up" style="animation-delay: 0.55s;">
+                                <div class="card-header-custom bg-gradient-indigo text-white d-flex align-items-center justify-content-between">
+                                    <h5 class="fw-bold mb-0">
+                                        <i class="fa-solid fa-building-user me-2"></i> Industry Compliance & Station Assignment
+                                    </h5>
+                                    <span class="badge bg-white text-indigo fw-bold">{{ industry_profile.name }}</span>
+                                </div>
+                                <div class="card-body-custom p-4">
+                                    
+                                    <!-- Onboarding Workflow Steps -->
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-indigo mb-3"><i class="fa-solid fa-list-check me-2"></i> {{ industry_profile.name }} Onboarding Milestones</h6>
+                                        <ul class="list-group list-group-flush border rounded-3">
+                                            {% for step_item in industry_profile.onboarding_config.steps %}
+                                            <li class="list-group-item d-flex align-items-center py-2 bg-light bg-opacity-50">
+                                                <i class="fa-solid fa-circle-check text-success me-3"></i>
+                                                <span class="fw-semibold text-dark small">{{ step_item }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+
+                                    {% if industry_profile.custom_fields %}
+                                    <!-- Dynamic Industry Specs Fields -->
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-sliders text-indigo me-2"></i> {{ industry_profile.name }} Domain Specifics</h6>
+                                        <div class="row g-3">
+                                            {% for field in industry_profile.custom_fields %}
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold small text-uppercase text-muted">
+                                                    {{ field.label }} {% if field.required %}<span class="text-danger">*</span>{% endif %}
+                                                </label>
+                                                {% if field.type == 'select' %}
+                                                <select class="form-select form-select-lg bg-light border-0" name="custom_field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                                                    <option value="" selected disabled>Select {{ field.label }}</option>
+                                                    {% for opt in field.options %}
+                                                    <option value="{{ opt }}">{{ opt }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                {% elif field.type == 'number' %}
+                                                <input type="number" step="any" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" value="{{ field.default|default:'' }}" {% if field.required %}required{% endif %}>
+                                                {% elif field.type == 'date' %}
+                                                <input type="date" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                                                {% else %}
+                                                <input type="text" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" placeholder="{{ field.label }}" {% if field.required %}required{% endif %}>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Industry Legal Bonds & Liability Agreements -->
+                                    {% if industry_profile.onboarding_config.legal_bonds %}
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-file-contract me-2"></i> Mandatory Industry Agreements & Liability Sign-offs</h6>
+                                        {% for bond in industry_profile.onboarding_config.legal_bonds %}
+                                        <div class="form-check p-3 bg-danger-soft rounded-3 mb-2 border border-danger-subtle">
+                                            <input class="form-check-input ms-0 me-2" type="checkbox" name="accepted_bonds" value="{{ bond }}" required id="bond_{{ forloop.counter }}">
+                                            <label class="form-check-label fw-bold text-dark small" for="bond_{{ forloop.counter }}">
+                                                I acknowledge and agree to: {{ bond }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Station & Equipment Allocations -->
+                                    {% if industry_profile.onboarding_config.equipment_allocations %}
+                                    <div>
+                                        <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-cubes me-2"></i> Assigned Station & Equipment Allocations</h6>
+                                        <div class="row g-2">
+                                            {% for eq in industry_profile.onboarding_config.equipment_allocations %}
+                                            <div class="col-md-6">
+                                                <div class="p-2 border rounded-3 bg-light d-flex align-items-center">
+                                                    <i class="fa-solid fa-box text-indigo me-2"></i>
+                                                    <span class="small fw-semibold text-dark">{{ eq }}</span>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                </div>
+                            </div>
+                            {% endif %}
+
                             <!-- Consent & Submit -->
                             <div class="glass-card mb-5 animate-slide-up" style="animation-delay: 0.6s;">
                                 <div class="card-body-custom">

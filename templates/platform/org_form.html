@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{% if org %}Edit Organization - {{ org.Name }}{% else %}Create Organization{% endif %} - Lurnexa{% endblock %}
+{% block title %}{% if org %}Edit Organization - {{ org.Name }}{% else %}Create Organization{% endif %} - Kyro People{% endblock %}
 {% block nav_platform_orgs %}active{% endblock %}
 
 {% block extra_css %}
@@ -166,6 +166,8 @@
     .cat-workflows { background-color: #f0fdfa; color: #0f766e; }
     .cat-payroll { background-color: #fffbeb; color: #b45309; }
     .cat-auth_custom { background-color: #fff1f2; color: #be123c; }
+    .cat-tickets { background-color: #fdf2f8; color: #be185d; }
+    .cat-sales { background-color: #ecfeff; color: #0891b2; }
 </style>
 {% endblock %}
 
@@ -202,7 +204,7 @@
                         <i class="fa-solid fa-lock text-muted position-absolute" style="right: 16px; top: 16px;"></i>
                         {% endif %}
                     </div>
-                    <div class="form-text">Unique uppercase identifier. E.g., ACME, LURNEXA</div>
+                    <div class="form-text">Unique uppercase identifier. E.g., ACME, KYRO</div>
                 </div>
                 
                 <div class="col-md-6">
@@ -226,6 +228,54 @@
                     <div class="form-text">Leave blank to use default plan limits (Basic: 25, Elite: 100, Professional: Unlimited)</div>
                 </div>
 
+                <div class="col-md-6">
+                    <label class="form-label fw-bold"><i class="fa-solid fa-industry me-1 text-indigo"></i> Industry Domain Preset</label>
+                    <select name="industry_type" id="industry_type_select" class="form-select shadow-sm border-indigo-light">
+                        {% for key, profile in industry_profiles.items %}
+                            <option value="{{ key }}" {% if org.IndustryType == key or not org and key == 'SOFTWARE_IT' %}selected{% endif %}>
+                                {{ profile.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Pre-configures shifts, onboarding compliance, attendance rules & payroll strategies tailored strictly for this industry.</div>
+                </div>
+
+                <!-- Industry Domain Configuration Live Preview Card -->
+                <div class="col-12 mt-3" id="industry_preview_container">
+                    <div class="card border border-2 border-indigo-light rounded-4 shadow-sm bg-gradient-light p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="fw-bold text-indigo fs-6"><i class="fa-solid fa-sliders me-2"></i> Preset Configurations Active for: <span id="preset_title" class="text-dark"></span></span>
+                            <span class="badge bg-indigo-soft text-indigo fw-bold px-3 py-1 rounded-pill" id="preset_badge"></span>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="p-2 border rounded-3 bg-white h-100">
+                                    <div class="smaller text-muted fw-bold mb-1"><i class="fa-solid fa-user-check text-success me-1"></i> Onboarding Steps</div>
+                                    <div id="preset_onboarding" class="small fw-semibold text-dark"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-2 border rounded-3 bg-white h-100">
+                                    <div class="smaller text-muted fw-bold mb-1"><i class="fa-solid fa-clock text-primary me-1"></i> Default Shifts</div>
+                                    <div id="preset_shifts" class="small fw-semibold text-dark"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-2 border rounded-3 bg-white h-100">
+                                    <div class="smaller text-muted fw-bold mb-1"><i class="fa-solid fa-calculator text-danger me-1"></i> Payroll Models</div>
+                                    <div id="preset_payroll" class="small fw-semibold text-dark"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-2 border rounded-3 bg-white h-100">
+                                    <div class="smaller text-muted fw-bold mb-1"><i class="fa-solid fa-shield-check text-info me-1"></i> Compliance & Docs</div>
+                                    <div id="preset_compliance" class="small fw-semibold text-dark"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
 
                 
 
@@ -240,7 +290,7 @@
             
             <div class="row g-3 mb-5">
                 {% for plan in plans %}
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="w-100 mb-0">
                         <input type="radio" name="plan" value="{{ plan }}" class="plan-radio d-none" 
                                {% if org.Plan|lower == plan|lower or not org and plan == 'basic' %}checked{% endif %} required>
@@ -250,6 +300,7 @@
                                 {% if plan == 'basic' %}Essential HR Foundations
                                 {% elif plan == 'elite' %}Workforce Management
                                 {% elif plan == 'professional' %}Complete HR & Payroll Suite
+                                {% elif plan == 'custom' %}Custom Tailored Enterprise Suite
                                 {% endif %}
                             </div>
                         </div>
@@ -376,11 +427,22 @@
                             <label class="form-check-label fw-bold text-dark small cursor-pointer" for="feature_{{ key }}">
                                 {{ info.0 }}
                             </label>
-                            <span class="category-badge cat-{{ info.1|lower }}">
-                                {% if info.1 == 'auth_custom' %}Security
-                                {% elif info.1 == 'core' %}Core System
-                                {% else %}{{ info.1|title }}{% endif %}
-                            </span>
+                            <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
+                                <span class="category-badge cat-{{ info.1|lower }}">
+                                    {% if info.1 == 'auth_custom' %}Security
+                                    {% elif info.1 == 'core' %}Core System
+                                    {% elif info.1 == 'tickets' %}Helpdesk & Tickets
+                                    {% elif info.1 == 'attendance' %}Shift & Attendance
+                                    {% elif info.1 == 'payroll' %}Compensation & Payroll
+                                    {% elif info.1 == 'sales' %}Field Sales & Tracking
+                                    {% else %}{{ info.1|title }}{% endif %}
+                                </span>
+                                {% if info.2 %}
+                                <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.65rem;">
+                                    <i class="fa-solid fa-building me-1 text-indigo"></i> {{ info.2 }}
+                                </span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -401,6 +463,7 @@
 
 {% block extra_js %}
 {{ plan_features|json_script:"plan-features-data" }}
+{{ industry_profiles|json_script:"industry-profiles-data" }}
 <script>
     // Handle feature card clicks directly
     function toggleFeatureCard(event, checkboxId) {
@@ -417,6 +480,39 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         const parsedPlanFeatures = JSON.parse(document.getElementById('plan-features-data').textContent || '{}');
+        const parsedIndustryProfiles = JSON.parse(document.getElementById('industry-profiles-data').textContent || '{}');
+        const industrySelect = document.getElementById('industry_type_select');
+
+        function updateIndustryPreview() {
+            if (!industrySelect) return;
+            const selectedKey = industrySelect.value;
+            const profile = parsedIndustryProfiles[selectedKey];
+            if (!profile) return;
+
+            document.getElementById('preset_title').innerText = profile.name || selectedKey;
+            document.getElementById('preset_badge').innerText = selectedKey;
+
+            // Onboarding Steps summary
+            const onboardingSteps = (profile.onboarding_config && profile.onboarding_config.steps) ? profile.onboarding_config.steps.join(', ') : 'Standard onboarding';
+            document.getElementById('preset_onboarding').innerText = onboardingSteps;
+
+            // Default Shifts summary
+            const shifts = profile.default_shifts ? profile.default_shifts.map(s => s.name).join(', ') : 'Standard Shift';
+            document.getElementById('preset_shifts').innerText = shifts;
+
+            // Payroll Models summary
+            const payroll = profile.payroll_models ? profile.payroll_models.join(', ') : 'Monthly CTC';
+            document.getElementById('preset_payroll').innerText = payroll;
+
+            // Compliance & Docs summary
+            const compliance = profile.compliance_docs ? profile.compliance_docs.join(', ') : 'Government ID Proof';
+            document.getElementById('preset_compliance').innerText = compliance;
+        }
+
+        if (industrySelect) {
+            industrySelect.addEventListener('change', updateIndustryPreview);
+            updateIndustryPreview();
+        }
         const planRadios = document.querySelectorAll('input[name="plan"]');
         const checkboxes = document.querySelectorAll('.feature-checkbox');
         

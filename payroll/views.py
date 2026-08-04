@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import PayslipsTable, EmployeesTable, AttendanceTable, LeaveRequestsTable, HolidaysTable, PayrollApprovalsTable, UsersTable, ExpensesTable
 from core.bank_service import UniversalBankService
-from core.utils import safe_float, get_local_date, get_local_now, send_notification, resolve_workflow_step
+from core.utils import safe_float, safe_decimal, get_local_date, get_local_now, send_notification, resolve_workflow_step, format_day_with_ordinal
 from boto3.dynamodb.conditions import Key
 import io
 from reportlab.pdfgen import canvas
@@ -20,6 +20,57 @@ from decimal import Decimal
 from django.urls import reverse_lazy
 import os
 from django.conf import settings
+
+def check_and_release_scheduled_payslips():
+    """
+    Checks PayslipsTable for any payslips with ReleaseStatus == 'Scheduled'
+    and releases them if current date & time >= ScheduledReleaseDate 08:00:00.
+    Dispatches in-app notifications and email notifications at 8:00 AM on that day.
+    """
+    now = get_local_now()
+    today_str = now.strftime('%Y-%m-%d')
+
+    try:
+        scheduled_payslips = PayslipsTable.scan(
+            FilterExpression="ReleaseStatus = :rs",
+            ExpressionAttributeValues={":rs": "Scheduled"}
+        )
+        for ps in scheduled_payslips:
+            rel_date = ps.get('ScheduledReleaseDate', today_str)
+            rel_time = ps.get('ScheduledReleaseTime', '08:00:00')
+            
+            try:
+                target_dt = datetime.datetime.strptime(f"{rel_date} {rel_time}", "%Y-%m-%d %H:%M:%S")
+                if now.tzinfo:
+                    target_dt = target_dt.replace(tzinfo=now.tzinfo)
+                if now >= target_dt:
+                    ps['ReleaseStatus'] = 'Released'
+                    ps['ReleasedAt'] = now.isoformat()
+                    PayslipsTable.put_item(ps)
+
+                    emp_id = ps.get('EmployeeID')
+                    month_year = ps.get('MonthYear', '')
+                    emp = EmployeesTable.get_item({'EmployeeID': emp_id})
+                    if emp:
+                        month_name = month_year.split('_')[0].upper() if '_' in month_year else ''
+                        year_val = month_year.split('_')[1] if '_' in month_year else ''
+                        email_subject = f"Payslip for {month_name} {year_val} Released"
+                        email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for {month_name} {year_val} has been released and is now available in your Kyro People ESS portal.\n\nNet Pay: INR {ps.get('NetPay')}\n\nPlease log in to view and download your payslip.\n\nBest regards,\nKyro People HR Team"
+                        send_notification(
+                            employee_id=emp_id,
+                            title=f"Payslip Released - {month_name} {year_val}",
+                            message=f"Your payslip for {month_name} {year_val} is now available in your portal.",
+                            n_type='Payroll',
+                            icon='fa-file-invoice-dollar',
+                            color='success',
+                            email_subject=email_subject,
+                            email_body=email_body
+                        )
+            except Exception as ex:
+                print(f"Error releasing scheduled payslip for {ps.get('EmployeeID')}: {ex}")
+    except Exception as e:
+        print(f"Error in check_and_release_scheduled_payslips: {e}")
+
 
 def get_attendance_summary(employee_id, month, year):
     """
@@ -36,7 +87,7 @@ def get_attendance_summary(employee_id, month, year):
     
     start_date = datetime.date(prev_year, prev_month, 27)
     end_date = datetime.date(year, month, 26)
-    
+
     # Total days in this payroll period
     total_days = (end_date - start_date).days + 1
     
@@ -129,25 +180,111 @@ def get_attendance_summary(employee_id, month, year):
         "lop_days": lop_days
     }
 
+def calculate_industry_allowances_and_deductions(employee, attendance, month, year):
+    """
+    Multi-Industry Payroll Engine Strategy Evaluator with Super Admin Configurable Rates.
+    Supports Piece-rate, Sales commissions, Till adjustments, and Shift differentials.
+    """
+    custom_fields = employee.get('CustomFields') or {}
+
+    piece_rate_earnings = 0.0
+    sales_commission = 0.0
+    till_shortage_deduction = 0.0
+    shift_differential_allowance = 0.0
+
+    # Fetch Super Admin Payroll Config
+    org_id = employee.get('OrgID')
+    payroll_cfg = {}
+    if org_id:
+        from core.dynamodb_service import OrganizationsTable
+        org = OrganizationsTable.get_item({'OrgID': org_id})
+        if org:
+            payroll_cfg = org.get('PayrollConfig', {}) or {}
+
+    rate_per_unit_cfg = safe_float(payroll_cfg.get('piece_rate_unit_amount', 0))
+    commission_per_unit_cfg = safe_float(payroll_cfg.get('sales_commission_per_unit', 0))
+    target_bonus_cfg = safe_float(payroll_cfg.get('sales_target_bonus_flat', 0))
+    till_limit_cfg = safe_float(payroll_cfg.get('till_shortage_allowance_limit', 0))
+    night_allowance_cfg = safe_float(payroll_cfg.get('night_shift_allowance_per_day', 0))
+
+    # 1. Piece-Rate Payroll (Tiles factory / Poultry processing)
+    rate_per_unit = safe_float(custom_fields.get('rate_per_unit', rate_per_unit_cfg))
+    if rate_per_unit > 0:
+        units_produced = safe_float(custom_fields.get('monthly_units_produced', 0))
+        piece_rate_earnings = units_produced * rate_per_unit
+
+    # 2. Sales Commission & Target Bonus (Car Showrooms / Auto Retail)
+    sales_target = safe_float(custom_fields.get('monthly_sales_target_units', 0))
+    if sales_target > 0:
+        actual_units = safe_float(custom_fields.get('actual_units_sold', sales_target))
+        if actual_units >= sales_target:
+            sales_commission = (actual_units * commission_per_unit_cfg) + (target_bonus_cfg if actual_units > sales_target else 0)
+
+    # 3. Supermarket Cash Till Shortage Deduction (DMart Cashier)
+    till_limit = safe_float(custom_fields.get('till_variance_allowance', till_limit_cfg))
+    recorded_shortage = safe_float(custom_fields.get('recorded_till_shortage', 0))
+    if recorded_shortage > till_limit:
+        till_shortage_deduction = recorded_shortage - till_limit
+
+    # 4. Shift Differential & On-Call Allowance (Hospitals / 24-7 Plants)
+    if employee.get('Shift') in ['Night Shift', 'Night Emergency / ICU Shift']:
+        night_days = attendance.get('paid_days', 0)
+        shift_differential_allowance = night_days * night_allowance_cfg
+
+    return {
+        'piece_rate_earnings': piece_rate_earnings,
+        'sales_commission': sales_commission,
+        'till_shortage_deduction': till_shortage_deduction,
+        'shift_differential_allowance': shift_differential_allowance
+    }
+
 def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=0):
+    if not attendance or not isinstance(attendance, dict):
+        attendance = {"total_days": 30, "paid_days": 30, "lop_days": 0}
+
+    # Evaluate Multi-Industry Compensation Strategies
+    ind_comp = calculate_industry_allowances_and_deductions(employee, attendance, month, year)
+
     # =========================
     # 1. MONTHLY CTC
     # =========================
     salary_pa = safe_float(employee.get('SalaryPA'))
     
-    # If there's an increment, we add it to the base salary for this month onwards
-    # Note: The actual database update for SalaryPA happens in the view.
     current_annual_salary = salary_pa + increment
     monthly_ctc = current_annual_salary / 12
 
-    # =========================
-    # 2. SALARY STRUCTURE
-    # =========================
-    basic = 0.40 * monthly_ctc
-    hra = 0.40 * basic
-    special_allowance = monthly_ctc - (basic + hra)
+    # Fetch Organization Tax, PF & Salary Component Settings
+    org_id = employee.get('OrgID')
+    org_rec = None
+    if org_id:
+        try:
+            from core.dynamodb_service import OrganizationsTable
+            org_rec = OrganizationsTable.get_item({'OrgID': org_id})
+        except Exception:
+            pass
 
-    gross_salary = basic + hra + special_allowance
+    # Extract dynamic settings with standard fallback defaults
+    pf_enabled = org_rec.get('PFEnabled', True) if org_rec else True
+    tds_enabled = org_rec.get('TDSEnabled', True) if org_rec else True
+    emp_pf_pct = float(org_rec.get('EmployeePFPercent', 12.0) if org_rec else 12.0) / 100.0
+    mgr_pf_pct = float(org_rec.get('EmployerPFPercent', 12.0) if org_rec else 12.0) / 100.0
+    basic_pct = float(org_rec.get('BasicPercent', 40.0) if org_rec else 40.0) / 100.0
+    hra_pct = float(org_rec.get('HRAPercent', 40.0) if org_rec else 40.0) / 100.0
+    std_deduction = float(org_rec.get('TaxStandardDeduction', 75000.0) if org_rec else 75000.0)
+
+    # =========================
+    # 2. SALARY STRUCTURE (DYNAMIC)
+    # =========================
+    basic = basic_pct * monthly_ctc
+    hra = hra_pct * monthly_ctc
+    special_allowance = max(0, monthly_ctc - (basic + hra))
+
+    gross_salary = (
+        basic + hra + special_allowance + 
+        ind_comp['piece_rate_earnings'] + 
+        ind_comp['sales_commission'] + 
+        ind_comp['shift_differential_allowance']
+    )
 
     # =========================
     # 3. LOP (LEAVE DEDUCTION)
@@ -165,7 +302,7 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
     adjusted_gross = max(0, gross_salary - lop_deduction)
 
     # =========================
-    # 4. PF CALCULATION
+    # 4. PF CALCULATION (DYNAMIC ORG SETTINGS)
     # =========================
     pf_employee = 0
     pf_employer = 0
@@ -179,13 +316,11 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
     from core.dynamodb_service import PFTransactionsTable
     month_year = datetime.date(year, month, 1).strftime("%b_%Y").lower()
     manual_pf = None
-    if not is_intern:
+    if not is_intern and pf_enabled:
         manual_pf = PFTransactionsTable.get_item({'EmployeeID': employee.get('EmployeeID'), 'MonthYear': month_year})
     
-    if not is_intern and manual_pf:
+    if not is_intern and pf_enabled and manual_pf:
         pf_employee = float(manual_pf.get('Amount', 0))
-        # Note: If manual, employer contribution is often handled differently or manually as well.
-        # For now, we'll calculate employer side based on the manual employee amount if it's 12%.
         if employee.get('EPS_Eligible', True):
             eps_wage_base = min(basic, 15000)
             eps_employer = 0.0833 * eps_wage_base
@@ -193,10 +328,8 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
         else:
             pf_employer = pf_employee
             
-    elif not is_intern and employee.get('is_pf_applicable', True):
-        # Automated fallback if no manual record exists
-        emp_pf_pct = float(employee.get('EmployeePFContribution', 12)) / 100
-        mgr_pf_pct = float(employee.get('EmployerPFContribution', 12)) / 100
+    elif not is_intern and pf_enabled and employee.get('is_pf_applicable', True):
+        # Automated calculation using org EmployeePFPercent & EmployerPFPercent
         pf_employee = emp_pf_pct * basic
         
         if employee.get('EPS_Eligible', True):
@@ -231,12 +364,11 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
             pt = 150
 
     # =========================
-    # 7. TDS CALCULATION (NEW REGIME FY 2024-25)
+    # 7. TDS CALCULATION (DYNAMIC ORG SETTINGS)
     # =========================
     tds = 0
-    if not is_intern:
+    if not is_intern and tds_enabled:
         annual_income = current_annual_salary
-        std_deduction = 75000
         taxable_income = max(0, annual_income - std_deduction)
         
         if taxable_income > 700000:  # Rebate up to 7L taxable income
@@ -264,7 +396,8 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
     # =========================
     # 8. TOTAL DEDUCTIONS
     # =========================
-    total_deductions = pf_employee + esi_employee + pt + tds
+    till_shortage = ind_comp['till_shortage_deduction']
+    total_deductions = pf_employee + esi_employee + pt + tds + till_shortage
 
     # =========================
     # 9. NET SALARY
@@ -279,6 +412,10 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
         "Basic": Decimal(str(round(basic, 2))),
         "HRA": Decimal(str(round(hra, 2))),
         "SpecialAllowance": Decimal(str(round(special_allowance, 2))),
+        "PieceRateEarnings": Decimal(str(round(ind_comp['piece_rate_earnings'], 2))),
+        "SalesCommission": Decimal(str(round(ind_comp['sales_commission'], 2))),
+        "ShiftDifferential": Decimal(str(round(ind_comp['shift_differential_allowance'], 2))),
+        "TillShortageDeduction": Decimal(str(round(till_shortage, 2))),
         "GrossSalary": Decimal(str(round(gross_salary, 2))),
         "LOPDeduction": Decimal(str(round(lop_deduction, 2))),
         "AdjustedGross": Decimal(str(round(adjusted_gross, 2))),
@@ -294,57 +431,219 @@ def process_payroll_logic(employee, attendance, month, year, increment=0, bonus=
         "NetPay": Decimal(str(round(net_salary, 2))),
     }
 
-class PayrollRequiredMixin(object):
-    """Verify that the user has unlocked payroll access for the current session."""
+class PayrollRequiredMixin(LoginRequiredMixin):
+    """Verify that the user has authorized access to payroll management
+    AND has completed secondary payroll authentication."""
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
+        user_role = getattr(request.user, 'role', '')
         user_permissions = getattr(request.user, 'permissions', [])
         
-        if 'payroll_access' not in user_permissions:
+        if user_role not in ['Super admin', 'HR ADMIN', 'HR', 'Platform Admin'] and 'payroll_access' not in user_permissions:
             return redirect('forbidden_403')
-            
-        if not request.session.get('payroll_authenticated', False):
-            messages.info(request, "Additional authentication required to access Payroll Management.")
+
+        # Enforce secondary payroll authentication
+        if not request.session.get('payroll_authenticated'):
+            messages.info(request, "Please authenticate to access Payroll Management.")
             return redirect('payroll_login')
+            
         return super().dispatch(request, *args, **kwargs)
 
 class PayrollLoginView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    """Secure secondary authentication gate for payroll management.
+    Re-verifies the user's password before granting access."""
     required_feature = 'payroll'
+    MAX_ATTEMPTS = 5
+    LOCKOUT_SECONDS = 300  # 5 minutes
+
     def get(self, request):
-        user_permissions = getattr(request.user, 'permissions', [])
-        if 'payroll_access' not in user_permissions:
-            return redirect('forbidden_403')
-        if request.session.get('payroll_authenticated', False):
+        # If already authenticated for payroll, go straight to manage
+        if request.session.get('payroll_authenticated'):
             return redirect('manage_payroll')
-        return render(request, 'payroll/login.html')
+
+        # Check role-based access first
+        user_role = getattr(request.user, 'role', '')
+        user_permissions = getattr(request.user, 'permissions', [])
+        if user_role not in ['Super admin', 'HR ADMIN', 'HR', 'Platform Admin'] and 'payroll_access' not in user_permissions:
+            return redirect('forbidden_403')
+
+        # Check lockout
+        lockout_until = request.session.get('payroll_lockout_until')
+        is_locked = False
+        remaining_seconds = 0
+        if lockout_until:
+            now_ts = get_local_now().timestamp()
+            if now_ts < lockout_until:
+                is_locked = True
+                remaining_seconds = int(lockout_until - now_ts)
+            else:
+                # Lockout expired — clear
+                request.session.pop('payroll_lockout_until', None)
+                request.session.pop('payroll_failed_attempts', None)
+
+        context = {
+            'is_locked': is_locked,
+            'remaining_seconds': remaining_seconds,
+        }
+        return render(request, 'payroll/login.html', context)
 
     def post(self, request):
+        import bcrypt
+        from django.contrib.auth.hashers import check_password
+
+        # Check role-based access first
+        user_role = getattr(request.user, 'role', '')
         user_permissions = getattr(request.user, 'permissions', [])
-        if 'payroll_access' not in user_permissions:
+        if user_role not in ['Super admin', 'HR ADMIN', 'HR', 'Platform Admin'] and 'payroll_access' not in user_permissions:
             return redirect('forbidden_403')
-        payroll_id = request.POST.get('payroll_id')
-        password = request.POST.get('payroll_password')
-        PAYROLL_MANAGER_ID = "PM-ADMIN"
-        PAYROLL_MANAGER_PASS = "LurnexaPay@2026"
+
+        # Check lockout
+        lockout_until = request.session.get('payroll_lockout_until')
+        if lockout_until:
+            now_ts = get_local_now().timestamp()
+            if now_ts < lockout_until:
+                remaining = int(lockout_until - now_ts)
+                messages.error(request, f"Account locked. Try again in {remaining // 60} min {remaining % 60} sec.")
+                return redirect('payroll_login')
+            else:
+                request.session.pop('payroll_lockout_until', None)
+                request.session.pop('payroll_failed_attempts', None)
+
+        username = (request.POST.get('payroll_username') or '').strip()
+        password = (request.POST.get('payroll_password') or '').strip()
+
+        if not username or not password:
+            messages.error(request, "Please enter both Vault Username and Vault Password.")
+            return redirect('payroll_login')
+
+        # Look up the current user's stored password hash & vault username from DynamoDB
+        from core.dynamodb_service import UsersTable
+        user_data = UsersTable.get_item({'UserID': request.user.user_id})
+        if not user_data:
+            messages.error(request, "Authentication failed. User record not found.")
+            return redirect('payroll_login')
+
+        expected_username = user_data.get('PayrollVaultUsername') or user_data.get('Username') or user_data.get('Email') or request.user.email or ''
+        hashed = user_data.get('PayrollVaultPasswordHash') or user_data.get('PasswordHash') or user_data.get('Password') or ''
         
-        if payroll_id == PAYROLL_MANAGER_ID and password == PAYROLL_MANAGER_PASS:
+        is_user_valid = (username.lower() == expected_username.strip().lower())
+        is_pw_valid = False
+
+        if is_user_valid:
+            # 1. Try Django's check_password
+            try:
+                if check_password(password, hashed):
+                    is_pw_valid = True
+            except Exception:
+                pass
+
+            # 2. Fallback to raw bcrypt
+            if not is_pw_valid:
+                try:
+                    if bcrypt.checkpw(password.encode('utf-8')[:72], hashed.encode('utf-8')):
+                        is_pw_valid = True
+                except Exception:
+                    pass
+
+        if is_user_valid and is_pw_valid:
+            # Clear failed attempts and grant access
+            request.session.pop('payroll_failed_attempts', None)
+            request.session.pop('payroll_lockout_until', None)
             request.session['payroll_authenticated'] = True
-            messages.success(request, "Payroll Access Unlocked.")
+            messages.success(request, "Payroll access granted. Welcome to Payroll Management.")
             return redirect('manage_payroll')
         else:
-            messages.error(request, "Invalid Payroll Manager credentials. Access Denied.")
-            return render(request, 'payroll/login.html')
+            # Increment failed attempts
+            attempts = request.session.get('payroll_failed_attempts', 0) + 1
+            request.session['payroll_failed_attempts'] = attempts
+
+            remaining = self.MAX_ATTEMPTS - attempts
+            if attempts >= self.MAX_ATTEMPTS:
+                lockout_ts = get_local_now().timestamp() + self.LOCKOUT_SECONDS
+                request.session['payroll_lockout_until'] = lockout_ts
+                messages.error(request, f"Too many failed attempts. Account locked for {self.LOCKOUT_SECONDS // 60} minutes.")
+            else:
+                messages.error(request, f"Incorrect Vault credentials. {remaining} attempt(s) remaining.")
+
+            return redirect('payroll_login')
+
+class ChangePayrollVaultCredentialsView(FeatureRequiredMixin, PayrollRequiredMixin, View):
+    required_feature = 'payroll'
+
+    def post(self, request):
+        import bcrypt
+        from django.contrib.auth.hashers import check_password, make_password
+        from core.dynamodb_service import UsersTable
+
+        old_username = (request.POST.get('old_vault_username') or '').strip()
+        old_password = (request.POST.get('old_vault_password') or '').strip()
+        new_username = (request.POST.get('new_vault_username') or '').strip()
+        new_password = (request.POST.get('new_vault_password') or '').strip()
+        confirm_password = (request.POST.get('confirm_vault_password') or '').strip()
+
+        if not old_username or not old_password or not new_username or not new_password:
+            messages.error(request, "All fields are required to update Vault credentials.")
+            return redirect('manage_payroll')
+
+        if new_password != confirm_password:
+            messages.error(request, "New Vault password and confirm password do not match.")
+            return redirect('manage_payroll')
+
+        user_data = UsersTable.get_item({'UserID': request.user.user_id})
+        if not user_data:
+            messages.error(request, "User record not found.")
+            return redirect('manage_payroll')
+
+        expected_username = user_data.get('PayrollVaultUsername') or user_data.get('Username') or user_data.get('Email') or request.user.email or ''
+        expected_hash = user_data.get('PayrollVaultPasswordHash') or user_data.get('PasswordHash') or user_data.get('Password') or ''
+
+        # Verify old username
+        if old_username.lower() != expected_username.strip().lower():
+            messages.error(request, "Incorrect old Vault Username.")
+            return redirect('manage_payroll')
+
+        # Verify old password
+        is_pw_valid = False
+        try:
+            if check_password(old_password, expected_hash):
+                is_pw_valid = True
+        except Exception:
+            pass
+
+        if not is_pw_valid:
+            try:
+                if bcrypt.checkpw(old_password.encode('utf-8')[:72], expected_hash.encode('utf-8')):
+                    is_pw_valid = True
+            except Exception:
+                pass
+
+        if not is_pw_valid:
+            messages.error(request, "Incorrect old Vault Password.")
+            return redirect('manage_payroll')
+
+        # Hash new vault password and update user record
+        hashed_new_pw = make_password(new_password)
+        UsersTable.update_item(
+            Key={'UserID': request.user.user_id},
+            UpdateExpression="SET PayrollVaultUsername = :u, PayrollVaultPasswordHash = :p",
+            ExpressionAttributeValues={
+                ':u': new_username,
+                ':p': hashed_new_pw,
+            }
+        )
+
+        messages.success(request, "Payroll Vault credentials updated successfully!")
+        return redirect('manage_payroll')
 
 class PayrollLogoutView(FeatureRequiredMixin, LoginRequiredMixin, View):
     required_feature = 'payroll'
     def get(self, request):
-        user_permissions = getattr(request.user, 'permissions', [])
-        if 'payroll_access' not in user_permissions:
-            return redirect('forbidden_403')
-        if 'payroll_authenticated' in request.session:
-            del request.session['payroll_authenticated']
-        messages.success(request, "Payroll section locked successfully.")
+        # Clear payroll session authentication
+        request.session.pop('payroll_authenticated', None)
+        request.session.pop('payroll_failed_attempts', None)
+        request.session.pop('payroll_lockout_until', None)
+        messages.success(request, "Exited Payroll Management.")
         return redirect('payroll_login')
 
 class PayslipsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
@@ -352,6 +651,7 @@ class PayslipsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
     template_name = 'payroll/payslips.html'
 
     def get_context_data(self, **kwargs):
+        check_and_release_scheduled_payslips()
         context = super().get_context_data(**kwargs)
         user_id = self.request.user.employee_id
         
@@ -373,9 +673,27 @@ class PayslipsView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView):
         if selected_month and selected_year:
             month_year = f"{selected_month}_{selected_year}"
             record = PayslipsTable.get_item({'EmployeeID': user_id, 'MonthYear': month_year})
-            context['selected_record'] = record
             context['selected_month'] = selected_month
             context['selected_year'] = selected_year
+            
+            if record:
+                rel_status = record.get('ReleaseStatus', 'Released')
+                rel_date = record.get('ScheduledReleaseDate')
+                now = get_local_now()
+                
+                if rel_status == 'Scheduled' and rel_date:
+                    try:
+                        target_dt = datetime.datetime.strptime(f"{rel_date} 08:00:00", "%Y-%m-%d %H:%M:%S")
+                        if now.tzinfo:
+                            target_dt = target_dt.replace(tzinfo=now.tzinfo)
+                        if now < target_dt:
+                            context['is_scheduled_pending'] = True
+                            context['scheduled_release_date'] = rel_date
+                    except Exception:
+                        pass
+                
+                if not context.get('is_scheduled_pending'):
+                    context['selected_record'] = record
             
         return context
 
@@ -464,19 +782,26 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
         page_hist = request.GET.get('page_hist')
         global_history_page = paginator_hist.get_page(page_hist)
         
-        from core.dynamodb_service import SettingsTable
+        from core.dynamodb_service import SettingsTable, OrganizationsTable
         esi_setting = SettingsTable.get_item({'SettingKey': 'Global_ESI_Amount'})
         global_esi = esi_setting.get('Value') if esi_setting else None
+
+        user_org_id = request.session.get('org_id')
+        user_org_rec = None
+        if user_org_id:
+            try:
+                user_org_rec = OrganizationsTable.get_item({'OrgID': user_org_id})
+            except Exception:
+                pass
+
+        basic_pct_val = float(user_org_rec.get('BasicPercent', 40.0) if user_org_rec else 40.0) / 100.0
+        hra_pct_val = float(user_org_rec.get('HRAPercent', 40.0) if user_org_rec else 40.0) / 100.0
 
         gen_date_setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
         gen_date_str = gen_date_setting.get('Value') if gen_date_setting else None
         formatted_gen_date = None
         if gen_date_str:
-            try:
-                dt_obj = datetime.datetime.strptime(gen_date_str, "%Y-%m-%d")
-                formatted_gen_date = dt_obj.strftime("%d %B, %Y")
-            except:
-                formatted_gen_date = gen_date_str
+            formatted_gen_date = format_day_with_ordinal(gen_date_str)
 
         context = {
             'payroll_data': payroll_data_page,
@@ -484,15 +809,19 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
             'global_history': global_history_page,
             'total_hist': len(global_history),
             'global_esi': global_esi,
+            'basic_pct': basic_pct_val,
+            'hra_pct': hra_pct_val,
             'generation_date': formatted_gen_date,
             'active_tab': request.GET.get('active_tab', 'generate')
         }
         return render(request, 'payroll/manage.html', context)
 
     def post(self, request):
+        import calendar
         from core.utils import apply_pending_hikes
         apply_pending_hikes()
         today = get_local_date()
+        _, max_days_in_month = calendar.monthrange(today.year, today.month)
         
         # Enforce payroll generation only on the day/date set by Super Admin
         from core.dynamodb_service import SettingsTable
@@ -500,32 +829,37 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
         gen_date_str = gen_date_setting.get('Value') if gen_date_setting else None
         
         if gen_date_str:
-            is_valid_day = False
-            try:
-                configured_day = int(gen_date_str)
-                if today.day == configured_day:
-                    is_valid_day = True
-                else:
-                    error_msg = f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the {configured_day}th of the month."
-            except ValueError:
-                if today.strftime("%Y-%m-%d") == gen_date_str:
-                    is_valid_day = True
-                else:
+            val_upper = str(gen_date_str).strip().upper()
+            if val_upper in ('LAST', 'LAST_DAY'):
+                target_day = max_days_in_month
+                label = "last day of month"
+            else:
+                try:
+                    cfg_day = int(gen_date_str)
+                    target_day = min(cfg_day, max_days_in_month)
+                    if cfg_day > max_days_in_month:
+                        label = f"last day of month ({target_day}th)"
+                    else:
+                        label = format_day_with_ordinal(cfg_day)
+                except ValueError:
                     try:
                         dt_obj = datetime.datetime.strptime(gen_date_str, "%Y-%m-%d")
-                        formatted_date = dt_obj.strftime("%d %B, %Y")
-                    except:
-                        formatted_date = gen_date_str
-                    error_msg = f"Payroll Run Failed: Today is {today.strftime('%d %B, %Y')}. Payroll can only be executed on the date set by Super Admin ({formatted_date})."
-            
-            if not is_valid_day:
-                messages.error(request, error_msg)
-                return redirect('manage_payroll')
+                        target_day = min(dt_obj.day, max_days_in_month)
+                        label = format_day_with_ordinal(dt_obj.day)
+                    except ValueError:
+                        target_day = min(30, max_days_in_month)
+                        label = "30th of month"
         else:
-            # Fallback to default (30th of the month)
-            if today.day != 30:
-                messages.error(request, f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the 30th of the month.")
-                return redirect('manage_payroll')
+            # Fallback to default (30th of the month, or last day if month has fewer days)
+            target_day = min(30, max_days_in_month)
+            if max_days_in_month < 30:
+                label = f"last day of month ({target_day}th)"
+            else:
+                label = "30th of month"
+
+        if today.day != target_day:
+            messages.error(request, f"Payroll Run Failed: Today is the {today.day}th. Payroll can only be executed on the {label}.")
+            return redirect('manage_payroll')
             
         selected_ids = request.POST.getlist('selected_employees')
         if not selected_ids:
@@ -613,6 +947,34 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
             request_type='payroll_approval'
         )
 
+        if is_final:
+            # 0 Approval steps configured (Auto-Approved immediately)
+            from core.dynamodb_service import PayslipsTable
+            count = 0
+            for item in batch_data:
+                try:
+                    emp_id = item['EmployeeID']
+                    payslip_data = item['PayslipData']
+                    attendance = item['Attendance']
+                    m_year = item['MonthYear']
+                    final_payslip = {k: Decimal(v) if k in ['NetPay', 'Basic', 'HRA', 'SpecialAllowance', 'PF', 'EmployerPF', 'EmployerEPS', 'EmployerEDLI', 'ESI', 'PT', 'TDS', 'Bonus', 'GrossSalary', 'TotalDeductions', 'AdjustedGross', 'LOPDeduction', 'IncrementAdded', 'BaseSalaryPA', 'NewSalaryPA'] else v for k, v in payslip_data.items()}
+                    final_payslip.update({
+                        'EmployeeID': emp_id,
+                        'MonthYear': m_year,
+                        'PaidDays': payslip_data.get('PaidDays', str(attendance.get('paid_days', 0))),
+                        'GeneratedAt': get_local_now().isoformat(),
+                        'ApprovedBy': request.user.employee_id,
+                        'IncrementPercentage': item.get('IncrementPercent', '0'),
+                        'BonusPercentage': item.get('BonusPercent', '0')
+                    })
+                    PayslipsTable.put_item(final_payslip)
+                    count += 1
+                except Exception as e:
+                    print(f"Error publishing payslip for {emp_id}: {e}")
+
+            messages.success(request, f"Payroll for {count} employees generated and approved immediately (0 Approval Steps Workflow).")
+            return redirect('manage_payroll')
+
         approval_item = {
             'OrgID': org_id,
             'RequestID': request_id,
@@ -635,12 +997,7 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
 class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
     required_feature = 'payslips'
     def get(self, request, month_year, emp_id=None):
-        if emp_id and request.user.role == 'HR ADMIN':
-             if not request.session.get('payroll_authenticated', False):
-                 messages.error(request, "Unlock payroll to download other slips.")
-                 return redirect('payroll_login')
-                 
-        target_emp_id = emp_id if (emp_id and request.user.role == 'HR ADMIN') else request.user.employee_id
+        target_emp_id = emp_id if (emp_id and request.user.role in ['HR ADMIN', 'Super admin', 'Platform Admin']) else request.user.employee_id
         record = PayslipsTable.get_item({'EmployeeID': target_emp_id, 'MonthYear': month_year})
         if not record: return HttpResponse("Payslip not found.", status=404)
             
@@ -648,12 +1005,12 @@ class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
         emp_name = f"{employee.get('FirstName', '')} {employee.get('LastName', '')}"
         
         org_id = employee.get('OrgID') if employee else None
-        org_name = "Lurnexa"
+        org_name = "Kyro People"
         if org_id:
             from core.dynamodb_service import OrganizationsTable
             org = OrganizationsTable.get_item({'OrgID': org_id})
             if org:
-                org_name = org.get('Name', 'Lurnexa')
+                org_name = org.get('Name', 'Kyro People')
         
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=letter)
@@ -946,7 +1303,35 @@ class PayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, TemplateView
         # Get payroll generation date setting
         from core.dynamodb_service import SettingsTable
         gen_date_setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
-        context['payroll_generation_date'] = gen_date_setting.get('Value') if gen_date_setting else ''
+        gen_val = gen_date_setting.get('Value') if gen_date_setting else ''
+        if gen_val:
+            try:
+                day_str = str(int(gen_val))
+            except ValueError:
+                try:
+                    dt_obj = datetime.datetime.strptime(str(gen_val), "%Y-%m-%d")
+                    day_str = str(dt_obj.day)
+                except ValueError:
+                    day_str = str(gen_val)
+        else:
+            day_str = ''
+
+        context['payroll_generation_date'] = day_str
+        context['payroll_generation_date_formatted'] = format_day_with_ordinal(day_str) if day_str else '30th of month'
+
+        days_list = []
+        for d in range(1, 32):
+            if 11 <= (d % 100) <= 13:
+                suf = 'th'
+            else:
+                suf = {1: 'st', 2: 'nd', 3: 'rd'}.get(d % 10, 'th')
+            days_list.append({'value': str(d), 'label': f"{d}{suf} of month"})
+        days_list.append({'value': 'LAST', 'label': 'Last day of month'})
+        context['days_list'] = days_list
+
+        tomorrow_dt = get_local_date() + datetime.timedelta(days=1)
+        context['tomorrow_date'] = tomorrow_dt.strftime('%Y-%m-%d')
+        context['tomorrow_formatted'] = tomorrow_dt.strftime('%d %B, %Y')
 
         return context
 
@@ -958,23 +1343,42 @@ class SetPayrollGenerationDateView(FeatureRequiredMixin, SuperAdminRequiredMixin
         # Check if they clicked the clear button
         if request.POST.get('clear') == 'true':
             SettingsTable.delete_item({'SettingKey': 'Payroll_Generation_Date'})
-            messages.success(request, 'Payroll generation date cleared. Reverted to default (30th of the month).')
+            messages.success(request, 'Payroll generation date cleared. Reverted to default (30th of month).')
         else:
             generation_date = request.POST.get('generation_date', '').strip()
             if generation_date:
-                try:
-                    # Validate that it is a valid date (YYYY-MM-DD)
-                    datetime.datetime.strptime(generation_date, "%Y-%m-%d")
-                    
+                if generation_date.upper() in ('LAST', 'LAST_DAY'):
                     SettingsTable.put_item({
                         'SettingKey': 'Payroll_Generation_Date',
-                        'Value': generation_date
+                        'Value': 'LAST'
                     })
-                    messages.success(request, f'Payroll generation date successfully set to {generation_date}.')
-                except ValueError:
-                    messages.error(request, 'Invalid date format. Please select a valid date.')
+                    messages.success(request, 'Payroll generation day successfully set to Last day of month.')
+                else:
+                    try:
+                        day_num = int(generation_date)
+                        if 1 <= day_num <= 31:
+                            SettingsTable.put_item({
+                                'SettingKey': 'Payroll_Generation_Date',
+                                'Value': str(day_num)
+                            })
+                            formatted_label = format_day_with_ordinal(day_num)
+                            messages.success(request, f'Payroll generation day successfully set to {formatted_label}.')
+                        else:
+                            messages.error(request, 'Invalid day selected. Please select a day between 1 and 31.')
+                    except ValueError:
+                        try:
+                            dt_obj = datetime.datetime.strptime(generation_date, "%Y-%m-%d")
+                            day_num = dt_obj.day
+                            SettingsTable.put_item({
+                                'SettingKey': 'Payroll_Generation_Date',
+                                'Value': str(day_num)
+                            })
+                            formatted_label = format_day_with_ordinal(day_num)
+                            messages.success(request, f'Payroll generation day successfully set to {formatted_label}.')
+                        except ValueError:
+                            messages.error(request, 'Invalid day selected. Please select a valid day of the month.')
             else:
-                messages.error(request, 'Please select a date.')
+                messages.error(request, 'Please select a day of the month.')
                 
         return redirect('payroll_approval_list')
 
@@ -999,6 +1403,8 @@ class UpdateESIConfigView(FeatureRequiredMixin, PayrollRequiredMixin, View):
                 messages.success(request, 'Global ESI Amount cleared. No ESI will be deducted.')
         except ValueError:
             messages.error(request, 'Invalid ESI amount. Please enter a valid number.')
+        except Exception as e:
+            messages.error(request, f'Failed to update ESI configuration: {e}')
         
         return redirect('manage_payroll')
 
@@ -1050,6 +1456,23 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                 messages.success(request, f"Payroll approved by you. Sent for next stage: {new_status}")
                 return redirect('payroll_approval_list')
                 
+            default_next_date = (get_local_date() + datetime.timedelta(days=1)).isoformat()
+            scheduled_release_date = request.POST.get('scheduled_release_date', '').strip() or default_next_date
+            now = get_local_now()
+            
+            # Determine if payslip release is scheduled for future/morning 8 AM or immediate
+            scheduled_at_8am = False
+            try:
+                target_dt = datetime.datetime.strptime(f"{scheduled_release_date} 08:00:00", "%Y-%m-%d %H:%M:%S")
+                if now.tzinfo:
+                    target_dt = target_dt.replace(tzinfo=now.tzinfo)
+                if now < target_dt:
+                    scheduled_at_8am = True
+            except Exception:
+                pass
+
+            release_status = 'Scheduled' if scheduled_at_8am else 'Released'
+
             batch_data = approval_request.get('BatchData', [])
             count = 0
             error_count = 0
@@ -1073,7 +1496,10 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                         'GeneratedAt': get_local_now().isoformat(),
                         'ApprovedBy': request.user.employee_id,
                         'IncrementPercentage': item.get('IncrementPercent', '0'),
-                        'BonusPercentage': item.get('BonusPercent', '0')
+                        'BonusPercentage': item.get('BonusPercent', '0'),
+                        'ScheduledReleaseDate': scheduled_release_date,
+                        'ScheduledReleaseTime': '08:00:00',
+                        'ReleaseStatus': release_status
                     })
                     PayslipsTable.put_item(final_payslip)
                     
@@ -1091,25 +1517,26 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                             
                         EmployeesTable.put_item(emp)
                         
-                        # Send notification & email to employee
-                        try:
-                            month_name = month_year.split('_')[0].upper()
-                            year_val = month_year.split('_')[1]
-                            email_subject = f"Payslip for {month_name} {year_val} Generated"
-                            email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nYou can view and download your detailed payslip from the employee portal.\n\nBest regards,\nLurnexa HR Team"
-                            
-                            send_notification(
-                                employee_id=emp_id,
-                                title=f"Payslip Generated - {month_name} {year_val}",
-                                message=f"Your payslip for {month_name} {year_val} has been generated with Net Pay of INR {payslip_data.get('NetPay')}.",
-                                n_type='Payroll',
-                                icon='fa-file-invoice-dollar',
-                                color='success',
-                                email_subject=email_subject,
-                                email_body=email_body
-                            )
-                        except Exception as email_err:
-                            print(f"Error sending payslip notification for {emp_id}: {email_err}")
+                        # Send notification & email ONLY if release_status == 'Released'
+                        if release_status == 'Released':
+                            try:
+                                month_name = month_year.split('_')[0].upper()
+                                year_val = month_year.split('_')[1]
+                                email_subject = f"Payslip for {month_name} {year_val} Released"
+                                email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated and released.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nYou can view and download your detailed payslip from the employee portal.\n\nBest regards,\nKyro People HR Team"
+                                
+                                send_notification(
+                                    employee_id=emp_id,
+                                    title=f"Payslip Generated - {month_name} {year_val}",
+                                    message=f"Your payslip for {month_name} {year_val} has been released with Net Pay of INR {payslip_data.get('NetPay')}.",
+                                    n_type='Payroll',
+                                    icon='fa-file-invoice-dollar',
+                                    color='success',
+                                    email_subject=email_subject,
+                                    email_body=email_body
+                                )
+                            except Exception as email_err:
+                                print(f"Error sending payslip notification for {emp_id}: {email_err}")
                     
                     # 3. Trigger Bank API Transfer
                     net_pay = float(payslip_data.get('NetPay', 0))
@@ -1126,11 +1553,17 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
             
             approval_request['Status'] = 'Approved'
             approval_request['ApproverID'] = None
+            approval_request['ScheduledReleaseDate'] = scheduled_release_date
+            approval_request['ScheduledReleaseTime'] = '08:00:00'
+            approval_request['ReleaseStatus'] = release_status
             approval_request['ProcessedAt'] = get_local_now().isoformat()
             approval_request['ProcessedBy'] = request.user.employee_id
             PayrollApprovalsTable.put_item(approval_request)
             
-            messages.success(request, f"Payroll approved and executed for {count} employees. {error_count} errors.")
+            if release_status == 'Scheduled':
+                messages.success(request, f"Payroll approved! Payslip release scheduled for {scheduled_release_date} at 08:00 AM for {count} employees.")
+            else:
+                messages.success(request, f"Payroll approved and executed for {count} employees. {error_count} errors.")
             return redirect('payroll_approval_list')
         
         return redirect('payroll_approval_list')
@@ -1269,3 +1702,69 @@ class HistoricalPayrollView(FeatureRequiredMixin, LoginRequiredMixin, TemplateVi
                 print(f"Error fetching historical payroll: {e}")
                 
         return context
+
+
+class ManagePayrollConfigView(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ['Super admin', 'HR ADMIN', 'Platform Admin']
+
+    def get(self, request):
+        from core.dynamodb_service import OrganizationsTable
+        from core.industry_templates import get_industry_profile
+        org_id = getattr(request.user, 'org_id', None)
+        if not org_id:
+            messages.error(request, "Organization context missing.")
+            return redirect('payslips_view')
+
+        org = OrganizationsTable.get_item({'OrgID': org_id}) or {}
+        payroll_config = org.get('PayrollConfig', {}) or {}
+        industry_type = org.get('IndustryType', 'SOFTWARE_IT')
+        industry_profile = get_industry_profile(industry_type)
+
+        context = {
+            'payroll_config': payroll_config,
+            'org': org,
+            'industry_type': industry_type,
+            'industry_profile': industry_profile
+        }
+        return render(request, 'payroll/manage_payroll_config.html', context)
+
+    def post(self, request):
+        from core.dynamodb_service import OrganizationsTable
+        org_id = getattr(request.user, 'org_id', None)
+        if not org_id:
+            messages.error(request, "Organization context missing.")
+            return redirect('payslips_view')
+
+        org = OrganizationsTable.get_item({'OrgID': org_id})
+        if not org:
+            messages.error(request, "Organization record not found.")
+            return redirect('manage_payroll_config')
+
+        payroll_config = {
+            'piece_rate_unit_amount': safe_decimal(request.POST.get('piece_rate_unit_amount', 0)),
+            'sales_commission_per_unit': safe_decimal(request.POST.get('sales_commission_per_unit', 0)),
+            'sales_target_bonus_flat': safe_decimal(request.POST.get('sales_target_bonus_flat', 0)),
+            'till_shortage_allowance_limit': safe_decimal(request.POST.get('till_shortage_allowance_limit', 0)),
+            'night_shift_allowance_per_day': safe_decimal(request.POST.get('night_shift_allowance_per_day', 0)),
+            'cold_storage_risk_allowance': safe_decimal(request.POST.get('cold_storage_risk_allowance', 0)),
+            'lecture_rate_per_hour': safe_decimal(request.POST.get('lecture_rate_per_hour', 0)),
+            'exam_duty_allowance_per_session': safe_decimal(request.POST.get('exam_duty_allowance_per_session', 0)),
+            'paper_evaluation_rate_per_sheet': safe_decimal(request.POST.get('paper_evaluation_rate_per_sheet', 0)),
+            'overtime_multiplier': safe_decimal(request.POST.get('overtime_multiplier', 1.0)),
+            'pf_deduction_percentage': safe_decimal(request.POST.get('pf_deduction_percentage', 0)),
+            'esi_deduction_percentage': safe_decimal(request.POST.get('esi_deduction_percentage', 0)),
+            'UpdatedAt': get_local_now().isoformat()
+        }
+
+        try:
+            OrganizationsTable.update_item(
+                Key={'OrgID': org_id},
+                UpdateExpression="SET PayrollConfig = :pcfg",
+                ExpressionAttributeValues={':pcfg': payroll_config}
+            )
+            messages.success(request, "Industry Payroll rates & rules saved successfully.")
+        except Exception as e:
+            messages.error(request, f"Failed to save payroll rates: {e}")
+
+        return redirect('manage_payroll_config')
+

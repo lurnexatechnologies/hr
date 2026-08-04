@@ -11,9 +11,25 @@ def lurnexa_settings(request):
     if not org_id and hasattr(request, 'org') and request.org:
         org_id = request.org.get('OrgID')
 
+    # Fetch organization & industry context
+    industry_type = 'SOFTWARE_IT'
+    if org_id:
+        try:
+            from core.dynamodb_service import OrganizationsTable
+            org_item = OrganizationsTable.get_item({'OrgID': org_id})
+            if org_item:
+                industry_type = org_item.get('IndustryType', 'SOFTWARE_IT')
+        except Exception:
+            pass
+
+    from core.industry_templates import get_industry_profile
+    active_industry_profile = get_industry_profile(industry_type)
+
     # Initialize default data
     data = {
         'LURNEXA_VERSION': '1.0.0',
+        'INDUSTRY_TYPE': industry_type,
+        'INDUSTRY_PROFILE': active_industry_profile,
         'is_birthday_today': False,
         'today_birthdays': [],
         'tomorrow_birthdays': [],
@@ -66,6 +82,12 @@ def lurnexa_settings(request):
                         if user_emp_id and emp.get('EmployeeID') == user_emp_id:
                             data['is_birthday_today'] = True
                             data['user_gender'] = emp.get('Gender')
+                            # Dispatch professional birthday wish email once per birthday
+                            session_key = f"bday_email_sent_{today_str}"
+                            if request and hasattr(request, 'session') and not request.session.get(session_key):
+                                from core.utils import send_birthday_wish_email
+                                send_birthday_wish_email(emp)
+                                request.session[session_key] = True
                         
                         # Only include in public today_birthdays list for others if visibility is turned ON
                         if show_bday:

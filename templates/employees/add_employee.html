@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Add Employee - Lurnexa{% endblock %}
+{% block title %}Add Employee - Kyro People{% endblock %}
 {% block nav_employees %}active{% endblock %}
 
 {% block content %}
@@ -46,7 +46,7 @@
                             <label class="form-label fw-semibold small text-uppercase text-muted">Corporate Email <span
                                     class="text-danger">*</span></label>
                             <input type="email" class="form-control form-control-lg bg-light border-0" name="email"
-                                required placeholder="john.doe@lurnexa.com">
+                                required placeholder="john.doe@kyropeople.com">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Phone Number <span
@@ -344,7 +344,7 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Department <span
                                     class="text-danger">*</span></label>
-                            <select class="form-select form-select-lg bg-light border-0" name="department" required>
+                            <select class="form-select form-select-lg bg-light border-0" name="department" id="department_select" onchange="filterManagersByDepartment()" required>
                                 <option value="" selected disabled>Select Department</option>
                                 {% for dept in departments %}
                                 <option value="{{ dept.Name }}">{{ dept.Name }}</option>
@@ -355,8 +355,12 @@
                             <label class="form-label fw-semibold small text-uppercase text-muted">Work Shift <span
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-lg bg-light border-0" name="shift" required>
+                                {% for s in industry_profile.default_shifts %}
+                                <option value="{{ s.name }}">{{ s.name }} ({{ s.start_time }} - {{ s.end_time }})</option>
+                                {% empty %}
                                 <option value="Day Shift" selected>Day Shift</option>
                                 <option value="Night Shift">Night Shift</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -387,19 +391,23 @@
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-lg bg-light border-0" name="role" id="role"
                                 onchange="toggleManagerSelect()" required>
+                                {% for crole_name, crole_info in custom_roles.items %}
+                                <option value="{{ crole_name }}">{{ crole_name }}</option>
+                                {% empty %}
                                 <option value="Employee">Employee</option>
                                 <option value="Manager">Manager</option>
                                 <option value="HR ADMIN">HR ADMIN</option>
                                 <option value="Super admin">Super admin</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6" id="manager_select_div">
                             <label class="form-label fw-semibold small text-uppercase text-muted">Reporting Manager
                                 <span class="text-danger">*</span></label>
-                            <select class="form-select form-select-lg bg-light border-0" name="manager_id" required>
+                            <select class="form-select form-select-lg bg-light border-0" name="manager_id" id="manager_select" required>
                                 <option value="">Select Manager...</option>
                                 {% for manager in managers %}
-                                <option value="{{ manager.EmployeeID }}">{{ manager.Name }}</option>
+                                <option value="{{ manager.EmployeeID }}" data-department="{{ manager.Department }}">{{ manager.Name }} [{% if manager.Department %}{{ manager.Department }}{% else %}General{% endif %}]</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -407,6 +415,47 @@
                     </div>
                 </div>
             </div>
+
+            {% if industry_profile.custom_fields %}
+            <!-- Industry Specific Dynamic Custom Fields -->
+            <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white pt-4 pb-0 border-0">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-indigo-soft text-indigo rounded-circle me-2 p-2"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid {{ industry_profile.icon|default:'fa-sliders' }}"></i>
+                        </span>
+                        <h5 class="fw-bold mb-0">{{ industry_profile.name }} Domain Specs</h5>
+                    </div>
+                    <p class="text-muted small mb-0">Fields customized specifically for your organization domain.</p>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for field in industry_profile.custom_fields %}
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase text-muted">
+                                {{ field.label }} {% if field.required %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+                            {% if field.type == 'select' %}
+                            <select class="form-select form-select-lg bg-light border-0" name="custom_field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                                <option value="" selected disabled>Select {{ field.label }}</option>
+                                {% for opt in field.options %}
+                                <option value="{{ opt }}">{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                            {% elif field.type == 'number' %}
+                            <input type="number" step="any" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" value="{{ field.default|default:'' }}" {% if field.required %}required{% endif %}>
+                            {% elif field.type == 'date' %}
+                            <input type="date" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                            {% else %}
+                            <input type="text" class="form-control form-control-lg bg-light border-0" name="custom_field_{{ field.key }}" placeholder="{{ field.label }}" {% if field.required %}required{% endif %}>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Banking Details -->
             <div class="card card-lift mb-4 border-0 shadow-sm" style="border-radius: 16px;">
@@ -575,8 +624,12 @@
                         <label class="form-label small fw-bold text-uppercase text-muted">Work Shift <span
                                 class="text-danger">*</span></label>
                         <select class="form-select form-select-lg bg-white border" name="shift" required>
+                            {% for s in industry_profile.default_shifts %}
+                            <option value="{{ s.name }}">{{ s.name }} ({{ s.start_time }} - {{ s.end_time }})</option>
+                            {% empty %}
                             <option value="Day Shift" selected>Day Shift</option>
                             <option value="Night Shift">Night Shift</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
@@ -607,10 +660,14 @@
                                 class="text-danger">*</span></label>
                         <select class="form-select form-select-lg bg-white border" name="role" id="self_role"
                             onchange="toggleSelfManagerSelect()" required>
+                            {% for crole_name, crole_info in custom_roles.items %}
+                            <option value="{{ crole_name }}">{{ crole_name }}</option>
+                            {% empty %}
                             <option value="Employee">Employee</option>
                             <option value="Manager">Manager</option>
                             <option value="HR ADMIN">HR ADMIN</option>
                             <option value="Super admin">Super admin</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
@@ -626,10 +683,19 @@
                             required value="{% now 'Y-m-d' %}">
                     </div>
                     <div class="mb-3" id="self_manager_div">
-                        <label class="form-label small fw-bold text-uppercase text-muted">Reporting Manager <span
+                        <label class="form-label small fw-bold text-uppercase text-muted">Primary Manager (Functional / HOD) <span
                                 class="text-danger">*</span></label>
                         <select class="form-select form-select-lg bg-white border" name="manager_id" required>
-                            <option value="">Select Manager...</option>
+                            <option value="">Select Primary Manager...</option>
+                            {% for manager in managers %}
+                            <option value="{{ manager.EmployeeID }}">{{ manager.Name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3" id="self_secondary_manager_div">
+                        <label class="form-label small fw-bold text-uppercase text-muted">Secondary Manager (Shift / Operational Supervisor)</label>
+                        <select class="form-select form-select-lg bg-white border" name="secondary_manager_id">
+                            <option value="">Select Secondary / Shift Manager (Optional)...</option>
                             {% for manager in managers %}
                             <option value="{{ manager.EmployeeID }}">{{ manager.Name }}</option>
                             {% endfor %}
@@ -707,58 +773,20 @@
         const managerDiv = document.getElementById('manager_select_div');
         if (!roleSelect || !managerDiv) return;
 
-        const label = managerDiv.querySelector('label');
         const select = managerDiv.querySelector('select');
         const options = select.querySelectorAll('option');
 
-        if (roleSelect.value === 'Employee') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting Manager/HR ADMIN';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(Manager)') || opt.text.includes('(HR ADMIN)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'Manager') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting HR ADMIN';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(HR ADMIN)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'HR ADMIN') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting Super admin';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(Super admin)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'Super admin') {
+        if (roleSelect.value === 'Super admin') {
             managerDiv.style.display = 'none';
             select.required = false;
+        } else {
+            managerDiv.style.display = 'block';
+            select.required = true;
+            options.forEach(opt => {
+                opt.style.display = 'block';
+                opt.hidden = false;
+                opt.disabled = false;
+            });
         }
     }
     function toggleSelfManagerSelect() {
@@ -766,43 +794,20 @@
         const managerDiv = document.getElementById('self_manager_div');
         if (!roleSelect || !managerDiv) return;
 
-        const label = managerDiv.querySelector('label');
         const select = managerDiv.querySelector('select');
         const options = select.querySelectorAll('option');
 
-        if (roleSelect.value === 'Employee') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting Manager/HR ADMIN';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(Manager)') || opt.text.includes('(HR ADMIN)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'Manager') {
-            managerDiv.style.display = 'block';
-            label.innerText = 'Reporting HR ADMIN';
-            options.forEach(opt => {
-                if (opt.value === "" || opt.text.includes('(HR ADMIN)')) {
-                    opt.style.display = 'block';
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.style.display = 'none';
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
-            select.required = true;
-        } else if (roleSelect.value === 'HR ADMIN' || roleSelect.value === 'Super admin') {
+        if (roleSelect.value === 'Super admin') {
             managerDiv.style.display = 'none';
             select.required = false;
+        } else {
+            managerDiv.style.display = 'block';
+            select.required = true;
+            options.forEach(opt => {
+                opt.style.display = 'block';
+                opt.hidden = false;
+                opt.disabled = false;
+            });
         }
     }
     function calculateMonthlyPay() {
@@ -1034,6 +1039,29 @@
                 container.classList.add('d-none');
             }
         }
+    }
+
+    function filterManagersByDepartment() {
+        const deptSelect = document.getElementById('department_select');
+        const mgrSelect = document.getElementById('manager_select');
+        if (!deptSelect || !mgrSelect) return;
+
+        const selectedDept = deptSelect.value;
+        const options = mgrSelect.querySelectorAll('option');
+
+        options.forEach(opt => {
+            if (!opt.value) return; // Skip placeholder
+            const optDept = opt.getAttribute('data-department');
+            if (selectedDept && optDept === selectedDept) {
+                opt.style.fontWeight = 'bold';
+                if (!opt.text.includes('★ Dept Leader')) {
+                    opt.text = opt.text + ' ★ Dept Leader';
+                }
+            } else {
+                opt.style.fontWeight = 'normal';
+                opt.text = opt.text.replace(' ★ Dept Leader', '');
+            }
+        });
     }
 </script>
 {% endblock %}

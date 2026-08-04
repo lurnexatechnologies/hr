@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Organization Settings - Lurnexa{% endblock %}
+{% block title %}Organization Settings - Kyro People{% endblock %}
 {% block nav_org_settings %}active{% endblock %}
 
 {% block content %}
@@ -63,13 +63,27 @@
                             
                             <!-- View Mode -->
                             <div id="biometric-view-mode">
-                                <div class="mb-0">
-                                    <label class="form-label text-muted small fw-bold d-block">Status</label>
-                                    {% if biometric_settings.Enabled %}
-                                        <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
-                                    {% endif %}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">Status</label>
+                                        {% if biometric_settings.Enabled %}
+                                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">API Endpoint URL</label>
+                                        <span class="fw-semibold text-dark small">{{ biometric_settings.APIURL|default:"Not Configured" }}</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">Device ID / Serial Number</label>
+                                        <span class="fw-semibold text-dark small">{{ biometric_settings.DeviceID|default:"Not Configured" }}</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">API Key</label>
+                                        <span class="fw-semibold text-dark small">{% if biometric_settings.APIKey %}••••••••{% else %}Not Configured{% endif %}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -135,13 +149,27 @@
                             
                             <!-- View Mode -->
                             <div id="bank-view-mode">
-                                <div class="mb-0">
-                                    <label class="form-label text-muted small fw-bold d-block">Status</label>
-                                    {% if bank_settings.Enabled %}
-                                        <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
-                                    {% endif %}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">Status</label>
+                                        {% if bank_settings.Enabled %}
+                                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">API Endpoint URL</label>
+                                        <span class="fw-semibold text-dark small">{{ bank_settings.APIURL|default:"Not Configured" }}</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">Client ID / Merchant ID</label>
+                                        <span class="fw-semibold text-dark small">{{ bank_settings.ClientID|default:"Not Configured" }}</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small fw-bold d-block">API Key</label>
+                                        <span class="fw-semibold text-dark small">{% if bank_settings.APIKey %}••••••••{% else %}Not Configured{% endif %}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -326,89 +354,146 @@
                             
                             <!-- View Mode -->
                             <div id="tax-view-mode">
-                                <div class="row g-3">
-                                    <div class="col-md-6 border-end">
-                                        <h6 class="fw-bold mb-3"><i class="fa-solid fa-percentage text-muted me-1"></i> Provident Fund (PF) Settings</h6>
-                                        <div class="mb-2">
-                                            <label class="text-muted small d-block">PF Calculation</label>
-                                            {% if tax_pf_settings.PFEnabled %}
-                                                <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
-                                            {% endif %}
+                                <div class="p-3 bg-light rounded-3 border mb-4">
+                                    <h6 class="fw-bold text-indigo mb-2"><i class="fa-solid fa-calculator me-1"></i> Salary Structure Ratios (% of Monthly CTC)</h6>
+                                    <div class="row text-center g-2">
+                                        <div class="col-md-4">
+                                            <div class="p-2 bg-white rounded border">
+                                                <small class="text-muted d-block">Basic Salary</small>
+                                                <span class="fw-bold text-dark fs-6">{{ tax_pf_settings.BasicPercent|default:'40' }}% of CTC</span>
+                                            </div>
                                         </div>
-                                        <div class="mb-2">
-                                            <label class="text-muted small d-block">Employee Contribution %</label>
-                                            <span class="fw-bold text-dark">{{ tax_pf_settings.EmployeePFPercent }}%</span>
+                                        <div class="col-md-4">
+                                            <div class="p-2 bg-white rounded border">
+                                                <small class="text-muted d-block">House Rent Allowance (HRA)</small>
+                                                <span class="fw-bold text-dark fs-6">{{ tax_pf_settings.HRAPercent|default:'40' }}% of CTC</span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label class="text-muted small d-block">Employer Contribution %</label>
-                                            <span class="fw-bold text-dark">{{ tax_pf_settings.EmployerPFPercent }}%</span>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6 ps-md-4">
-                                        <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-muted me-1"></i> Tax & TDS Settings</h6>
-                                        <div class="mb-2">
-                                            <label class="text-muted small d-block">TDS Calculation</label>
-                                            {% if tax_pf_settings.TDSEnabled %}
-                                                <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
-                                            {% endif %}
-                                        </div>
-                                        <div class="mb-2">
-                                            <label class="text-muted small d-block">Standard Tax Regime</label>
-                                            <span class="fw-bold text-dark">{{ tax_pf_settings.TaxRegime }}</span>
-                                        </div>
-                                        <div>
-                                            <label class="text-muted small d-block">Standard Deduction</label>
-                                            <span class="fw-bold text-dark">₹{{ tax_pf_settings.TaxStandardDeduction|floatformat:0 }}</span>
+                                    <div class="col-md-4">
+                                        <div class="p-2 bg-white rounded border">
+                                            <small class="text-muted d-block">Special Allowances (Residual)</small>
+                                            <span class="fw-bold text-dark fs-6">{{ tax_pf_settings.SpecialAllowancePercent }}% of CTC</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            <div class="row g-3">
+                                <div class="col-md-6 border-end">
+                                    <h6 class="fw-bold mb-3"><i class="fa-solid fa-percentage text-muted me-1"></i> Provident Fund (PF) Settings</h6>
+                                    <div class="mb-2">
+                                        <label class="text-muted small d-block">PF Calculation</label>
+                                        {% if tax_pf_settings.PFEnabled %}
+                                            <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="text-muted small d-block">Employee Contribution %</label>
+                                        <span class="fw-bold text-dark">{{ tax_pf_settings.EmployeePFPercent }}%</span>
+                                    </div>
+                                    <div>
+                                        <label class="text-muted small d-block">Employer Contribution %</label>
+                                        <span class="fw-bold text-dark">{{ tax_pf_settings.EmployerPFPercent }}%</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 ps-md-4">
+                                    <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-muted me-1"></i> Tax & TDS Settings</h6>
+                                    <div class="mb-2">
+                                        <label class="text-muted small d-block">TDS Calculation</label>
+                                        {% if tax_pf_settings.TDSEnabled %}
+                                            <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded"><i class="fa-solid fa-circle-check me-1"></i> Enabled</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded"><i class="fa-solid fa-circle-minus me-1"></i> Disabled</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="text-muted small d-block">Standard Tax Regime</label>
+                                        <span class="fw-bold text-dark">{{ tax_pf_settings.TaxRegime }}</span>
+                                    </div>
+                                    <div>
+                                        <label class="text-muted small d-block">Standard Deduction</label>
+                                        <span class="fw-bold text-dark">₹{{ tax_pf_settings.TaxStandardDeduction|floatformat:0 }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                            <!-- Edit Mode -->
-                            <div id="tax-edit-mode" style="display: none;">
-                                <form method="POST">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="update_tax_pf">
-                                    
-                                    <div class="row g-3 mb-4">
-                                        <div class="col-md-6 border-end">
-                                            <h6 class="fw-bold mb-3"><i class="fa-solid fa-percentage text-muted me-1"></i> Provident Fund (PF) Settings</h6>
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" name="pf_enabled" id="pfEnabled" {% if tax_pf_settings.PFEnabled %}checked{% endif %}>
-                                                <label class="form-check-label fw-bold text-muted small" for="pfEnabled">Enable PF Calculation</label>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label text-muted small fw-bold">Employee Contribution %</label>
-                                                <input type="number" step="0.1" name="employee_pf_percent" class="form-control" value="{{ tax_pf_settings.EmployeePFPercent }}" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label text-muted small fw-bold">Employer Contribution %</label>
-                                                <input type="number" step="0.1" name="employer_pf_percent" class="form-control" value="{{ tax_pf_settings.EmployerPFPercent }}" required>
-                                            </div>
+                        <!-- Edit Mode -->
+                        <div id="tax-edit-mode" style="display: none;">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update_tax_pf">
+                                
+                            <h6 class="fw-bold mb-3 border-bottom pb-2 text-indigo"><i class="fa-solid fa-calculator me-1"></i> Dynamic Salary Components Structure (% of Monthly CTC)</h6>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-light rounded-3 border">
+                                        <label class="form-label text-muted small fw-bold">Basic Salary (% of CTC)</label>
+                                        <div class="input-group">
+                                            <input type="number" step="1" min="10" max="90" name="basic_percent" id="basicPercentInput" class="form-control" value="{{ tax_pf_settings.BasicPercent|default:'40' }}" required>
+                                            <span class="input-group-text bg-white">%</span>
                                         </div>
-                                        <div class="col-md-6 ps-md-4">
-                                            <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-muted me-1"></i> Tax & TDS Settings</h6>
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" name="tds_enabled" id="tdsEnabled" {% if tax_pf_settings.TDSEnabled %}checked{% endif %}>
-                                                <label class="form-check-label fw-bold text-muted small" for="tdsEnabled">Enable Tax Calculation</label>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label text-muted small fw-bold">Standard Tax Regime</label>
-                                                <select name="tax_regime" class="form-select">
-                                                    <option value="New Regime" {% if tax_pf_settings.TaxRegime == 'New Regime' %}selected{% endif %}>New Regime (FY 2024-25)</option>
-                                                    <option value="Old Regime" {% if tax_pf_settings.TaxRegime == 'Old Regime' %}selected{% endif %}>Old Regime</option>
-                                                </select>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label text-muted small fw-bold">Standard Deduction Amount</label>
-                                                <input type="number" step="1000" name="tax_standard_deduction" class="form-control" value="{{ tax_pf_settings.TaxStandardDeduction }}" required>
-                                            </div>
+                                        <small class="text-muted extra-small d-block mt-1">Default: 40% of Monthly CTC</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-light rounded-3 border">
+                                        <label class="form-label text-muted small fw-bold">House Rent Allowance (HRA % of CTC)</label>
+                                        <div class="input-group">
+                                            <input type="number" step="1" min="0" max="100" name="hra_percent" id="hraPercentInput" class="form-control" value="{{ tax_pf_settings.HRAPercent|default:'40' }}" required>
+                                            <span class="input-group-text bg-white">%</span>
+                                        </div>
+                                        <small class="text-muted extra-small d-block mt-1">Default: 40% of Monthly CTC</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-light rounded-3 border">
+                                        <label class="form-label text-muted small fw-bold">Special / Other Allowances</label>
+                                        <div class="input-group">
+                                            <input type="text" id="specialPercentDisplay" class="form-control bg-white text-dark fw-bold" value="{{ tax_pf_settings.SpecialAllowancePercent }}%" readonly>
+                                            <span class="input-group-text bg-white fw-bold text-success">Auto %</span>
+                                        </div>
+                                        <small class="text-muted extra-small d-block mt-1">Residual: 100% - (Basic % + HRA %)</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6 border-end">
+                                        <h6 class="fw-bold mb-3"><i class="fa-solid fa-percentage text-muted me-1"></i> Statutory Provident Fund (PF) Settings</h6>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" name="pf_enabled" id="pfEnabled" {% if tax_pf_settings.PFEnabled %}checked{% endif %}>
+                                            <label class="form-check-label fw-bold text-muted small" for="pfEnabled">Enable PF Calculation</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small fw-bold">Employee Contribution %</label>
+                                            <input type="number" step="0.1" name="employee_pf_percent" class="form-control" value="{{ tax_pf_settings.EmployeePFPercent }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small fw-bold">Employer Contribution %</label>
+                                            <input type="number" step="0.1" name="employer_pf_percent" class="form-control" value="{{ tax_pf_settings.EmployerPFPercent }}" required>
                                         </div>
                                     </div>
+                                    <div class="col-md-6 ps-md-4">
+                                        <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-muted me-1"></i> Tax & TDS Settings</h6>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" name="tds_enabled" id="tdsEnabled" {% if tax_pf_settings.TDSEnabled %}checked{% endif %}>
+                                            <label class="form-check-label fw-bold text-muted small" for="tdsEnabled">Enable Tax Calculation</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small fw-bold">Standard Tax Regime</label>
+                                            <select name="tax_regime" class="form-select">
+                                                <option value="New Regime" {% if tax_pf_settings.TaxRegime == 'New Regime' %}selected{% endif %}>New Regime (FY 2024-25)</option>
+                                                <option value="Old Regime" {% if tax_pf_settings.TaxRegime == 'Old Regime' %}selected{% endif %}>Old Regime</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small fw-bold">Standard Deduction Amount</label>
+                                            <input type="number" step="1000" name="tax_standard_deduction" class="form-control" value="{{ tax_pf_settings.TaxStandardDeduction }}" required>
+                                        </div>
+                                    </div>
+                                </div>
                                     
                                     <div class="d-flex justify-content-end gap-2">
                                         <button type="button" class="btn btn-light px-4" id="cancel-tax-btn" style="border-radius: 8px;">Cancel</button>
@@ -616,6 +701,25 @@
         setupToggle('edit-leave-btn', 'cancel-leave-btn', 'leave-view-mode', 'leave-edit-mode');
         setupToggle('edit-tax-btn', 'cancel-tax-btn', 'tax-view-mode', 'tax-edit-mode');
         setupToggle('edit-payroll-manager-btn', 'cancel-payroll-manager-btn', 'payroll-manager-view-mode', 'payroll-manager-edit-mode');
+
+        // Live calculation for Special / Other Allowances residual percentage
+        const basicInput = document.getElementById('basicPercentInput');
+        const hraInput = document.getElementById('hraPercentInput');
+        const specialDisplay = document.getElementById('specialPercentDisplay');
+
+        function updateSpecialAllowance() {
+            if (basicInput && hraInput && specialDisplay) {
+                const bVal = parseFloat(basicInput.value) || 0;
+                const hVal = parseFloat(hraInput.value) || 0;
+                const residual = Math.max(0, 100 - (bVal + hVal));
+                specialDisplay.value = residual.toFixed(1) + '%';
+            }
+        }
+
+        if (basicInput && hraInput) {
+            basicInput.addEventListener('input', updateSpecialAllowance);
+            hraInput.addEventListener('input', updateSpecialAllowance);
+        }
 
         // Restore active tab from URL hash if present
         let activeTab = window.location.hash;

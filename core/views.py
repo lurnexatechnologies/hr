@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
-from auth_custom.mixins import HRRequiredMixin, ManagerRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, SuperAdminRequiredMixin, FeatureRequiredMixin
+from auth_custom.mixins import HRRequiredMixin, ManagerRequiredMixin, LoginRequiredMixin, ApprovedOnboardingMixin, SuperAdminRequiredMixin, FeatureRequiredMixin, RoleRequiredMixin
 import datetime
 import uuid
 import csv
@@ -530,7 +530,13 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
                 context['leave_policies'] = leave_policies
                 
                 # Tax and PF Settings
+                basic_pct = float(org.get('BasicPercent', 40.0))
+                hra_pct = float(org.get('HRAPercent', 40.0))
+                special_pct = max(0.0, 100.0 - (basic_pct + hra_pct))
                 context['tax_pf_settings'] = {
+                    'BasicPercent': basic_pct,
+                    'HRAPercent': hra_pct,
+                    'SpecialAllowancePercent': round(special_pct, 1),
                     'PFEnabled': org.get('PFEnabled', True),
                     'EmployeePFPercent': org.get('EmployeePFPercent', 12.0),
                     'EmployerPFPercent': org.get('EmployerPFPercent', 12.0),
@@ -599,21 +605,19 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
             return redirect('/core/org-settings/#pills-stamp')
 
         if action == 'update_biometric':
-            enabled = request.POST.get('biometric_enabled') == 'on'
-            api_url = request.POST.get('biometric_api_url', '').strip()
-            api_key = request.POST.get('biometric_api_key', '').strip()
-            device_id = request.POST.get('biometric_device_id', '').strip()
-
             from core.dynamodb_service import OrganizationsTable
             try:
                 org = OrganizationsTable.get_item({'OrgID': user.org_id})
                 if org:
-                    org['BiometricEnabled'] = enabled
-                    org['BiometricAPIURL'] = api_url
-                    org['BiometricAPIKey'] = api_key
-                    org['BiometricDeviceID'] = device_id
+                    bio_url = request.POST.get('biometric_api_url', '').strip()
+                    if bio_url and not (bio_url.startswith('http://') or bio_url.startswith('https://')):
+                        bio_url = f"https://{bio_url}"
+                    org['BiometricEnabled'] = request.POST.get('biometric_enabled') == 'on'
+                    org['BiometricAPIURL'] = bio_url
+                    org['BiometricAPIKey'] = request.POST.get('biometric_api_key', '').strip()
+                    org['BiometricDeviceID'] = request.POST.get('biometric_device_id', '').strip()
                     OrganizationsTable.put_item(org)
-                    messages.success(request, "Biometric API settings updated successfully.")
+                    messages.success(request, "Biometric integration settings updated successfully.")
                 else:
                     messages.error(request, "Organization not found.")
             except Exception as e:
@@ -621,25 +625,23 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
             return redirect('/core/org-settings/#pills-biometric')
 
         if action == 'update_bank':
-            enabled = request.POST.get('bank_enabled') == 'on'
-            api_url = request.POST.get('bank_api_url', '').strip()
-            client_id = request.POST.get('bank_client_id', '').strip()
-            api_key = request.POST.get('bank_api_key', '').strip()
-
             from core.dynamodb_service import OrganizationsTable
             try:
                 org = OrganizationsTable.get_item({'OrgID': user.org_id})
                 if org:
-                    org['BankAPIEnabled'] = enabled
-                    org['BankAPIURL'] = api_url
-                    org['BankClientID'] = client_id
-                    org['BankAPIKey'] = api_key
+                    bank_url = request.POST.get('bank_api_url', '').strip()
+                    if bank_url and not (bank_url.startswith('http://') or bank_url.startswith('https://')):
+                        bank_url = f"https://{bank_url}"
+                    org['BankAPIEnabled'] = request.POST.get('bank_enabled') == 'on'
+                    org['BankAPIURL'] = bank_url
+                    org['BankClientID'] = request.POST.get('bank_client_id', '').strip()
+                    org['BankAPIKey'] = request.POST.get('bank_api_key', '').strip()
                     OrganizationsTable.put_item(org)
-                    messages.success(request, "Bank API settings updated successfully.")
+                    messages.success(request, "Bank API integration settings updated successfully.")
                 else:
                     messages.error(request, "Organization not found.")
             except Exception as e:
-                messages.error(request, f"Error saving bank API settings: {str(e)}")
+                messages.error(request, f"Error saving bank settings: {str(e)}")
             return redirect('/core/org-settings/#pills-bank')
 
         if action == 'update_leave_policies':
@@ -647,17 +649,18 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
             try:
                 org = OrganizationsTable.get_item({'OrgID': user.org_id})
                 if org:
-                    leave_policies = {}
+                    leave_policies = org.get('LeavePolicies', {})
                     for emp_type in ['Permanent', 'Probation', 'Intern']:
-                        sl_limit = Decimal(request.POST.get(f'{emp_type}_SL_Limit', '0.0') or '0.0')
-                        cl_limit = Decimal(request.POST.get(f'{emp_type}_CL_Limit', '0.0') or '0.0')
-                        pl_limit = Decimal(request.POST.get(f'{emp_type}_PL_Limit', '0.0') or '0.0')
-                        allowed_types = request.POST.getlist(f'{emp_type}_AllowedTypes')
+                        sl = request.POST.get(f'{emp_type}_SL_Limit', '12')
+                        cl = request.POST.get(f'{emp_type}_CL_Limit', '12')
+                        pl = request.POST.get(f'{emp_type}_PL_Limit', '15')
+                        allowed = request.POST.getlist(f'{emp_type}_AllowedTypes')
+                        
                         leave_policies[emp_type] = {
-                            'SL_Limit': sl_limit,
-                            'CL_Limit': cl_limit,
-                            'PL_Limit': pl_limit,
-                            'AllowedTypes': allowed_types
+                            'SL_Limit': Decimal(sl),
+                            'CL_Limit': Decimal(cl),
+                            'PL_Limit': Decimal(pl),
+                            'AllowedTypes': allowed
                         }
                     org['LeavePolicies'] = leave_policies
                     OrganizationsTable.put_item(org)
@@ -673,6 +676,8 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
             try:
                 org = OrganizationsTable.get_item({'OrgID': user.org_id})
                 if org:
+                    org['BasicPercent'] = Decimal(request.POST.get('basic_percent', '40.0') or '40.0')
+                    org['HRAPercent'] = Decimal(request.POST.get('hra_percent', '40.0') or '40.0')
                     org['PFEnabled'] = request.POST.get('pf_enabled') == 'on'
                     org['EmployeePFPercent'] = Decimal(request.POST.get('employee_pf_percent', '12.0') or '12.0')
                     org['EmployerPFPercent'] = Decimal(request.POST.get('employer_pf_percent', '12.0') or '12.0')
@@ -680,7 +685,7 @@ class OrganizationSettingsView(FeatureRequiredMixin, SuperAdminRequiredMixin, Te
                     org['TaxRegime'] = request.POST.get('tax_regime', 'New Regime')
                     org['TaxStandardDeduction'] = Decimal(request.POST.get('tax_standard_deduction', '75000.0') or '75000.0')
                     OrganizationsTable.put_item(org)
-                    messages.success(request, "Tax & PF settings updated successfully.")
+                    messages.success(request, "Tax, PF & Salary Component settings updated successfully.")
                 else:
                     messages.error(request, "Organization not found.")
             except Exception as e:
@@ -1736,9 +1741,17 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
         # Sort letters by GeneratedDate descending
         letters_list = sorted(letters_list, key=lambda x: x.get('GeneratedDate', ''), reverse=True)
         
+        from core.dynamodb_service import DepartmentsTable
+        try:
+            departments = DepartmentsTable.scan()
+            departments = sorted(departments, key=lambda x: x.get('Name', '').lower())
+        except Exception:
+            departments = []
+        
         return render(request, 'core/generate_letter.html', {
             'employees': active_employees,
-            'letters': letters_list
+            'letters': letters_list,
+            'departments': departments
         })
 
     def post(self, request):
@@ -1815,7 +1828,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             <p><strong>Dear {emp_name},</strong></p>
             <p>We are delighted to inform you that in recognition of your outstanding performance and dedication, the management has decided to award you a performance bonus of <strong>{amount}</strong>.</p>
             <p>This bonus is effective as of <strong>{effective_date}</strong> and will be processed along with your next payroll cycle.</p>
-            <p>We appreciate your hard work and look forward to your continued contributions to the success of Lurnexa.</p>
+            <p>We appreciate your hard work and look forward to your continued contributions to the success of Kyro People.</p>
             """
         elif letter_type == 'Hike Letter':
             percentage = request.POST.get('hike_percentage', '')
@@ -1843,26 +1856,49 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
                 print(f"Failed to update employee CTC for hike: {ex}")
         elif letter_type == 'Promotion Letter':
             new_designation = request.POST.get('new_designation', '').strip()
+            new_department = request.POST.get('new_department', '').strip()
+            new_reporting_manager = request.POST.get('new_reporting_manager', '').strip()
             new_salary = request.POST.get('new_salary', '').strip()
             letter_title = "Promotion Letter"
+            
+            dept_text = f" in the <strong>{new_department}</strong> department" if new_department else ""
             letter_body = f"""
             <p><strong>Dear {emp_name},</strong></p>
-            <p>We are pleased to inform you that you have been promoted to the position of <strong>{new_designation}</strong>, effective from <strong>{effective_date}</strong>.</p>
+            <p>We are pleased to inform you that you have been promoted to the position of <strong>{new_designation}</strong>{dept_text}, effective from <strong>{effective_date}</strong>.</p>
             """
             if new_salary:
                 letter_body += f"<p>With this promotion, your revised annual compensation will be <strong>Rs. {new_salary}</strong>.</p>"
             letter_body += """
-            <p>This promotion is in recognition of your outstanding performance, dedication, and contributions to Lurnexa. We thank you for your hard work and look forward to your continued success in this new role.</p>
+            <p>This promotion is in recognition of your outstanding performance, dedication, and contributions to Kyro People. We thank you for your hard work and look forward to your continued success in this new role.</p>
             """
             
-            # Automatically update the employee's designation (and CTC) if effective date has already been reached
+            # Automatically update the employee's designation, department, reporting manager and CTC if effective date has already been reached
             promotion_applied_immediately = False
             try:
                 today_str = datetime.date.today().isoformat()
                 if effective_date <= today_str:
-                    emp['Designation'] = new_designation
+                    old_desig = emp.get('Designation', 'Employee')
+                    old_dept = emp.get('Department', '')
+                    
+                    if new_designation:
+                        emp['Designation'] = new_designation
+                    if new_department:
+                        emp['Department'] = new_department
+                    if new_reporting_manager:
+                        emp['ReportingManager'] = new_reporting_manager
                     if new_salary:
                         emp['SalaryPA'] = new_salary
+                        
+                    promo_history = emp.get('PromotionHistory', [])
+                    promo_history.append({
+                        'Date': effective_date,
+                        'PreviousDesignation': old_desig,
+                        'NewDesignation': new_designation or old_desig,
+                        'PreviousDepartment': old_dept,
+                        'NewDepartment': new_department or old_dept,
+                        'Reason': 'Promotion Letter Issued'
+                    })
+                    emp['PromotionHistory'] = promo_history
                     EmployeesTable.put_item(emp)
                     promotion_applied_immediately = True
             except Exception as ex:
@@ -1886,21 +1922,21 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             letter_title = "Relieving & Experience Letter"
             letter_body = f"""
             <p><strong>To,</strong></p>
-            <p>This is to certify that <strong>{salutation} {emp_name}</strong> was employed with <strong>Lurnexa</strong>. {subject_pronoun} served the organization from <strong>{joined_date_fmt}</strong> to <strong>{lwd_fmt}</strong>.</p>
+            <p>This is to certify that <strong>{salutation} {emp_name}</strong> was employed with <strong>Kyro People</strong>. {subject_pronoun} served the organization from <strong>{joined_date_fmt}</strong> to <strong>{lwd_fmt}</strong>.</p>
             <p>During {possessive_pronoun} tenure with us, {salutation} {emp_name} was designated as <strong>{designation}</strong> in the <strong>{department}</strong> department. Throughout {possessive_pronoun} employment, {subject_pronoun_lower} demonstrated outstanding professionalism, dedication, and a strong work ethic. {possessive_pronoun_cap} contributions have been highly valued by the team and management alike.</p>
             <p>This certificate confirms that {salutation} {emp_name} has been officially relieved of {possessive_pronoun} duties and responsibilities, effective from the close of business hours on <strong>{lwd_fmt}</strong>. We verify that all formal handing-over procedures have been successfully completed.</p>
             <p>We extend our sincere appreciation to {object_pronoun} for {possessive_pronoun} dedicated services and wish {object_pronoun} the absolute best in all future professional and personal endeavors.</p>
             """
-            email_body_plain = f"Dear {emp_name},\n\nYour Experience Letter has been generated. This certifies your employment with Lurnexa from {joined_date_fmt} until {lwd_fmt}.\n\nPlease log in to your Lurnexa portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
+            email_body_plain = f"Dear {emp_name},\n\nYour Experience Letter has been generated. This certifies your employment with Kyro People from {joined_date_fmt} until {lwd_fmt}.\n\nPlease log in to your Kyro People portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
             
         elif letter_type == 'PF Letter':
             letter_title = "Provident Fund Declaration"
             letter_body = f"""
             <p><strong>To,</strong></p>
-            <p>This is to certify that Provident Fund contributions for <strong>{salutation} {emp_name}</strong> have been processed according to statutory requirements during {possessive_pronoun} tenure with Lurnexa.</p>
+            <p>This is to certify that Provident Fund contributions for <strong>{salutation} {emp_name}</strong> have been processed according to statutory requirements during {possessive_pronoun} tenure with Kyro People.</p>
             <p>For further details, please refer to the official EPFO portal.</p>
             """
-            email_body_plain = f"Dear {emp_name},\n\nYour PF Letter has been generated.\n\nPlease log in to your Lurnexa portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
+            email_body_plain = f"Dear {emp_name},\n\nYour PF Letter has been generated.\n\nPlease log in to your Kyro People portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
 
         date_element = ""
         if letter_type not in ['Experience Letter', 'PF Letter']:
@@ -1959,7 +1995,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             <div class="container">
                 <div class="header">
                     <div style="text-align: center; margin-bottom: 5px;">
-                        <h2 style="margin: 0; color: black; font-size: 24px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; display: inline-block; vertical-align: middle;">LURNEXA</h2>
+                        <h2 style="margin: 0; color: black; font-size: 24px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; display: inline-block; vertical-align: middle;">KYRO PEOPLE</h2>
                     </div>
                     <p style="margin: 5px 0 0 0; font-size: 14px; color: black;">Official Employee Document</p>
                 </div>
@@ -1975,7 +2011,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
                     </div>
                     <div class="signature">
                         Authorized Signatory<br>
-                        Human Resources, Lurnexa
+                        Human Resources, Kyro People
                     </div>
                 </div>
             </div>
@@ -2005,6 +2041,8 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
         elif letter_type == 'Promotion Letter':
             letter_item['EffectiveDate'] = effective_date
             letter_item['NewDesignation'] = new_designation
+            letter_item['NewDepartment'] = new_department
+            letter_item['NewReportingManager'] = new_reporting_manager
             letter_item['NewSalary'] = new_salary
             letter_item['PromotionApplied'] = promotion_applied_immediately
         elif letter_type == 'Bonus Letter':
@@ -2056,21 +2094,21 @@ class HRSendLetterEmailView(FeatureRequiredMixin, HRRequiredMixin, View):
 
         # Determine subject and body for the email
         if letter_type == 'Experience Letter':
-            email_subject = f"Lurnexa: Your Experience Letter"
+            email_subject = f"Kyro People: Your Experience Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Your Experience Letter has been generated. Please find it attached to this email.\n\n"
                 f"Best Regards,\nHR Department"
             )
         elif letter_type == 'PF Letter':
-            email_subject = f"Lurnexa: Your PF Letter"
+            email_subject = f"Kyro People: Your PF Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Your PF Letter has been generated. Please find it attached to this email.\n\n"
                 f"Best Regards,\nHR Department"
             )
         elif letter_type == 'Hike Letter':
-            email_subject = f"Lurnexa: Your Compensation Revision Letter"
+            email_subject = f"Kyro People: Your Compensation Revision Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"We are pleased to inform you that your compensation has been revised. Please find your Hike Revision Letter attached.\n\n"
@@ -2081,30 +2119,30 @@ class HRSendLetterEmailView(FeatureRequiredMixin, HRRequiredMixin, View):
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Congratulations! We are absolutely thrilled to inform you that you have been promoted. "
-                f"This promotion is a testament to your outstanding performance, dedication, and contributions to Lurnexa.\n\n"
+                f"This promotion is a testament to your outstanding performance, dedication, and contributions to Kyro People.\n\n"
                 f"We have attached your official Promotion Letter to this email. You can also view and download this letter "
-                f"at any time by logging into the Lurnexa portal and navigating to the 'My Letters' page.\n\n"
+                f"at any time by logging into the Kyro People portal and navigating to the 'My Letters' page.\n\n"
                 f"We are incredibly proud of your accomplishments and wish you continued success in your new role!\n\n"
                 f"Best Regards,\n"
                 f"Human Resources Team\n"
-                f"Lurnexa"
+                f"Kyro People"
             )
         elif letter_type == 'Bonus Letter':
-            email_subject = f"Lurnexa: Your Bonus Award Letter"
+            email_subject = f"Kyro People: Your Bonus Award Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"We are pleased to inform you that you have been awarded a performance bonus. Please find your Bonus Award Letter attached.\n\n"
                 f"Best Regards,\nHR Department"
             )
         elif letter_type == 'Offer Letter':
-            email_subject = f"Lurnexa: Your Offer Letter"
+            email_subject = f"Kyro People: Your Offer Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Congratulations! Please find your Offer Letter attached.\n\n"
                 f"Best Regards,\nHR Department"
             )
         else:
-            email_subject = f"Lurnexa: Your Generated Document ({letter_type})"
+            email_subject = f"Kyro People: Your Generated Document ({letter_type})"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Please find your official {letter_type} attached.\n\n"
@@ -2229,13 +2267,13 @@ class ContactUsView(View):
             from django.conf import settings
             
             subject = f"New Enterprise Inquiry: {first_name} {last_name}"
-            body = f"Hello Lurnexa Team,\n\nYou have received a new enterprise inquiry from the Lurnexa HRMS landing page.\n\nContact Details:\n----------------\nName: {first_name} {last_name}\nWork Email: {email}\nContact Number: {phone}\n\nMessage:\n--------\n{message}\n\n---\nThis is an automated system notification generated by the Lurnexa Platform."
+            body = f"Hello Kyro People Team,\n\nYou have received a new enterprise inquiry from the Kyro People landing page.\n\nContact Details:\n----------------\nName: {first_name} {last_name}\nWork Email: {email}\nContact Number: {phone}\n\nMessage:\n--------\n{message}\n\n---\nThis is an automated system notification generated by the Kyro People Platform."
             
             email_msg = EmailMessage(
                 subject=subject,
                 body=body,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                to=['info@lurnexatechnologies.in'],
+                to=['kyropeople.hrms@gmail.com'],
                 reply_to=[email]
             )
             email_msg.send(fail_silently=False)
@@ -3444,7 +3482,7 @@ class DownloadAppraisalLetterView(FeatureRequiredMixin, LoginRequiredMixin, View
             </head>
             <body onload="window.print()">
                 <div class="letterhead">
-                    <div class="logo">Lurnexa Technologies</div>
+                    <div class="logo">Kyro People</div>
                     <div>HR Department</div>
                 </div>
                 <div class="date">Date: {date_str}</div>
@@ -3452,7 +3490,7 @@ class DownloadAppraisalLetterView(FeatureRequiredMixin, LoginRequiredMixin, View
                 <div class="content">{body}</div>
                 <div class="signature">
                     <p>Sincerely,</p>
-                    <p><strong>HR Department</strong><br>Lurnexa Technologies</p>
+                    <p><strong>HR Department</strong><br>Kyro People</p>
                 </div>
             </body>
             </html>
@@ -3527,7 +3565,7 @@ class TestPushNotificationView(View):
             
             message_payload = messaging.Message(
                 notification=messaging.Notification(
-                    title='Lurnexa Push Diagnostics',
+                    title='Kyro People Push Diagnostics',
                     body='Congratulations! Firebase Push Notifications are working perfectly on this device.',
                 ),
                 android=messaging.AndroidConfig(
@@ -3544,7 +3582,7 @@ class TestPushNotificationView(View):
                     )
                 ),
                 data={
-                    'title': 'Lurnexa Push Diagnostics',
+                    'title': 'Kyro People Push Diagnostics',
                     'body': 'Congratulations! Firebase Push Notifications are working perfectly on this device.',
                     'type': 'Announcement',
                     'route': '/core/notifications/',
@@ -3589,6 +3627,7 @@ class ManageDepartmentsView(SuperAdminRequiredMixin, View):
         if action == 'create_department':
             dept_name = request.POST.get('department_name', '').strip()
             dept_desc = request.POST.get('department_desc', '').strip()
+            live_tracking_enabled = request.POST.get('live_tracking_enabled') == 'on' or request.POST.get('live_tracking_enabled') == 'true'
             if not dept_name:
                 messages.error(request, "Department name is required.")
                 return redirect('manage_departments')
@@ -3599,23 +3638,327 @@ class ManageDepartmentsView(SuperAdminRequiredMixin, View):
                 'DepartmentID': dept_id,
                 'Name': dept_name,
                 'Description': dept_desc,
+                'LiveTrackingEnabled': live_tracking_enabled,
                 'CreatedAt': datetime.datetime.utcnow().isoformat()
             }
             try:
                 DepartmentsTable.put_item(dept_item)
+                
+                # Sync with Org TrackingDepartments
+                from core.dynamodb_service import OrganizationsTable
+                org = OrganizationsTable.get_item({'OrgID': org_id}) or {}
+                t_depts = org.get('TrackingDepartments', []) or []
+                if live_tracking_enabled and dept_name not in t_depts:
+                    t_depts.append(dept_name)
+                    OrganizationsTable.update_item(
+                        Key={'OrgID': org_id},
+                        UpdateExpression="SET TrackingDepartments = :tdepts",
+                        ExpressionAttributeValues={':tdepts': t_depts}
+                    )
+                    
                 messages.success(request, f"Department '{dept_name}' created successfully.")
             except Exception as e:
                 messages.error(request, f"Error creating department: {e}")
 
+        elif action == 'toggle_tracking':
+            dept_id = request.POST.get('department_id', '').strip()
+            enabled = request.POST.get('enabled') == 'true'
+            try:
+                dept_item = DepartmentsTable.get_item({'OrgID': org_id, 'DepartmentID': dept_id})
+                if dept_item:
+                    dept_name = dept_item.get('Name')
+                    DepartmentsTable.update_item(
+                        Key={'OrgID': org_id, 'DepartmentID': dept_id},
+                        UpdateExpression="SET LiveTrackingEnabled = :lte",
+                        ExpressionAttributeValues={':lte': enabled}
+                    )
+                    
+                    # Update Org TrackingDepartments
+                    from core.dynamodb_service import OrganizationsTable
+                    org = OrganizationsTable.get_item({'OrgID': org_id}) or {}
+                    t_depts = org.get('TrackingDepartments', []) or []
+                    if enabled and dept_name not in t_depts:
+                        t_depts.append(dept_name)
+                    elif not enabled and dept_name in t_depts:
+                        t_depts.remove(dept_name)
+                        
+                    OrganizationsTable.update_item(
+                        Key={'OrgID': org_id},
+                        UpdateExpression="SET TrackingDepartments = :tdepts",
+                        ExpressionAttributeValues={':tdepts': t_depts}
+                    )
+                    messages.success(request, f"Live tracking for department '{dept_name}' {'enabled' if enabled else 'disabled'}.")
+            except Exception as e:
+                messages.error(request, f"Error toggling live tracking: {e}")
+
         elif action == 'delete_department':
             dept_id = request.POST.get('department_id', '').strip()
             try:
+                dept_item = DepartmentsTable.get_item({'OrgID': org_id, 'DepartmentID': dept_id})
+                if dept_item:
+                    dept_name = dept_item.get('Name')
+                    from core.dynamodb_service import OrganizationsTable
+                    org = OrganizationsTable.get_item({'OrgID': org_id}) or {}
+                    t_depts = org.get('TrackingDepartments', []) or []
+                    if dept_name in t_depts:
+                        t_depts.remove(dept_name)
+                        OrganizationsTable.update_item(
+                            Key={'OrgID': org_id},
+                            UpdateExpression="SET TrackingDepartments = :tdepts",
+                            ExpressionAttributeValues={':tdepts': t_depts}
+                        )
                 DepartmentsTable.delete_item({'OrgID': org_id, 'DepartmentID': dept_id})
                 messages.success(request, "Department deleted successfully.")
             except Exception as e:
                 messages.error(request, f"Error deleting department: {e}")
 
         return redirect('manage_departments')
+
+
+class ManageRolesView(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ['Super admin', 'HR ADMIN', 'Platform Admin']
+
+    def get(self, request):
+        from core.dynamodb_service import OrganizationsTable, PoliciesTable
+        from core.features import FEATURE_REGISTRY
+        org_id = getattr(request.user, 'org_id', None)
+        if not org_id:
+            messages.error(request, "Organization context missing.")
+            return redirect('employee_dashboard')
+
+        org = OrganizationsTable.get_item({'OrgID': org_id}) or {}
+        from core.industry_templates import get_industry_profile
+        industry_type = org.get('IndustryType', 'SOFTWARE_IT')
+        ind_profile = get_industry_profile(industry_type)
+
+        custom_roles = org.get('CustomRoles')
+        if custom_roles is None:
+            default_system_roles = {
+                'Employee': {'Description': 'Standard Employee Role', 'Features': ['ess_portal', 'attendance', 'leave_management']},
+                'Manager': {'Description': 'Department Manager Role', 'Features': ['ess_portal', 'attendance', 'leave_management', 'wfh_requests']},
+                'HR ADMIN': {'Description': 'Human Resources Administrator', 'Features': ['ess_portal', 'attendance', 'leave_management', 'wfh_requests', 'payroll']},
+                'Super admin': {'Description': 'Organization Super Administrator', 'Features': ['ess_portal', 'attendance', 'leave_management', 'wfh_requests', 'payroll', 'settings']}
+            }
+            if ind_profile and ind_profile.get('default_roles'):
+                custom_roles = ind_profile.get('default_roles', {})
+            else:
+                custom_roles = default_system_roles
+
+            try:
+                OrganizationsTable.update_item(
+                    Key={'OrgID': org_id},
+                    UpdateExpression="SET CustomRoles = :croles",
+                    ExpressionAttributeValues={':croles': custom_roles}
+                )
+            except Exception:
+                pass
+
+        if not isinstance(custom_roles, dict):
+            custom_roles = {}
+
+        # Fetch approved policies for policy binding
+        all_policies = []
+        try:
+            p_items = PoliciesTable.scan(
+                FilterExpression="OrgID = :oid AND ApprovalStatus = :status",
+                ExpressionAttributeValues={':oid': org_id, ':status': 'Approved'}
+            )
+            all_policies = p_items or []
+        except Exception:
+            all_policies = []
+
+        # Fetch organization departments
+        from employees.views import get_departments_list
+        org_depts = get_departments_list(org_id)
+        department_names = [d.get('Name') for d in org_depts if d.get('Name')]
+        tracking_departments = org.get('TrackingDepartments', []) or []
+
+        context = {
+            'custom_roles': custom_roles,
+            'feature_registry': FEATURE_REGISTRY,
+            'approved_policies': all_policies,
+            'org': org,
+            'departments': department_names,
+            'tracking_departments': tracking_departments,
+            'available_permissions': [
+                ('employee_read', 'View Employee Records'),
+                ('employee_write', 'Add & Edit Employee Records'),
+                ('leave_approve', 'Approve Leave & WFH Claims'),
+                ('expense_approve', 'Approve Reimbursement Expenses'),
+                ('payroll_access', 'Manage & Process Payroll'),
+                ('pf_access', 'Manage Statutory Compliance (PF/ESI)'),
+                ('historical_payroll_access', 'View Historical Payroll Vault'),
+            ]
+        }
+        return render(request, 'core/manage_roles.html', context)
+
+    def post(self, request):
+        from core.dynamodb_service import OrganizationsTable
+        org_id = getattr(request.user, 'org_id', None)
+        if not org_id:
+            messages.error(request, "Organization context missing.")
+            return redirect('employee_dashboard')
+
+        org = OrganizationsTable.get_item({'OrgID': org_id})
+        if not org:
+            messages.error(request, "Organization record not found.")
+            return redirect('manage_roles')
+
+        action = request.POST.get('action')
+        custom_roles = org.get('CustomRoles', {}) or {}
+
+        if action == 'save_tracking_departments':
+            selected_depts = request.POST.getlist('tracking_departments')
+            try:
+                OrganizationsTable.update_item(
+                    Key={'OrgID': org_id},
+                    UpdateExpression="SET TrackingDepartments = :tdepts",
+                    ExpressionAttributeValues={':tdepts': selected_depts}
+                )
+                messages.success(request, f"Live GPS Tracking configured for departments: {', '.join(selected_depts) if selected_depts else 'All Departments'}.")
+            except Exception as e:
+                messages.error(request, f"Failed to save tracking departments: {e}")
+
+        elif action == 'save_role':
+            role_name = request.POST.get('role_name', '').strip()
+            description = request.POST.get('description', '').strip()
+            selected_features = request.POST.getlist('features')
+            selected_policies = request.POST.getlist('policies')
+            selected_perms = request.POST.getlist('permissions')
+
+            if not role_name:
+                messages.error(request, "Role title/name is required.")
+                return redirect('manage_roles')
+
+            wfh_allowed = request.POST.get('wfh_allowed') == 'on' or request.POST.get('wfh_allowed') == 'true'
+            try:
+                max_wfh_per_month = int(request.POST.get('max_wfh_per_month', 0))
+            except ValueError:
+                max_wfh_per_month = 0
+            try:
+                leave_quota_annual = int(request.POST.get('leave_quota_annual', 12))
+            except ValueError:
+                leave_quota_annual = 12
+            blackout_weekends = request.POST.get('blackout_weekends') == 'on' or request.POST.get('blackout_weekends') == 'true'
+
+            custom_roles[role_name] = {
+                'Description': description,
+                'Features': selected_features,
+                'Policies': selected_policies,
+                'Permissions': selected_perms,
+                'wfh_allowed': wfh_allowed,
+                'max_wfh_per_month': max_wfh_per_month,
+                'leave_quota_annual': leave_quota_annual,
+                'blackout_weekends': blackout_weekends,
+                'UpdatedAt': get_local_now().isoformat()
+            }
+            try:
+                OrganizationsTable.update_item(
+                    Key={'OrgID': org_id},
+                    UpdateExpression="SET CustomRoles = :croles",
+                    ExpressionAttributeValues={':croles': custom_roles}
+                )
+                messages.success(request, f"Custom Role '{role_name}' saved successfully with assigned features and policies.")
+            except Exception as e:
+                messages.error(request, f"Failed to save custom role: {e}")
+
+        elif action == 'delete_role':
+            role_name = request.POST.get('role_name', '').strip()
+            if role_name in custom_roles:
+                del custom_roles[role_name]
+                try:
+                    OrganizationsTable.update_item(
+                        Key={'OrgID': org_id},
+                        UpdateExpression="SET CustomRoles = :croles",
+                        ExpressionAttributeValues={':croles': custom_roles}
+                    )
+                    messages.success(request, f"Custom Role '{role_name}' deleted.")
+                except Exception as e:
+                    messages.error(request, f"Failed to delete custom role: {e}")
+
+        return redirect('manage_roles')
+
+
+class ManageWorkflowsView(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ['Super admin', 'HR ADMIN', 'Platform Admin']
+
+    def get(self, request):
+        from core.dynamodb_service import OrganizationsTable
+        org_id = getattr(request.user, 'org_id', None)
+        if not org_id:
+            messages.error(request, "Organization context missing.")
+            return redirect('employee_dashboard')
+
+        org = OrganizationsTable.get_item({'OrgID': org_id}) or {}
+        workflow_rules = org.get('WorkflowRules', {}) or {}
+        custom_roles = org.get('CustomRoles', {}) or {}
+
+        request_types = [
+            ('leave_request', 'Leave Requests'),
+            ('wfh_request', 'WFH Requests'),
+            ('expense_claim', 'Expense & Reimbursement Claims'),
+            ('shift_swap', 'Shift Swap & Roster Requests'),
+            ('resignation_request', 'Resignation Approvals'),
+            ('resignation_workflow', 'Resignation & Exit Requests'),
+        ]
+
+        from core.utils import get_organization_roles
+        roles_list = get_organization_roles(org)
+        approver_role_options = list(roles_list)
+        for extra in ['Shift Manager', 'Team Lead']:
+            if extra not in approver_role_options:
+                approver_role_options.append(extra)
+
+        context = {
+            'workflow_rules': workflow_rules,
+            'custom_roles': custom_roles,
+            'roles_list': roles_list,
+            'request_types': request_types,
+            'approver_role_options': approver_role_options,
+            'org': org
+        }
+        return render(request, 'core/manage_workflows.html', context)
+
+    def post(self, request):
+        from core.dynamodb_service import OrganizationsTable
+        org_id = getattr(request.user, 'org_id', None)
+        if not org_id:
+            messages.error(request, "Organization context missing.")
+            return redirect('employee_dashboard')
+
+        org = OrganizationsTable.get_item({'OrgID': org_id})
+        if not org:
+            messages.error(request, "Organization record not found.")
+            return redirect('manage_workflows')
+
+        req_type = request.POST.get('request_type')
+        submitter_role = request.POST.get('submitter_role')
+        steps = request.POST.getlist('approval_steps')
+
+        if not req_type or not submitter_role:
+            messages.error(request, "Request type and submitter role are required.")
+            return redirect('manage_workflows')
+
+        workflow_rules = org.get('WorkflowRules', {}) or {}
+        if req_type not in workflow_rules:
+            workflow_rules[req_type] = {}
+
+        clean_steps = [s.strip() for s in steps if s.strip()]
+        workflow_rules[req_type][submitter_role] = clean_steps
+
+        try:
+            OrganizationsTable.update_item(
+                Key={'OrgID': org_id},
+                UpdateExpression="SET WorkflowRules = :wrules",
+                ExpressionAttributeValues={':wrules': workflow_rules}
+            )
+            messages.success(request, f"Custom approval workflow saved for '{req_type}' ({submitter_role}).")
+        except Exception as e:
+            messages.error(request, f"Failed to save workflow rules: {e}")
+
+        return redirect('manage_workflows')
+
+
 
 
 

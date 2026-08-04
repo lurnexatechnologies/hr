@@ -113,10 +113,17 @@ class DynamoDBAuthMiddleware:
             try:
                 user_data = UsersTable.get_item({'UserID': user_id})
                 if user_data:
+                    role_upper = (user_data.get('Role') or '').strip().upper()
                     session_token = request.session.get('session_token')
-                    db_token = user_data.get('ActiveSessionToken')
                     
-                    if db_token and session_token != db_token:
+                    active_sessions = user_data.get('ActiveSessions', [])
+                    valid_tokens = []
+                    if isinstance(active_sessions, list) and len(active_sessions) > 0:
+                        valid_tokens = [s.get('session_token') for s in active_sessions if isinstance(s, dict) and s.get('session_token')]
+                    elif user_data.get('ActiveSessionToken'):
+                        valid_tokens = [user_data.get('ActiveSessionToken')]
+
+                    if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN'] and valid_tokens and session_token not in valid_tokens:
                         if 'user_id' in request.session:
                             del request.session['user_id']
                         if 'session_token' in request.session:
@@ -126,7 +133,7 @@ class DynamoDBAuthMiddleware:
                         if not (path.endswith('/notifications/poll/') or 
                                 path.endswith('/api/register-device/') or 
                                 path.endswith('/api/unregister-device/')):
-                            messages.warning(request, "Your session has been terminated because you logged in on another device.")
+                            messages.warning(request, "Your session has been terminated because your account reached the 2 device login limit.")
                             return redirect('login')
                         
                         request.user = DynamoAnonymousUser()
@@ -175,7 +182,7 @@ class DynamoDBAuthMiddleware:
                             except Exception as err:
                                 logger.error(f"Error resolving fallback OrgID: {err}")
 
-                        if not user_data.get('IsActive', True):
+                        if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN'] and not user_data.get('IsActive', True):
                             if 'user_id' in request.session:
                                 del request.session['user_id']
                             from django.contrib import messages
@@ -214,12 +221,22 @@ class DynamoDBAuthMiddleware:
                                     plan = 'professional'
                                 
                                 request.user.plan = plan
-                                plan_features = PLAN_FEATURES.get(plan, PLAN_FEATURES.get('professional', []))
                                 custom_features = org.get('CustomFeatures', []) or []
-                                request.user.features = list(set(plan_features) | set(custom_features))
+                                custom_roles = org.get('CustomRoles', {}) or {}
+                                user_role = getattr(request.user, 'role', '')
+                                plan_features = PLAN_FEATURES.get(plan, PLAN_FEATURES.get('professional', []))
+                                if user_role in custom_roles and custom_roles[user_role].get('Features'):
+                                    # Role features configured by Super Admin scope user features
+                                    role_feats = custom_roles[user_role].get('Features', [])
+                                    request.user.features = list(set(role_feats))
+                                    request.user.role_policies = custom_roles[user_role].get('Policies', [])
+                                else:
+                                    request.user.features = list(set(plan_features) | set(custom_features))
+                                    request.user.role_policies = []
                             else:
                                 request.user.plan = 'professional'
                                 request.user.features = PLAN_FEATURES.get('professional', [])
+                                request.user.role_policies = []
                             
                             # Resolve and assign user permissions
                             request.user.permissions = get_user_permissions(user_data, org)
@@ -317,7 +334,9 @@ class SessionTimeoutMiddleware:
                 if not (path.endswith('/notifications/poll/') or 
                         path.endswith('/api/register-device/') or 
                         path.endswith('/api/unregister-device/') or
-                        '/logout/' in path):
+                        '/logout/' in path or
+                        '/login/' in path or
+                        path.startswith('/auth/')):
                     
                     last_activity = request.session.get('last_activity')
                     now = time.time()
@@ -327,20 +346,26 @@ class SessionTimeoutMiddleware:
                         elapsed = now - last_activity
                         if elapsed > TIMEOUT_SECONDS:
                             user_id = request.session.get('user_id')
+                            curr_token = request.session.get('session_token')
                             if user_id:
                                 try:
-                                    UsersTable.update_item(
-                                        Key={'UserID': user_id},
-                                        UpdateExpression="REMOVE ActiveSessionToken, LastActivityTime"
-                                    )
+                                    u_item = UsersTable.get_item({'UserID': user_id})
+                                    if u_item:
+                                        a_sessions = u_item.get('ActiveSessions', [])
+                                        if isinstance(a_sessions, list):
+                                            updated_sessions = [s for s in a_sessions if isinstance(s, dict) and s.get('session_token') != curr_token]
+                                            UsersTable.update_item(
+                                                Key={'UserID': user_id},
+                                                UpdateExpression="SET ActiveSessions = :sessions",
+                                                ExpressionAttributeValues={":sessions": updated_sessions}
+                                            )
                                 except Exception as e:
                                     logger.error(f"Error clearing active session on timeout: {e}")
                             
-                            # Flush the session
-                            if 'user_id' in request.session:
-                                del request.session['user_id']
-                            if 'last_activity' in request.session:
-                                del request.session['last_activity']
+                            # Flush all session auth keys
+                            request.session.pop('user_id', None)
+                            request.session.pop('session_token', None)
+                            request.session.pop('last_activity', None)
                             
                             messages.warning(request, "Your session has expired due to inactivity. Please log in again.")
                             return redirect('login')

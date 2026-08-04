@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}360° Feedback Report - Lurnexa{% endblock %}
+{% block title %}360° Feedback Report - Kyro People{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -195,23 +195,28 @@
 
 <script>
     function acknowledgeReport(cycleId) {
-        if (!confirm('Acknowledge this 360 feedback report card?')) return;
-        
-        const formData = new FormData();
-        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-        
-        fetch(`/okrs/360/report/${cycleId}/acknowledge/`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                location.reload();
-            } else {
-                alert('Error: ' + data.message);
+        KyroPeople.confirm({
+            title: 'Acknowledge Report',
+            message: 'Are you sure you want to acknowledge this 360 feedback report card?',
+            onConfirm: function() {
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                
+                fetch(`/okrs/360/report/${cycleId}/acknowledge/`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        KyroPeople.alert('Error: ' + data.message);
+                    }
+                });
             }
+        });
+    }
         })
         .catch(err => {
             alert('Request failed.');

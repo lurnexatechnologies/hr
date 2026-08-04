@@ -5,15 +5,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard - Lurnexa{% endblock %}</title>
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
-    <!-- Web App Manifest & iOS App Meta -->
-    <link rel="manifest" href="{% url 'manifest_json' %}">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Lurnexa">
-    <link rel="apple-touch-icon" href="{% static 'img/namelesslogolurnexa.png' %}?v=2">
+    <title>{% block title %}Dashboard - Kyro People{% endblock %}</title>
+    <!-- Favicon & Touch Icons -->
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
     <!-- Bootstrap 5 CSS -->
@@ -22,7 +19,7 @@
     <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
     <!-- Chart.js -->
     <script src="{% static 'vendor/chartjs/chart.min.js' %}"></script>
-    <!-- Lurnexa Custom Styles -->
+    <!-- Kyro People Custom Styles -->
     <link href="{% static 'css/lurnexastyles.css' %}?v=1.3" rel="stylesheet">
     <script src="{% static 'vendor/canvas-confetti/confetti.browser.min.js' %}"></script>
     <!-- Security: Prevent caching for portal pages to secure back/forward navigation -->
@@ -31,7 +28,7 @@
     <meta http-equiv="Expires" content="0">
     {% block extra_css %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %} {% if is_birthday_today and 'resignation' not in request.path %}birthday-mode-{{ user_gender|default:'Other' }}{% endif %}"
+<body class="{% block body_class %}{% endblock %} {% if not request.user.is_authenticated %}no-sidebar{% endif %} {% if is_birthday_today and 'resignation' not in request.path %}birthday-mode-{{ user_gender|default:'Other' }}{% endif %}"
       data-is-birthday="{% if is_birthday_today and 'resignation' not in request.path %}true{% else %}false{% endif %}"
       data-user-gender="{{ user_gender|default:'Other' }}"
       data-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}">
@@ -47,7 +44,7 @@
         if (window.USER_IS_AUTHENTICATED && "{{ IS_MOBILE_APP }}".toLowerCase() !== 'true') {
             if (!sessionStorage.getItem('session_active')) {
                 if (window.BroadcastChannel) {
-                    const channel = new BroadcastChannel('lurnexa_session_sync');
+                    const channel = new BroadcastChannel('kyro_session_sync');
                     let receivedResponse = false;
                     
                     channel.onmessage = function(event) {
@@ -74,7 +71,7 @@
                 }
             } else {
                 if (window.BroadcastChannel) {
-                    const channel = new BroadcastChannel('lurnexa_session_sync');
+                    const channel = new BroadcastChannel('kyro_session_sync');
                     channel.onmessage = function(event) {
                         if (event.data === 'session_active_request') {
                             channel.postMessage('session_active_response');
@@ -89,7 +86,7 @@
     {% if request.user.is_authenticated %}
     <aside class="sidebar" id="sidebar">
         <a href="/" class="sidebar-brand" style="color: var(--brand-color);">
-            <i class="fa-solid {% if request.user.role == 'Super admin' %}fa-crown{% else %}fa-user{% endif %} me-2"></i> Lurnexa
+            <i class="fa-solid {% if request.user.role == 'Super admin' %}fa-crown{% else %}fa-user{% endif %} me-2"></i> Kyro People
         </a>
         <div class="sidebar-nav">
             <div class="nav-item">
@@ -118,8 +115,8 @@
                 </a>
             </div>
             <div class="nav-item">
-                <a href="{% url 'platform_org_workflows' request.user.org_id %}" class="nav-link {% block nav_workflows %}{% endblock %}">
-                    <i class="fa-solid fa-diagram-project"></i> Workflow Rules
+                <a href="{% url 'platform_org_workflows' request.user.org_id %}" class="nav-link {% block nav_workflows %}{% endblock %}{% block nav_departments %}{% endblock %}">
+                    <i class="fa-solid fa-diagram-project"></i> Departments & Workflows
                 </a>
             </div>
             {% endif %}
@@ -138,6 +135,14 @@
             <div class="nav-item">
                 <a href="{% url 'hr_attendance' %}" class="nav-link {% block nav_hr_attendance %}{% endblock %}">
                     <i class="fa-solid fa-clipboard-user"></i> Attendance Dashboard
+                </a>
+            </div>
+            {% endif %}
+            {% has_feature 'field_sales_tracking' as show_sales_tracking %}
+            {% if show_sales_tracking %}
+            <div class="nav-item">
+                <a href="{% url 'sales_live_tracking_dashboard' %}" class="nav-link {% block nav_sales_tracking %}{% endblock %}">
+                    <i class="fa-solid fa-location-dot"></i> Live Sales Tracking
                 </a>
             </div>
             {% endif %}
@@ -241,6 +246,13 @@
                 </a>
             </div>
             {% endif %}
+            {% if request.user.role == 'Super admin' or request.user.role == 'HR ADMIN' %}
+            <div class="nav-item">
+                <a href="{% url 'manage_payroll_config' %}" class="nav-link {% block nav_manage_payroll_config %}{% endblock %}">
+                    <i class="fa-solid fa-calculator text-indigo"></i> Industry Payroll Rates
+                </a>
+            </div>
+            {% endif %}
             {% if request.user.role == 'Super admin' or 'historical_payroll_access' in request.user.permissions %}
             <div class="nav-item">
                 <a href="{% url 'historical_payroll' %}" class="nav-link {% block nav_historical_payroll %}{% endblock %}">
@@ -269,6 +281,14 @@
                 </a>
             </div>
             {% endif %}
+            {% endif %}
+
+            {% if request.user.role == 'HR ADMIN' or request.user.role == 'Super admin' %}
+            <div class="nav-item">
+                <a href="{% url 'manage_roles' %}" class="nav-link {% block nav_manage_roles %}{% endblock %}">
+                    <i class="fa-solid fa-user-shield text-indigo"></i> Role & Permissions
+                </a>
+            </div>
             {% endif %}
             {% endif %}
 
@@ -387,6 +407,12 @@
             </div>
             {% endif %}
             {% endif %}
+
+            <div class="nav-item">
+                <a href="{% url 'ticket_list' %}" class="nav-link {% block nav_tickets %}{% endblock %}">
+                    <i class="fa-solid fa-headset text-indigo"></i> Helpdesk & Tickets
+                </a>
+            </div>
             {% endif %}
         </div>
         <div class="mt-auto p-3">
@@ -395,6 +421,7 @@
             </a>
         </div>
     </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     {% endif %}
 
     <!-- Main Content -->
@@ -410,14 +437,17 @@
             </div>
             
             <div class="text-center" style="flex: 1;">
-                <div class="d-flex align-items-center justify-content-center">
-                    <img src="{% static 'img/namelesslogolurnexa.png' %}?v=2" alt="Logo" style="height: 35px; margin-right: 12px; width: auto;">
-                    <h4 class="mb-0 fw-bold" style="letter-spacing: 4px; color: var(--brand-color); font-family: 'Inter', sans-serif;">LURNEXA</h4>
+                <div class="d-flex flex-column align-items-center justify-content-center">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Logo" style="height: 35px; margin-right: 12px; width: auto;">
+                        <h4 class="mb-0 fw-bold" style="letter-spacing: 4px; color: var(--brand-color); font-family: 'Inter', sans-serif;">KYRO PEOPLE</h4>
+                    </div>
+                    <span class="text-muted fw-semibold" style="font-size: 0.65rem; letter-spacing: 1.5px; margin-top: -2px;">Key Your Resources</span>
                 </div>
             </div>
             
-            {% if request.user.is_authenticated %}
             <div class="header-actions" style="flex: 1; justify-content: flex-end;">
+                {% if request.user.is_authenticated %}
                 {% if request.user.role != 'Platform Admin' %}
                 <div class="dropdown">
                     <button id="notificationBellBtn" class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false">
@@ -479,8 +509,12 @@
                         <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Log out</a></li>
                     </ul>
                 </div>
+                {% else %}
+                <a href="{% url 'login' %}" class="btn btn-primary rounded-pill px-4 fw-semibold btn-sm shadow-sm" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); border: none;">
+                    <i class="fa-solid fa-right-to-bracket me-2"></i> Sign In
+                </a>
+                {% endif %}
             </div>
-            {% endif %}
         </header>
 
         <!-- Dynamic Content -->
@@ -499,33 +533,33 @@
     </main>
 
     <!-- Global Confirm Modal -->
-    <div class="modal fade" id="lurnexaConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="kyroConfirmModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
                 <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
-                    <h5 class="modal-title fw-bold text-main" id="lurnexaConfirmTitle">Confirm Action</h5>
+                    <h5 class="modal-title fw-bold text-main" id="kyroConfirmTitle">Confirm Action</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body px-4 py-3 text-muted" id="lurnexaConfirmMessage">
+                <div class="modal-body px-4 py-3 text-muted" id="kyroConfirmMessage">
                     Are you sure you want to proceed?
                 </div>
                 <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
                     <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary rounded-pill px-4" id="lurnexaConfirmBtn" style="background-color: var(--brand-color); border: none;">Confirm</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4" id="kyroConfirmBtn" style="background-color: var(--brand-color); border: none;">Confirm</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Global Alert Modal -->
-    <div class="modal fade" id="lurnexaAlertModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="kyroAlertModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
                 <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
-                    <h5 class="modal-title fw-bold text-main" id="lurnexaAlertTitle">Message</h5>
+                    <h5 class="modal-title fw-bold text-main" id="kyroAlertTitle">Message</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body px-4 py-3 text-muted" id="lurnexaAlertMessage"></div>
+                <div class="modal-body px-4 py-3 text-muted" id="kyroAlertMessage"></div>
                 <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
                     <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal" style="background-color: var(--brand-color); border: none;">OK</button>
                 </div>
@@ -535,16 +569,16 @@
 
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     <script>
-        // Lurnexa Global UI Helper
-        const Lurnexa = {
+        // Kyro People Global UI Helper
+        const KyroPeople = {
             confirm: function(options) {
-                const modalEl = document.getElementById('lurnexaConfirmModal');
+                const modalEl = document.getElementById('kyroConfirmModal');
                 const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
                 
-                document.getElementById('lurnexaConfirmTitle').innerText = options.title || 'Confirm Action';
-                document.getElementById('lurnexaConfirmMessage').innerText = options.message || 'Are you sure you want to proceed?';
+                document.getElementById('kyroConfirmTitle').innerText = options.title || 'Confirm Action';
+                document.getElementById('kyroConfirmMessage').innerText = options.message || 'Are you sure you want to proceed?';
                 
-                const confirmBtn = document.getElementById('lurnexaConfirmBtn');
+                const confirmBtn = document.getElementById('kyroConfirmBtn');
                 const newConfirmBtn = confirmBtn.cloneNode(true);
                 confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
                 
@@ -556,15 +590,17 @@
                 modal.show();
             },
             alert: function(message, title = 'Notification') {
-                const modalEl = document.getElementById('lurnexaAlertModal');
+                const modalEl = document.getElementById('kyroAlertModal');
                 const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
                 
-                document.getElementById('lurnexaAlertTitle').innerText = title;
-                document.getElementById('lurnexaAlertMessage').innerText = message;
+                document.getElementById('kyroAlertTitle').innerText = title;
+                document.getElementById('kyroAlertMessage').innerText = message;
                 
                 modal.show();
             }
         };
+        const Kyro = KyroPeople;
+        const Lurnexa = KyroPeople;
 
         const isBirthdayMode = document.body.dataset.isBirthday === 'true';
         if (isBirthdayMode) {
@@ -616,11 +652,27 @@
         // Sidebar Toggle Logic
         const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebar = document.getElementById('sidebar');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+        function toggleMobileSidebar(show) {
+            if (!sidebar) return;
+            const shouldShow = show !== undefined ? show : !sidebar.classList.contains('show');
+            if (shouldShow) {
+                sidebar.classList.add('show');
+                if (sidebarBackdrop) sidebarBackdrop.classList.add('show');
+                document.body.classList.add('sidebar-mobile-open');
+            } else {
+                sidebar.classList.remove('show');
+                if (sidebarBackdrop) sidebarBackdrop.classList.remove('show');
+                document.body.classList.remove('sidebar-mobile-open');
+            }
+        }
+
         if (sidebarToggle && sidebar) {
             sidebarToggle.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (window.innerWidth <= 992) {
-                    sidebar.classList.toggle('show');
+                    toggleMobileSidebar();
                 } else {
                     document.body.classList.toggle('sidebar-closed');
                     const isClosed = document.body.classList.contains('sidebar-closed');
@@ -629,11 +681,17 @@
             });
         }
 
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', function() {
+                toggleMobileSidebar(false);
+            });
+        }
+
         // Close mobile sidebar when clicking outside
         document.addEventListener('click', function(e) {
             if (window.innerWidth <= 992 && sidebar && sidebar.classList.contains('show')) {
                 if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
-                    sidebar.classList.remove('show');
+                    toggleMobileSidebar(false);
                 }
             }
         });
@@ -798,7 +856,7 @@
                         // Create high importance notification channel for Android (Local & Push)
                         const channelConfig = {
                             id: 'fcm_default_channel',
-                            name: 'Lurnexa Alerts',
+                            name: 'Kyro People Alerts',
                             description: 'Real-time HRMS notifications and updates',
                             importance: 5, // IMPORTANCE_HIGH (heads-up banner)
                             visibility: 1, // VISIBILITY_PUBLIC
@@ -879,7 +937,10 @@
                         PushNotifications.addListener('pushNotificationReceived', notification => {
                             console.log('Foreground FCM notification received:', notification);
                             
-                            // Save timestamp to shown_notifications so the subsequent pollNotifications doesn't duplicate the alert
+                            const title = notification.title || (notification.data && notification.data.title) || 'Kyro People Alert';
+                            const body = notification.body || (notification.data && notification.data.body) || '';
+                            
+                            // Save timestamp to shown_notifications so pollNotifications doesn't duplicate it
                             const timestamp = notification.data && notification.data.timestamp;
                             if (timestamp) {
                                 let shownNotifications = JSON.parse(localStorage.getItem('shown_notifications') || '[]');
@@ -889,12 +950,11 @@
                                 }
                             }
 
-                            // Show bootstrap toast overlay
-                            if (typeof showBootstrapToast === 'function') {
-                                const title = notification.title || (notification.data && notification.data.title) || 'Lurnexa Update';
-                                const body = notification.body || (notification.data && notification.data.body) || '';
-                                showBootstrapToast(title, body);
+                            // Trigger native local notification popup for foreground push alerts
+                            if (typeof triggerNativeNotification === 'function') {
+                                triggerNativeNotification(title, body);
                             }
+                            
                             // Refresh badge and list if pollNotifications is available
                             if (typeof pollNotifications === 'function') {
                                 pollNotifications();
@@ -982,55 +1042,64 @@
         }
 
         function showBootstrapToast(title, body) {
-            let toastContainer = document.getElementById('lurnexaToastContainer');
-            if (!toastContainer) {
-                toastContainer = document.createElement('div');
-                toastContainer.id = 'lurnexaToastContainer';
-                toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-                toastContainer.style.zIndex = '9999';
-                document.body.appendChild(toastContainer);
-            }
-
-            const toastId = 'toast-' + Math.floor(Math.random() * 1000000);
-            const toastDiv = document.createElement('div');
-            toastDiv.className = 'toast border-0 shadow-lg';
-            toastDiv.id = toastId;
-            toastDiv.setAttribute('role', 'alert');
-            toastDiv.setAttribute('aria-live', 'assertive');
-            toastDiv.setAttribute('aria-atomic', 'true');
-            toastDiv.style.borderRadius = '12px';
-            toastDiv.style.backgroundColor = '#1e293b';
-            toastDiv.style.color = '#ffffff';
-
-            toastDiv.innerHTML = `
-                <div class="toast-header border-0 text-white bg-transparent pt-3 pb-0 px-3 d-flex justify-content-between align-items-center">
-                    <strong class="me-auto d-flex align-items-center">
-                        <i class="fa-solid fa-circle-info text-primary me-2 fs-5"></i> ${title}
-                    </strong>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-                <div class="toast-body px-3 pb-3 pt-2 text-white-50">
-                    ${body}
-                </div>
-            `;
-            
-            toastContainer.appendChild(toastDiv);
-            const toast = new bootstrap.Toast(toastDiv, {
-                autohide: true,
-                delay: 6000
-            });
-            toast.show();
-            
-            toastDiv.addEventListener('hidden.bs.toast', () => {
-                toastDiv.remove();
-            });
+            // Disabled right-side floating toast overlays as per user request
+            return;
         }
-        function triggerNativeNotification(title, body) {
-            // Trigger in-app UI toast
-            showBootstrapToast(title, body);
+        function playNotificationChime() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const now = ctx.currentTime;
+                
+                // Pleasant dual-tone notification chime (880Hz A5 -> 1318.5Hz E6)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(880, now);
+                gain1.gain.setValueAtTime(0.15, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.25);
 
-            // Web Notification API fallback (for desktop/web browsers only, not Capacitor apps)
-            if (!window.Capacitor && 'Notification' in window && Notification.permission === 'granted') {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(1318.5, now + 0.12);
+                gain2.gain.setValueAtTime(0.2, now + 0.12);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(now + 0.12);
+                osc2.stop(now + 0.45);
+            } catch (e) {
+                console.warn('Audio chime playback omitted:', e);
+            }
+        }
+
+        function triggerNativeNotification(title, body) {
+            // Play notification chime sound
+            playNotificationChime();
+
+            // Send native LocalNotification on mobile app when a new notification arrives
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+                try {
+                    window.Capacitor.Plugins.LocalNotifications.schedule({
+                        notifications: [{
+                            title: title || 'Kyro People Alert',
+                            body: body || '',
+                            id: Math.floor(Math.random() * 100000),
+                            schedule: { at: new Date(Date.now() + 100) },
+                            sound: 'default',
+                            channelId: 'fcm_default_channel'
+                        }]
+                    });
+                } catch (err) {
+                    console.error('Error triggering mobile LocalNotification:', err);
+                }
+            } else if (!window.Capacitor && 'Notification' in window && Notification.permission === 'granted') {
                 try {
                     new Notification(title, {
                         body: body,
@@ -1098,10 +1167,8 @@
 
         window.addEventListener('load', function() {
             pollNotifications();
-            // Disable background polling on mobile to conserve resources (FCM handles real-time delivery)
-            if (!(window.Capacitor && window.Capacitor.Plugins)) {
-                setInterval(pollNotifications, 15000);
-            }
+            // Poll notifications every 10 seconds on all devices (mobile & web) to guarantee real-time updates
+            setInterval(pollNotifications, 10000);
         });
 
         // Intercept logout to unregister device token on mobile
@@ -1134,7 +1201,7 @@
         // --- Premium Inactivity Auto-Logout with Multi-Tab Sync ---
         (function() {
             const INACTIVITY_TIMEOUT = 3600000; // 1 hour in ms
-            const LAST_ACTIVE_KEY = 'lurnexa_last_active';
+            const LAST_ACTIVE_KEY = 'kyro_last_active';
             const CHECK_INTERVAL = 10000; // Check every 10s
             let throttleTimeout = null;
 
@@ -1220,12 +1287,12 @@
                     <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
                         <div class="modal-header border-0 pb-0">
                             <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
-                                <i class="fa-solid fa-circle-info text-primary me-2 fs-4"></i> Install Lurnexa HRMS
+                                <i class="fa-solid fa-circle-info text-primary me-2 fs-4"></i> Install Kyro People
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body py-3">
-                            <p class="text-muted small mb-3">Install Lurnexa HRMS on your device for quick access, offline mode support, and a native application experience.</p>
+                            <p class="text-muted small mb-3">Install Kyro People on your device for quick access, offline mode support, and a native application experience.</p>
                             <div class="p-3 bg-light rounded-3">
                                 ${instructionsHtml}
                             </div>
@@ -1267,8 +1334,8 @@
                 
                 // 1. Immediately trigger the APK download
                 const downloadLink = document.createElement('a');
-                downloadLink.href = '/static/apk/lurnexa-hrms.apk';
-                downloadLink.download = 'lurnexa-hrms.apk';
+                downloadLink.href = '/static/apk/kyro-people.apk';
+                downloadLink.download = 'kyro-people.apk';
                 document.body.appendChild(downloadLink);
                 downloadLink.click();
                 document.body.removeChild(downloadLink);
@@ -1288,7 +1355,7 @@
     </script>
 
 
-        {% if request.user.is_authenticated %}
+        {% if request.user.is_authenticated and request.user.role != 'Platform Admin' %}
         <script src="{% static 'js/ai_chatbot.js' %}"></script>
         {% endif %}
 

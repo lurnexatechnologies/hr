@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Feedback Cycles - Lurnexa{% endblock %}
+{% block title %}Feedback Cycles - Kyro People{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -215,28 +215,32 @@
 
 <script>
     function transitionCycle(cycleId, action) {
-        if (!confirm(`Are you sure you want to transition this cycle state? (${action})`)) return;
-        
-        const formData = new FormData();
-        formData.append('action', action);
-        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-        
-        fetch(`/okrs/360/cycles/${cycleId}/transition/`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert('Cycle state transitioned successfully!');
-                location.reload();
-            } else {
-                alert('Error: ' + data.message);
+        KyroPeople.confirm({
+            title: 'Transition Cycle State',
+            message: `Are you sure you want to transition this cycle state? (${action})`,
+            onConfirm: function() {
+                const formData = new FormData();
+                formData.append('action', action);
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                
+                fetch(`/okrs/360/cycles/${cycleId}/transition/`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        KyroPeople.alert('Error: ' + data.message);
+                    }
+                })
+                .catch(err => {
+                    KyroPeople.alert('Request failed. Please try again.');
+                });
             }
-        })
-        .catch(err => {
-            alert('Request failed. Please try again.');
         });
     }
+</script>
 </script>
 {% endblock %}

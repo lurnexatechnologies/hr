@@ -1,5 +1,6 @@
 import os
 import datetime
+from decimal import Decimal
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.core.mail import EmailMessage
@@ -275,6 +276,58 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
         except Exception as e:
             print(f"Error in send_notification email block: {e}")
 
+def send_birthday_wish_email(emp, org=None):
+    """
+    Sends a warm, professional birthday wish email from the organization to the celebrating employee.
+    """
+    first_name = emp.get('FirstName', 'Team Member')
+    last_name = emp.get('LastName', '')
+    recipient_email = emp.get('Email')
+
+    if not recipient_email:
+        return False
+
+    if not org and emp.get('OrgID'):
+        try:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': emp.get('OrgID')})
+        except Exception:
+            pass
+
+    org_name = (org.get('Name') if org else None) or emp.get('OrganizationName') or 'Kyro People'
+    
+    subject = f"🎉 Happy Birthday, {first_name}! Best Wishes from {org_name}"
+    
+    email_body = f"""Dear {first_name},
+
+On behalf of everyone at {org_name}, we want to wish you a very Happy Birthday! 🎉🎂
+
+We truly appreciate your dedication, hard work, and the positive energy you bring to our team every day. May the year ahead bring you great success, good health, joy, and memorable achievements.
+
+Enjoy your special day!
+
+Warmest regards,
+Management & HR Team
+{org_name}
+"""
+
+    try:
+        send_notification(
+            employee_id=emp.get('EmployeeID'),
+            title=f"Happy Birthday, {first_name}! 🎂",
+            message=f"Warm birthday wishes from {org_name}! Have a fantastic day ahead! 🎉",
+            n_type='System',
+            icon='fa-cake-candles',
+            color='danger',
+            email_subject=subject,
+            email_body=email_body,
+            org_id=emp.get('OrgID')
+        )
+        return True
+    except Exception as e:
+        print(f"Error sending birthday email to {recipient_email}: {e}")
+        return False
+
 def get_days_count(leave_request):
     """
     Safely retrieves the number of days for a leave request,
@@ -532,22 +585,43 @@ def apply_pending_hikes():
             is_applied = letter.get('PromotionApplied', False)
             eff_date = letter.get('EffectiveDate')
             new_designation = letter.get('NewDesignation')
+            new_department = letter.get('NewDepartment')
+            new_manager = letter.get('NewReportingManager')
             new_salary = letter.get('NewSalary')
             
-            if not is_applied and eff_date and new_designation:
+            if not is_applied and eff_date and (new_designation or new_department):
                 if eff_date <= today:
                     emp_id = letter.get('EmployeeID')
                     emp = EmployeesTable.get_item({'EmployeeID': emp_id})
                     if emp:
                         try:
-                            emp['Designation'] = new_designation
+                            old_desig = emp.get('Designation', 'Employee')
+                            old_dept = emp.get('Department', '')
+                            
+                            if new_designation:
+                                emp['Designation'] = new_designation
+                            if new_department:
+                                emp['Department'] = new_department
+                            if new_manager:
+                                emp['ReportingManager'] = new_manager
                             if new_salary:
-                                emp['SalaryPA'] = new_salary
+                                emp['SalaryPA'] = str(new_salary)
+                                
+                            promo_history = emp.get('PromotionHistory', [])
+                            promo_history.append({
+                                'Date': eff_date,
+                                'PreviousDesignation': old_desig,
+                                'NewDesignation': new_designation or old_desig,
+                                'PreviousDepartment': old_dept,
+                                'NewDepartment': new_department or old_dept,
+                                'Reason': letter.get('PromotionReason', 'Promotion Letter Issued')
+                            })
+                            emp['PromotionHistory'] = promo_history
                             EmployeesTable.put_item(emp)
                             
                             letter['PromotionApplied'] = True
                             EmployeeLettersTable.put_item(letter)
-                            print(f"Automatically applied pending promotion to {new_designation} for employee {emp_id} effective from {eff_date}")
+                            print(f"Automatically applied pending promotion for employee {emp_id} effective from {eff_date}")
                         except Exception as e:
                             print(f"Error applying pending promotion to {emp_id}: {e}")
     except Exception as ex:
@@ -568,9 +642,35 @@ def safe_float(val, default=0.0):
         return default
 
 
+def safe_decimal(val, default=Decimal('0')):
+    if val is None:
+        return default
+    if isinstance(val, Decimal):
+        return val
+    try:
+        f_val = safe_float(val, None)
+        if f_val is None:
+            return default
+        return Decimal(str(f_val))
+    except (ValueError, TypeError):
+        return default
+
+
+def convert_floats_to_decimals(obj):
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: convert_floats_to_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats_to_decimals(v) for v in obj]
+    elif isinstance(obj, set):
+        return {convert_floats_to_decimals(v) for v in obj}
+    return obj
+
+
 def get_lurnexa_logo_base64():
     """
-    Returns the base64 encoded data URI of the Lurnexa logo.
+    Returns the base64 encoded data URI of the Kyro People logo.
     """
     import base64
     from django.conf import settings
@@ -584,6 +684,8 @@ def get_lurnexa_logo_base64():
         except Exception as e:
             print(f"Error base64 encoding logo: {e}")
     return ""
+
+get_kyro_logo_base64 = get_lurnexa_logo_base64
 
 def get_authorized_stamp_base64():
     import base64
@@ -710,6 +812,34 @@ def can_add_employee(org_id):
     return True, ""
 
 
+def get_organization_roles(org):
+    """
+    Returns the roles decided by the Superadmin of the organization.
+    If CustomRoles is defined in org, returns the exact roles configured by the Superadmin.
+    Otherwise falls back to industry template default roles or standard default roles.
+    """
+    if not org or not isinstance(org, dict):
+        return ['Employee', 'Manager', 'HR ADMIN', 'Super admin']
+
+    # 1. Custom roles defined by Superadmin in organization settings
+    custom_roles = org.get('CustomRoles')
+    if custom_roles and isinstance(custom_roles, dict) and len(custom_roles) > 0:
+        return list(custom_roles.keys())
+
+    # 2. Industry template default roles fallback
+    try:
+        from core.industry_templates import get_industry_profile
+        ind_profile = get_industry_profile(org.get('IndustryType', 'SOFTWARE_IT'))
+        ind_roles = ind_profile.get('default_roles', {})
+        if ind_roles and isinstance(ind_roles, dict) and len(ind_roles) > 0:
+            return list(ind_roles.keys())
+    except Exception:
+        pass
+
+    # 3. Standard fallback
+    return ['Employee', 'Manager', 'HR ADMIN', 'Super admin']
+
+
 def resolve_workflow_step(employee_id, org_id, current_status=None, action='submit', request_type='leave_request'):
     """
     Determines next status, next approver ID, and whether it's final approved
@@ -728,10 +858,11 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         except Exception:
             pass
 
-    # 2. Get submitter role from UsersTable
+    # 2. Get submitter role from UsersTable / EmployeesTable
     submitter_role = 'Employee'
     try:
         emp = EmployeesTable.get_item({'EmployeeID': employee_id})
+        emp_role = emp.get('SystemRole') or emp.get('Role') if emp else None
         user_id = emp.get('UserID') if emp else None
         user = None
         if user_id:
@@ -740,19 +871,8 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
             all_users = UsersTable.scan()
             user = next((u for u in all_users if u.get('EmployeeID') == employee_id), None)
             
-        if user and user.get('Role'):
-            raw_role = str(user.get('Role')).strip()
-            raw_role_upper = raw_role.upper()
-            if raw_role_upper in ['HR ADMIN', 'HR_ADMIN', 'HR']:
-                submitter_role = 'HR ADMIN'
-            elif raw_role_upper in ['SUPER ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']:
-                submitter_role = 'Super admin'
-            elif raw_role_upper in ['MANAGER', 'TEAM LEAD']:
-                submitter_role = 'Manager'
-            elif raw_role in ['Employee', 'Manager', 'HR ADMIN', 'Super admin']:
-                submitter_role = raw_role
-            else:
-                submitter_role = 'Employee'
+        raw_role = user.get('Role') if (user and user.get('Role')) else (emp_role or 'Employee')
+        submitter_role = str(raw_role).strip()
     except Exception:
         pass
 
@@ -776,6 +896,12 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
             'HR ADMIN': ['Super admin'],
             'Super admin': []
         },
+        'resignation_request': {
+            'Employee': ['Manager'],
+            'Manager': ['HR ADMIN'],
+            'HR ADMIN': ['Super admin'],
+            'Super admin': []
+        },
         'payroll_approval': {
             'Employee': ['Manager', 'HR ADMIN', 'Super admin'],
             'Manager': ['HR ADMIN', 'Super admin'],
@@ -790,29 +916,41 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
         
     chain = None
     if rules_for_type is not None and isinstance(rules_for_type, dict):
-        chain = rules_for_type.get(submitter_role)
+        # Case-insensitive lookup for submitter role in custom rules
+        for r_k, r_v in rules_for_type.items():
+            if str(r_k).strip().lower() == submitter_role.lower():
+                chain = r_v
+                break
     
     if chain is None:
-        chain = default_rules.get(request_type, {}).get(submitter_role, [])
-    
-    # If no steps defined (e.g. 0 steps), approve immediately
+        # Fallback to default rules
+        for d_k, d_v in default_rules.get(request_type, {}).items():
+            if str(d_k).strip().lower() == submitter_role.lower():
+                chain = d_v
+                break
+        if chain is None:
+            chain = default_rules.get(request_type, {}).get('Employee', ['Manager'])
+
+    # If no steps defined (e.g. 0 steps / empty list), approve immediately
     if not chain:
         return 'Approved', None, True
 
-    # 3. Determine actual managers/HRs in the org
-    manager_id = None
+    # 3. Determine actual managers (Primary, Secondary/Shift) and HRs in the org
+    primary_manager_id = None
+    secondary_manager_id = None
     try:
         hierarchy = ReportingHierarchyTable.scan(
             FilterExpression="EmployeeID = :eid",
             ExpressionAttributeValues={":eid": employee_id}
         )
         if hierarchy:
-            manager_id = hierarchy[0].get('ManagerID')
+            h_rec = hierarchy[0]
+            primary_manager_id = h_rec.get('PrimaryManagerID') or h_rec.get('ManagerID')
+            secondary_manager_id = h_rec.get('SecondaryManagerID') or h_rec.get('ShiftManagerID') or primary_manager_id
     except Exception:
         pass
 
-    hr_users = []
-    sa_users = []
+    role_user_map = {}
     try:
         all_users = UsersTable.scan()
         for u in all_users:
@@ -820,29 +958,42 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
             if org_id and u_org_id and u_org_id != org_id:
                 continue
 
-            r = str(u.get('Role') or '').strip().upper()
+            r = str(u.get('Role') or '').strip()
             e_id = u.get('EmployeeID')
-            if e_id:
-                if r in ['HR ADMIN', 'HR_ADMIN', 'HR']:
-                    hr_users.append(e_id)
-                elif r in ['SUPER ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']:
-                    sa_users.append(e_id)
+            if e_id and r:
+                r_lower = r.lower()
+                if r_lower not in role_user_map:
+                    role_user_map[r_lower] = []
+                role_user_map[r_lower].append(e_id)
     except Exception:
         pass
-    
-    fallback_hr_id = hr_users[0] if hr_users else (sa_users[0] if sa_users else None)
-    fallback_sa_id = sa_users[0] if sa_users else (hr_users[0] if hr_users else None)
+
+    def get_first_user_by_roles(role_names):
+        for r_name in role_names:
+            r_lower = r_name.lower()
+            if r_lower in role_user_map and role_user_map[r_lower]:
+                return role_user_map[r_lower][0]
+        return None
+
+    fallback_hr_id = get_first_user_by_roles(['HR ADMIN', 'HR_ADMIN', 'HR', 'Super admin', 'Superadmin'])
+    fallback_sa_id = get_first_user_by_roles(['Super admin', 'Superadmin', 'HR ADMIN', 'HR_ADMIN'])
 
     def get_approver_by_role_name(role_name):
-        if role_name == 'Manager':
-            return manager_id or fallback_hr_id
-        elif role_name == 'Team Lead':
-            return manager_id or fallback_hr_id
-        elif role_name == 'HR ADMIN':
+        role_name_clean = str(role_name).strip()
+        role_name_lower = role_name_clean.lower()
+
+        if role_name_lower in ['shift manager', 'shift supervisor', 'operational manager']:
+            return secondary_manager_id or primary_manager_id or fallback_hr_id
+        elif role_name_lower in ['manager', 'team lead', 'primary manager', 'hod']:
+            return primary_manager_id or secondary_manager_id or fallback_hr_id
+        elif role_name_lower in ['hr admin', 'hr_admin', 'hr']:
             return fallback_hr_id
-        elif role_name == 'Super admin':
+        elif role_name_lower in ['super admin', 'superadmin', 'super_admin']:
             return fallback_sa_id
-        return fallback_hr_id
+        else:
+            # Custom role assigned as approver - look up users having this custom role
+            user_found = get_first_user_by_roles([role_name_clean])
+            return user_found or primary_manager_id or fallback_hr_id
 
     # 4. Handle rejection
     if action == 'reject':
@@ -873,6 +1024,43 @@ def resolve_workflow_step(employee_id, org_id, current_status=None, action='subm
             return 'Approved', None, True
 
     return 'Approved', None, True
+
+
+def format_day_with_ordinal(val):
+    """
+    Formats a day number or date string into an ordinal string with 'of month',
+    e.g. 1 -> '1st of month', 22 -> '22nd of month', 30 -> '30th of month', 'LAST' -> 'Last day of month'.
+    """
+    if not val:
+        return '30th of month'
+    
+    val_str = str(val).strip()
+    if val_str.upper() in ('LAST', 'LAST_DAY'):
+        return 'Last day of month'
+    
+    day_num = None
+    if isinstance(val, int):
+        day_num = val
+    else:
+        try:
+            day_num = int(val_str)
+        except ValueError:
+            try:
+                dt_obj = datetime.datetime.strptime(val_str, "%Y-%m-%d")
+                day_num = dt_obj.day
+            except (ValueError, TypeError):
+                pass
+    
+    if day_num is None or not (1 <= day_num <= 31):
+        return str(val)
+
+    if 11 <= (day_num % 100) <= 13:
+        suf = 'th'
+    else:
+        suf = {1: 'st', 2: 'nd', 3: 'rd'}.get(day_num % 10, 'th')
+    
+    return f"{day_num}{suf} of month"
+
 
 
 

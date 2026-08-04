@@ -59,8 +59,9 @@ table thead th {
 body.sidebar-closed .sidebar {
     left: calc(var(--sidebar-width) * -1);
 }
-body.sidebar-closed .main-wrapper {
-    margin-left: 0;
+body.sidebar-closed .main-wrapper,
+body.no-sidebar .main-wrapper {
+    margin-left: 0 !important;
 }
 
 .sidebar-brand {
@@ -1951,11 +1952,93 @@ html, body {
     -webkit-overflow-scrolling: touch !important;
 }
 
+body.sidebar-mobile-open {
+    overflow: hidden !important;
+}
+
 /* 2. Responsive Table Wrapper Force */
+@media (max-width: 992px) {
+    /* Mobile Off-canvas Sidebar & Overlay */
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 4px 0 25px rgba(0, 0, 0, 0.15) !important;
+        z-index: 1055 !important;
+    }
+    
+    .sidebar.show {
+        transform: translateX(0);
+    }
+    
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 1050;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    
+    .sidebar-backdrop.show {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .main-wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+}
+
 @media (max-width: 768px) {
+    .page-content {
+        padding: 12px !important;
+    }
+
+    .top-header {
+        height: 65px !important;
+        padding: 0 12px !important;
+    }
+
+    .top-header div.text-center h4 {
+        font-size: 0.95rem !important;
+        letter-spacing: 1px !important;
+    }
+
+    .top-header div.text-center span {
+        font-size: 0.55rem !important;
+    }
+
+    .top-header div.text-center img {
+        height: 24px !important;
+        margin-right: 6px !important;
+    }
+
+    .header-actions {
+        gap: 8px !important;
+    }
+
+    .icon-btn {
+        width: 38px !important;
+        height: 38px !important;
+    }
+
+    .notification-dropdown {
+        width: calc(100vw - 24px) !important;
+        max-width: 340px !important;
+        position: fixed !important;
+        left: 12px !important;
+        right: 12px !important;
+        margin-top: 10px !important;
+    }
+
     .table-responsive, 
-    .table-container, 
-    div:has(> table) {
+    .table-container {
         width: 100% !important;
         overflow-x: auto !important;
         display: block !important;
@@ -1964,61 +2047,89 @@ html, body {
         margin-bottom: 15px;
     }
     
+    /* Auto-wrap tables without explicit container */
+    div:has(> table:not(.table-responsive table)) {
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
     /* Forces the table columns to be legible instead of squishing */
     .table-responsive table, 
     .table-container table, 
-    div:has(> table) > table,
     table.table {
-        min-width: 600px !important;
+        min-width: 550px;
+    }
+    
+    /* Modal responsive fit */
+    .modal-dialog {
+        margin: 0.5rem !important;
+        max-width: calc(100% - 1rem) !important;
+    }
+
+    .modal-content {
+        border-radius: 14px !important;
+    }
+
+    /* Card & Stats Grid Padding */
+    .card-body {
+        padding: 14px !important;
+    }
+
+    .fs-2, .fs-1 {
+        font-size: 1.5rem !important;
+    }
+
+    .fs-3, .fs-4 {
+        font-size: 1.25rem !important;
     }
 }
 
-/* 3. Button and Input Normalization */
+/* 3. Button and Input Normalization on Small Screens */
 @media (max-width: 576px) {
-    .btn, button, input[type="submit"], input[type="button"] {
-        padding: 10px 16px !important;
-        font-size: 0.875rem !important;
+    .btn:not(.btn-sm):not(.icon-btn), 
+    button:not(.btn-sm):not(.icon-btn):not(.toggle-btn):not(.btn-close), 
+    input[type="submit"], 
+    input[type="button"] {
+        padding: 8px 14px !important;
+        font-size: 0.85rem !important;
         height: auto !important;
-        line-height: 1.5 !important;
+        line-height: 1.4 !important;
         border-radius: 8px !important;
     }
     
     .btn-lg, .btn-group-lg > .btn {
-        padding: 12px 20px !important;
-        font-size: 1rem !important;
+        padding: 10px 18px !important;
+        font-size: 0.95rem !important;
     }
     
     .btn-sm, .btn-group-sm > .btn {
-        padding: 6px 12px !important;
+        padding: 5px 10px !important;
         font-size: 0.75rem !important;
     }
     
     .form-control, .form-select, select, input {
-        padding: 10px 12px !important;
-        font-size: 0.875rem !important;
+        padding: 8px 10px !important;
+        font-size: 0.85rem !important;
         height: auto !important;
     }
     
-    /* Layout Adjustments for Button Rows */
-    .d-flex:has(.btn) {
+    /* Flex headers and action rows stack nicely */
+    .d-flex.justify-content-between:not(.top-header):not(.modal-header):not(.card-header):not(.notification-header) {
         flex-wrap: wrap !important;
-        gap: 8px !important;
+        gap: 10px !important;
     }
     
-    .d-flex:has(.btn) > .btn {
-        flex: 1 1 auto !important;
-        width: 100% !important;
-    }
-    
-    /* Grid row & column padding optimizations */
+    /* Grid row & column gap optimizations */
     .row {
-        margin-left: -5px !important;
-        margin-right: -5px !important;
-        gap: 8px 0 !important;
+        margin-left: -6px !important;
+        margin-right: -6px !important;
+        row-gap: 12px !important;
     }
     
     .col, [class*="col-"] {
-        padding-left: 5px !important;
-        padding-right: 5px !important;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
     }
 }
+

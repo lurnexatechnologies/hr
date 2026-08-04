@@ -454,6 +454,30 @@ class ApplyWFHView(FeatureRequiredMixin, LoginRequiredMixin, View):
         if end_date < start_date:
             messages.error(request, "End Date cannot be before Start Date.")
             return redirect('attendance_history')
+
+        # Check Super Admin Role WFH Policy Rules
+        org_id = getattr(request.user, 'org_id', None)
+        user_role = getattr(request.user, 'role', '')
+        if org_id:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org and org.get('CustomRoles'):
+                custom_roles = org.get('CustomRoles', {})
+                if user_role in custom_roles:
+                    role_rule = custom_roles[user_role]
+                    if role_rule.get('wfh_allowed') is False:
+                        messages.error(request, f"WFH requests are disabled for your role ('{user_role}') by Super Admin.")
+                        return redirect('attendance_history')
+                    
+                    max_wfh = int(role_rule.get('max_wfh_per_month', 0))
+                    cur_month = get_local_date().strftime('%Y-%m')
+                    all_my_wfh = WFHRequestsTable.query(
+                        KeyConditionExpression=Key('EmployeeID').eq(user_emp_id)
+                    )
+                    month_wfh_cnt = sum(1 for w in all_my_wfh if w.get('WFHDate', '').startswith(cur_month) and w.get('Status') != 'Rejected')
+                    if month_wfh_cnt >= max_wfh:
+                        messages.error(request, f"WFH limit reached ({month_wfh_cnt}/{max_wfh} days allowed this month) for role '{user_role}'.")
+                        return redirect('attendance_history')
             
         # 1. Check for overlapping WFH requests (Simple check for StartDate overlap)
         existing = WFHRequestsTable.query(
@@ -521,7 +545,7 @@ class ApplyWFHView(FeatureRequiredMixin, LoginRequiredMixin, View):
                 icon='fa-house-laptop',
                 color='primary',
                 email_subject=f"WFH Request: {emp_name}",
-                email_body=f"Hi,\n\n{emp_name} has applied for Work From Home on {start_date}.\nReason: {reason}\n\nPlease review the request in your dashboard.\n\nBest regards,\nLurnexa HR Admin"
+                email_body=f"Hi,\n\n{emp_name} has applied for Work From Home on {start_date}.\nReason: {reason}\n\nPlease review the request in your dashboard.\n\nBest regards,\nKyro People HR Admin"
             )
 
         messages.success(request, f"WFH request submitted for {start_date}. Status: {status}")
@@ -1066,6 +1090,13 @@ class BiometricPunchAPIView(View):
     Authenticates via API Key (Header `X-API-Key` or JSON body `api_key` / `token`).
     """
 
+    def get(self, request, *args, **kwargs):
+        # Biometric hardware device ping/heartbeat check
+        return JsonResponse({
+            "status": "online",
+            "message": "Biometric Push Endpoint Active. Ready to receive punch logs."
+        }, status=200)
+
     def post(self, request, *args, **kwargs):
         try:
             try:
@@ -1073,12 +1104,26 @@ class BiometricPunchAPIView(View):
             except Exception:
                 data = request.POST.dict()
 
-            if not data:
-                return JsonResponse({"status": "error", "message": "Invalid or empty JSON body payload."}, status=400)
+            # 1. Extract credentials from Headers, GET params, or Body payload
+            auth_header = request.headers.get('Authorization', '')
+            api_key = request.headers.get('X-API-Key')
+            if not api_key and auth_header:
+                if auth_header.startswith('Bearer ') or auth_header.startswith('Token '):
+                    api_key = auth_header.split(' ', 1)[1].strip()
+                else:
+                    api_key = auth_header.strip()
 
-            # 1. Extract credentials from Header or Body
-            api_key = request.headers.get('X-API-Key') or data.get('api_key') or data.get('token') or data.get('apiKey')
-            device_id = data.get('device_id') or data.get('DeviceID') or data.get('serial_number') or data.get('sn')
+            if not api_key:
+                api_key = (
+                    request.GET.get('api_key') or request.GET.get('apiKey') or request.GET.get('token') or
+                    data.get('api_key') or data.get('token') or data.get('apiKey')
+                )
+
+            device_id = (
+                request.headers.get('X-Device-ID') or request.headers.get('X-Serial-Number') or
+                request.GET.get('device_id') or request.GET.get('DeviceID') or request.GET.get('sn') or request.GET.get('SN') or
+                data.get('device_id') or data.get('DeviceID') or data.get('serial_number') or data.get('sn') or data.get('SN')
+            )
 
             # 2. Find Organization by BiometricAPIKey or BiometricDeviceID
             target_org = None
@@ -1102,7 +1147,8 @@ class BiometricPunchAPIView(View):
                     "message": "Authentication failed. Invalid API Key or Device ID."
                 }, status=401)
 
-            if not target_org.get('BiometricEnabled', False):
+            is_enabled = bool(target_org.get('BiometricEnabled')) or str(target_org.get('BiometricEnabled', '')).lower() in ['true', 'on', '1']
+            if not is_enabled:
                 return JsonResponse({
                     "status": "error",
                     "message": "Biometric integration is disabled for this organization."
@@ -1210,4 +1256,203 @@ class BiometricPunchAPIView(View):
 
         except Exception as e:
             return JsonResponse({"status": "error", "message": f"Server error processing biometric punch: {str(e)}"}, status=500)
+
+
+class ShiftRosterView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'attendance'
+
+    def get(self, request):
+        from core.dynamodb_service import ShiftRostersTable, EmployeesTable
+        org_id = getattr(request.user, 'org_id', None)
+        
+        try:
+            rosters = [r for r in ShiftRostersTable.scan() if r.get('OrgID') == org_id]
+        except Exception:
+            rosters = []
+
+        try:
+            employees = [e for e in EmployeesTable.scan() if e.get('OrgID') == org_id]
+        except Exception:
+            employees = []
+
+        from core.industry_templates import get_industry_profile
+        industry_type = getattr(request, 'industry_type', 'SOFTWARE_IT')
+        industry_profile = get_industry_profile(industry_type)
+
+        return render(request, 'attendance/shift_roster.html', {
+            'rosters': rosters,
+            'employees': employees,
+            'default_shifts': industry_profile.get('default_shifts', [])
+        })
+
+    def post(self, request):
+        from core.dynamodb_service import ShiftRostersTable
+        org_id = getattr(request.user, 'org_id', None)
+        user_role = getattr(request.user, 'role', 'Employee')
+
+        if user_role not in ['HR ADMIN', 'Manager', 'Super admin']:
+            messages.error(request, "Permission denied. Only Managers and HR Admins can schedule shift rosters.")
+            return redirect('shift_roster')
+
+        emp_id = request.POST.get('employee_id')
+        shift_name = request.POST.get('shift_name')
+        roster_date = request.POST.get('roster_date')
+
+        if not emp_id or not shift_name or not roster_date:
+            messages.error(request, "Employee, Shift Name, and Roster Date are required.")
+            return redirect('shift_roster')
+
+        roster_id = str(uuid.uuid4())
+        item = {
+            'RosterID': roster_id,
+            'OrgID': org_id,
+            'EmployeeID': emp_id,
+            'ShiftName': shift_name,
+            'RosterDate': roster_date,
+            'CreatedBy': getattr(request.user, 'employee_id', 'HR'),
+            'CreatedAt': get_local_now().isoformat()
+        }
+        try:
+            ShiftRostersTable.put_item(item)
+            messages.success(request, f"Shift roster scheduled successfully for {emp_id} on {roster_date}.")
+        except Exception as e:
+            messages.error(request, f"Error saving shift roster: {e}")
+
+        return redirect('shift_roster')
+
+
+class ShiftSwapView(FeatureRequiredMixin, LoginRequiredMixin, View):
+    required_feature = 'attendance'
+
+    def get(self, request):
+        from core.dynamodb_service import ShiftSwapsTable, EmployeesTable
+        user_emp_id = getattr(request.user, 'employee_id', None)
+        org_id = getattr(request.user, 'org_id', None)
+
+        try:
+            all_swaps = [s for s in ShiftSwapsTable.scan() if s.get('OrgID') == org_id]
+        except Exception:
+            all_swaps = []
+
+        my_swaps = [s for s in all_swaps if s.get('RequesterID') == user_emp_id or s.get('TargetID') == user_emp_id]
+
+        try:
+            colleagues = [e for e in EmployeesTable.scan() if e.get('OrgID') == org_id and e.get('EmployeeID') != user_emp_id]
+        except Exception:
+            colleagues = []
+
+        return render(request, 'attendance/shift_swap.html', {
+            'my_swaps': my_swaps,
+            'all_swaps': all_swaps if getattr(request.user, 'role', '') in ['HR ADMIN', 'Manager'] else [],
+            'colleagues': colleagues
+        })
+
+    def post(self, request):
+        from core.dynamodb_service import ShiftSwapsTable
+        user_emp_id = getattr(request.user, 'employee_id', None)
+        org_id = getattr(request.user, 'org_id', None)
+
+        target_emp_id = request.POST.get('target_employee_id')
+        shift_date = request.POST.get('shift_date')
+        reason = request.POST.get('reason', 'Shift swap request')
+
+        if not target_emp_id or not shift_date:
+            messages.error(request, "Target colleague and shift date are required.")
+            return redirect('shift_swap')
+
+        swap_id = str(uuid.uuid4())
+        item = {
+            'SwapID': swap_id,
+            'OrgID': org_id,
+            'RequesterID': user_emp_id,
+            'TargetID': target_emp_id,
+            'ShiftDate': shift_date,
+            'Reason': reason,
+            'Status': 'Pending Approval',
+            'CreatedAt': get_local_now().isoformat()
+        }
+        try:
+            ShiftSwapsTable.put_item(item)
+            messages.success(request, f"Shift swap request submitted to colleague ({target_emp_id}).")
+        except Exception as e:
+            messages.error(request, f"Error requesting shift swap: {e}")
+
+        return redirect('shift_swap')
+
+
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.http import JsonResponse
+import json
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SupermarketPOSPunchAPIView(View):
+    """
+    High-Throughput API Endpoint for Supermarket Cashier POS Terminals & Barcode Badge Scanners.
+    Endpoint: /attendance/api/pos-punch/
+    """
+    def post(self, request):
+        try:
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+            except Exception:
+                data = request.POST.dict()
+
+            cashier_id = data.get('cashier_employee_id') or data.get('employee_id') or data.get('barcode_id')
+            till_id = data.get('till_id') or data.get('pos_terminal_id') or 'POS-01'
+            action = (str(data.get('action') or data.get('punch_type') or 'CLOCK_IN')).upper()
+            org_id = data.get('org_id')
+
+            if not cashier_id:
+                return JsonResponse({"status": "error", "message": "Missing cashier_employee_id or barcode_id"}, status=400)
+
+            # Match employee
+            from core.dynamodb_service import EmployeesTable, AttendanceTable
+            employee = EmployeesTable.get_item({'EmployeeID': cashier_id})
+            if not employee:
+                all_emps = EmployeesTable.scan()
+                employee = next((e for e in all_emps if e.get('EmployeeID') == cashier_id or e.get('CustomFields', {}).get('cashier_till_id') == till_id), None)
+
+            if not employee:
+                return JsonResponse({"status": "error", "message": f"Cashier with ID/Till '{cashier_id}' not found."}, status=404)
+
+            eid = employee.get('EmployeeID')
+            now = get_local_now()
+            today = now.date().isoformat()
+            now_time = now.strftime("%H:%M")
+
+            att_record = AttendanceTable.get_item({'EmployeeID': eid, 'RecordDate': today}) or {
+                'EmployeeID': eid,
+                'RecordDate': today,
+                'OrgID': employee.get('OrgID'),
+                'ClockIn': None,
+                'ClockOut': None,
+                'Status': 'Present'
+            }
+
+            if 'OUT' in action or 'LOGOUT' in action:
+                att_record['ClockOut'] = now_time
+            else:
+                if not att_record.get('ClockIn'):
+                    att_record['ClockIn'] = now_time
+                else:
+                    att_record['ClockOut'] = now_time
+
+            att_record['Status'] = 'Present'
+            att_record['Source'] = 'POS Cashier Kiosk'
+            att_record['LastTillID'] = till_id
+
+            AttendanceTable.put_item(att_record)
+
+            return JsonResponse({
+                "status": "success",
+                "message": f"POS punch recorded for Cashier '{eid}' at Till '{till_id}'.",
+                "cashier_id": eid,
+                "till_id": till_id,
+                "time": now_time
+            }, status=200)
+
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"POS punch failure: {str(e)}"}, status=500)
+
 

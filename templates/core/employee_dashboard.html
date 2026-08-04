@@ -2,7 +2,7 @@
 {% load static %}
 {% load feature_tags %}
 
-{% block title %}My Dashboard - Lurnexa{% endblock %}
+{% block title %}My Dashboard - Kyro People{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
 
 {% block content %}
@@ -20,7 +20,7 @@
                     <div class="cake-msg mt-2 fw-bold text-danger" id="cakeMsg" style="font-size: 0.9rem;">Click to cut your cake! 🎂</div>
                 </div>
                 <h2 class="fw-bold text-danger mb-1">Happy Birthday, {{ request.user.first_name }}! 🎉</h2>
-                <p class="text-muted mb-0">Lurnexa wishes you a brilliant year ahead! ✨</p>
+                <p class="text-muted mb-0">Kyro People wishes you a brilliant year ahead! ✨</p>
             </div>
         </div>
     </div>
@@ -387,7 +387,7 @@
                                                 <div class="text-muted small text-truncate mb-2">{{ bday.Email }}</div>
                                                 <div class="d-flex align-items-center flex-wrap gap-2">
                                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-10 py-1 px-2" style="font-size: 0.65rem;">{{ bday.Designation|default:"Member" }}</span>
-                                                    <span class="text-muted" style="font-size: 0.65rem;">• {{ bday.Department|default:"Lurnexa" }}</span>
+                                                    <span class="text-muted" style="font-size: 0.65rem;">• {{ bday.Department|default:"Kyro People" }}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -424,7 +424,7 @@
                                                 <div class="text-muted small text-truncate mb-2">{{ bday.Email }}</div>
                                                 <div class="d-flex align-items-center flex-wrap gap-2">
                                                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-10 py-1 px-2" style="font-size: 0.65rem;">{{ bday.Designation|default:"Member" }}</span>
-                                                    <span class="text-muted" style="font-size: 0.65rem;">• {{ bday.Department|default:"Lurnexa" }}</span>
+                                                    <span class="text-muted" style="font-size: 0.65rem;">• {{ bday.Department|default:"Kyro People" }}</span>
                                                 </div>
                                             </div>
                                         </div>

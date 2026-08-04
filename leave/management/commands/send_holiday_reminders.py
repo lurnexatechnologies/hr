@@ -44,7 +44,7 @@ class Command(BaseCommand):
                     icon='fa-umbrella-beach',
                     color='primary',
                     email_subject=f"Upcoming Holiday Reminder: {h_name}",
-                    email_body=f"Hi {emp_first_name},\n\nJust a friendly reminder that tomorrow, {tomorrow_str}, is a scheduled holiday for '{h_name}'.\n\nThe office will be closed. We wish you a wonderful and relaxing day off!\n\nBest regards,\nLurnexa HR Admin"
+                    email_body=f"Hi {emp_first_name},\n\nJust a friendly reminder that tomorrow, {tomorrow_str}, is a scheduled holiday for '{h_name}'.\n\nThe office will be closed. We wish you a wonderful and relaxing day off!\n\nBest regards,\nKyro People HR Admin"
                 )
         
         self.stdout.write(self.style.SUCCESS(f'Successfully sent holiday reminders for {len(tomorrow_holidays)} holidays.'))

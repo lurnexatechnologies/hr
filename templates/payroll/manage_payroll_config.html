@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Industry Payroll Customizer - Kyro People{% endblock %}
+{% block nav_manage_payroll_config %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-0">Industry Payroll & Rate Customizer</h2>
+        <p class="text-muted small">Configure dynamic compensation rates, piece-rates, sales commissions, cashier till limits, and shift allowances per industry.</p>
+    </div>
+</div>
+
+<form method="POST" action="{% url 'manage_payroll_config' %}">
+    {% csrf_token %}
+
+    <!-- Industry Profile Badge Header -->
+    <div class="alert bg-indigo-soft border-indigo-subtle rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center">
+            <i class="{{ industry_profile.icon|default:'fa-solid fa-industry' }} text-indigo fs-3 me-3"></i>
+            <div>
+                <h6 class="fw-bold text-dark mb-0">Active Industry Preset: {{ industry_profile.name }}</h6>
+                <div class="small text-muted">Showing rate customizers relevant for {{ industry_profile.name }}</div>
+            </div>
+        </div>
+        <span class="badge bg-indigo text-white fw-bold px-3 py-2 rounded-pill">{{ industry_type }}</span>
+    </div>
+
+    <div class="row g-4 mb-4">
+
+        <!-- 1. Factory & Production Piece-Rate Settings -->
+        {% if 'PIECE_RATE' in industry_profile.payroll_models or 'HOURLY_WAGE' in industry_profile.payroll_models or industry_type == 'MANUFACTURING_FACTORY' or industry_type == 'POULTRY_FARMING' %}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 border-0">
+                    <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-building-gear text-indigo me-2"></i> Factory & Piece-Rate Output Rates</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Piece-Rate Output Rate (₹ per unit / sq ft / box)</label>
+                        <input type="number" step="0.01" name="piece_rate_unit_amount" class="form-control form-control-lg bg-light border-0" value="{{ payroll_config.piece_rate_unit_amount|default:'2.50' }}">
+                        <small class="text-muted">Rate paid to factory/poultry workers per production unit completed.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Overtime Rate Multiplier</label>
+                        <input type="number" step="0.1" name="overtime_multiplier" class="form-control bg-light border-0" value="{{ payroll_config.overtime_multiplier|default:'1.5' }}">
+                        <small class="text-muted">Standard multiplier for overtime work hours (e.g. 1.5x).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 2. Showroom Sales Commission Settings -->
+        {% if 'BASE_PLUS_COMMISSION' in industry_profile.payroll_models or 'LEAD_CONVERSION_BONUS' in industry_profile.payroll_models or industry_type == 'AUTOMOBILE_SHOWROOM' %}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 border-0">
+                    <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-car-front text-primary me-2"></i> Automobile & Sales Commission Tiers</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sales Commission per Unit Sold (₹)</label>
+                        <input type="number" step="1" name="sales_commission_per_unit" class="form-control form-control-lg bg-light border-0" value="{{ payroll_config.sales_commission_per_unit|default:'2500' }}">
+                        <small class="text-muted">Commission paid to Sales Consultants per vehicle/unit sold.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Target Exceeded Flat Bonus (₹)</label>
+                        <input type="number" step="1" name="sales_target_bonus_flat" class="form-control bg-light border-0" value="{{ payroll_config.sales_target_bonus_flat|default:'5000' }}">
+                        <small class="text-muted">Additional flat bonus awarded when sales consultant exceeds monthly target.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 3. Supermarket Cashier Till Audit Settings -->
+        {% if 'SECTION_TARGET_INCENTIVE' in industry_profile.payroll_models or industry_type == 'RETAIL_SUPERMARKET' %}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 border-0">
+                    <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-cart-shopping text-success me-2"></i> Supermarket Cashier Till Allowance</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Monthly Cash Till Shortage Limit (₹)</label>
+                        <input type="number" step="1" name="till_shortage_allowance_limit" class="form-control form-control-lg bg-light border-0" value="{{ payroll_config.till_shortage_allowance_limit|default:'500' }}">
+                        <small class="text-muted">Maximum monthly till discrepancy absorbed by company before salary deduction applies.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 4. Hospital & 24/7 Plant Shift Differential Settings -->
+        {% if 'SHIFT_DIFFERENTIAL' in industry_profile.payroll_models or 'ON_CALL_ALLOWANCE' in industry_profile.payroll_models or 'COLD_STORAGE_ALLOWANCE' in industry_profile.payroll_models or 'HAZARD_PAY' in industry_profile.payroll_models or industry_type == 'HEALTHCARE' %}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 border-0">
+                    <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-hospital text-danger me-2"></i> Healthcare & 24/7 Shift Allowances</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Night Shift Allowance (₹ per night shift)</label>
+                        <input type="number" step="1" name="night_shift_allowance_per_day" class="form-control form-control-lg bg-light border-0" value="{{ payroll_config.night_shift_allowance_per_day|default:'350' }}">
+                        <small class="text-muted">Shift differential paid per night/ICU emergency shift worked.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cold Storage Risk Allowance (₹ per shift)</label>
+                        <input type="number" step="1" name="cold_storage_risk_allowance" class="form-control bg-light border-0" value="{{ payroll_config.cold_storage_risk_allowance|default:'400' }}">
+                        <small class="text-muted">Hazard allowance paid to cold room poultry/processing workers.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 5. Software & IT Specific Project & Overtime Controls -->
+        {% if 'PROJECT_BILLABLE_BONUS' in industry_profile.payroll_models or 'ESOP_VESTING' in industry_profile.payroll_models or industry_type == 'SOFTWARE_IT' %}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 border-0">
+                    <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-laptop-code text-indigo me-2"></i> Software & IT Engineering Controls</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Overtime Rate Multiplier</label>
+                        <input type="number" step="0.1" name="overtime_multiplier" class="form-control bg-light border-0" value="{{ payroll_config.overtime_multiplier|default:'1.5' }}">
+                        <small class="text-muted">Standard multiplier for project billable overtime hours (e.g. 1.5x).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 6. School, College & Educational Institution Faculty Rates -->
+        {% if 'LECTURE_BASE_PAY' in industry_profile.payroll_models or 'EXAM_DUTY_ALLOWANCE' in industry_profile.payroll_models or industry_type == 'EDUCATION_SCHOOL_COLLEGE' %}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 20px;">
+                <div class="card-header bg-white pt-4 border-0">
+                    <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-graduation-cap text-indigo me-2"></i> School & College Faculty Rates</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Visiting / Extra Lecture Rate (₹ per hour)</label>
+                        <input type="number" step="1" name="lecture_rate_per_hour" class="form-control form-control-lg bg-light border-0" value="{{ payroll_config.lecture_rate_per_hour|default:'500' }}">
+                        <small class="text-muted">Rate paid to adjunct/visiting faculty or per extra lecture delivered.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Exam Invigilation / Duty Allowance (₹ per session)</label>
+                        <input type="number" step="1" name="exam_duty_allowance_per_session" class="form-control bg-light border-0" value="{{ payroll_config.exam_duty_allowance_per_session|default:'350' }}">
+                        <small class="text-muted">Allowance paid to faculty assigned to exam hall duty per session.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Answer Sheet Evaluation Rate (₹ per paper)</label>
+                        <input type="number" step="1" name="paper_evaluation_rate_per_sheet" class="form-control bg-light border-0" value="{{ payroll_config.paper_evaluation_rate_per_sheet|default:'25' }}">
+                        <small class="text-muted">Rate paid per answer paper evaluated during semester examinations.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <button type="submit" class="btn btn-indigo px-5 py-3 rounded-pill fw-bold shadow-lg">
+        <i class="fa-solid fa-floppy-disk me-2"></i> Save Industry Payroll Rates & Rules
+    </button>
+</form>
+{% endblock %}

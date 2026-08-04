@@ -184,10 +184,12 @@ class PlatformCreateOrgView(RoleRequiredMixin, View):
     allowed_roles = ['Platform Admin']
 
     def get(self, request):
+        from core.industry_templates import INDUSTRY_PROFILES
         context = {
             'feature_registry': FEATURE_REGISTRY,
             'plan_features': PLAN_FEATURES,
             'plans': PLAN_LIMITS.keys(),
+            'industry_profiles': INDUSTRY_PROFILES,
             'subscription_history': [],
             'active_sub': None,
         }
@@ -250,6 +252,7 @@ class PlatformCreateOrgView(RoleRequiredMixin, View):
             billing_amount_val = 0.0
 
         hierarchy_mode = request.POST.get('hierarchy_mode', 'flat').strip()
+        industry_type = request.POST.get('industry_type', 'SOFTWARE_IT').strip()
 
         org_item = {
             'OrgID': org_id,
@@ -257,6 +260,7 @@ class PlatformCreateOrgView(RoleRequiredMixin, View):
             'Slug': org_id.lower(),
             'Plan': plan,
             'Status': status,
+            'IndustryType': industry_type,
             'CustomFeatures': custom_features,
             'CreatedAt': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
             'PlanRate': Decimal(str(plan_rate_val)),
@@ -368,11 +372,13 @@ class PlatformEditOrgView(RoleRequiredMixin, View):
         except Exception:
             pass
 
+        from core.industry_templates import INDUSTRY_PROFILES
         context = {
             'org': org,
             'feature_registry': FEATURE_REGISTRY,
             'plan_features': PLAN_FEATURES,
             'plans': PLAN_LIMITS.keys(),
+            'industry_profiles': INDUSTRY_PROFILES,
             'custom_features_enabled': org.get('CustomFeatures', []),
             'subscription_history': subscription_history,
             'active_sub': active_sub,
@@ -470,6 +476,7 @@ class PlatformEditOrgView(RoleRequiredMixin, View):
         org['Name'] = name
         org['Plan'] = plan
         org['Status'] = status
+        org['IndustryType'] = request.POST.get('industry_type', 'SOFTWARE_IT').strip()
         org['CustomFeatures'] = custom_features
         org['PlanRate'] = Decimal(str(plan_rate_val))
         org['BillingSeats'] = billing_seats_val
@@ -631,12 +638,12 @@ class PlatformCreateOrgAdminView(RoleRequiredMixin, View):
             try:
                 from core.utils import send_notification
                 login_url = request.build_absolute_uri('/auth/login/')
-                email_subject = f"Welcome to Lurnexa HRMS - Your {role} Account Credentials"
+                email_subject = f"Welcome to Kyro People - Your {role} Account Credentials"
                 email_body = f"""Dear {first_name} {last_name},
 
-Your {role} account for organization '{org_id}' has been successfully provisioned by the Lurnexa HRMS Admin team.
+Your {role} account for organization '{org_id}' has been successfully provisioned by the Kyro People Admin team.
 
-Here are your account credentials to access the Lurnexa HRMS Portal:
+Here are your account credentials to access the Kyro People Portal:
 
   Portal URL: {login_url}
   Username / Email: {email}
@@ -647,7 +654,7 @@ Here are your account credentials to access the Lurnexa HRMS Portal:
 For security purposes, please log in and change your password after your initial sign-in.
 
 Best regards,
-Lurnexa HRMS Administration Team"""
+Kyro People Administration Team"""
                 send_notification(
                     employee_id=emp_id,
                     title=f"Account Provisioned - {role}",
@@ -780,18 +787,33 @@ class PlatformOrgWorkflowsView(RoleRequiredMixin, View):
         except Exception:
             departments = []
 
+        from core.utils import get_organization_roles
+        roles_list = get_organization_roles(org)
+
+        approvers_pool = list(roles_list)
+        for extra in ['Shift Manager', 'Team Lead']:
+            if extra not in approvers_pool:
+                approvers_pool.append(extra)
+
         # Get existing workflow rules, or initialize with defaults
         workflow_rules = org.get('WorkflowRules')
-        if not workflow_rules:
+        if not workflow_rules or not isinstance(workflow_rules, dict):
             workflow_rules = {}
-        for r_type, defaults in [
-            ('leave_request', {'Employee': ['Manager'], 'Manager': ['HR ADMIN'], 'HR ADMIN': ['Super admin'], 'Super admin': []}),
-            ('expense_claim', {'Employee': ['Manager'], 'Manager': ['HR ADMIN'], 'HR ADMIN': ['Super admin'], 'Super admin': []}),
-            ('wfh_request', {'Employee': ['Manager'], 'Manager': ['HR ADMIN'], 'HR ADMIN': ['Super admin'], 'Super admin': []}),
-            ('payroll_approval', {'Employee': ['Manager', 'HR ADMIN', 'Super admin'], 'Manager': ['HR ADMIN', 'Super admin'], 'HR ADMIN': ['Super admin'], 'Super admin': []})
-        ]:
-            if r_type not in workflow_rules:
-                workflow_rules[r_type] = defaults
+
+        req_types = ['leave_request', 'expense_claim', 'wfh_request', 'resignation_request', 'payroll_approval']
+        for r_type in req_types:
+            if r_type not in workflow_rules or not isinstance(workflow_rules[r_type], dict):
+                workflow_rules[r_type] = {}
+            for r in roles_list:
+                if r not in workflow_rules[r_type]:
+                    if r == 'Employee':
+                        workflow_rules[r_type][r] = ['Manager']
+                    elif r == 'Manager':
+                        workflow_rules[r_type][r] = ['HR ADMIN']
+                    elif r == 'HR ADMIN':
+                        workflow_rules[r_type][r] = ['Super admin']
+                    else:
+                        workflow_rules[r_type][r] = []
 
         import json
         is_platform_admin = (request.user.role == 'Platform Admin')
@@ -800,8 +822,9 @@ class PlatformOrgWorkflowsView(RoleRequiredMixin, View):
             'departments': departments,
             'workflow_rules': workflow_rules,
             'workflow_rules_json': json.dumps(workflow_rules),
-            'roles_list': ['Employee', 'Manager', 'HR ADMIN', 'Super admin'],
-            'approvers_pool': ['Manager', 'Team Lead', 'HR ADMIN', 'Super admin'],
+            'roles_list': roles_list,
+            'roles_list_json': json.dumps(roles_list),
+            'approvers_pool': approvers_pool,
             'is_platform_admin': is_platform_admin
         }
         return render(request, 'platform/org_workflows.html', context)
@@ -831,6 +854,7 @@ class PlatformOrgWorkflowsView(RoleRequiredMixin, View):
         if action == 'create_department':
             dept_name = request.POST.get('department_name', '').strip()
             dept_desc = request.POST.get('department_desc', '').strip()
+            live_tracking_enabled = request.POST.get('live_tracking_enabled') == 'on' or request.POST.get('live_tracking_enabled') == 'true'
             if not dept_name:
                 messages.error(request, "Department name is required.")
                 return redirect('platform_org_workflows', org_id=org_id)
@@ -841,32 +865,77 @@ class PlatformOrgWorkflowsView(RoleRequiredMixin, View):
                 'DepartmentID': dept_id,
                 'Name': dept_name,
                 'Description': dept_desc,
+                'LiveTrackingEnabled': live_tracking_enabled,
                 'CreatedAt': datetime.datetime.utcnow().isoformat()
             }
             try:
                 DepartmentsTable.put_item(dept_item)
+                if live_tracking_enabled:
+                    t_depts = org.get('TrackingDepartments', []) or []
+                    if dept_name not in t_depts:
+                        t_depts.append(dept_name)
+                        OrganizationsTable.update_item(
+                            Key={'OrgID': org_id},
+                            UpdateExpression="SET TrackingDepartments = :tdepts",
+                            ExpressionAttributeValues={':tdepts': t_depts}
+                        )
                 messages.success(request, f"Department '{dept_name}' created successfully.")
             except Exception as e:
                 messages.error(request, f"Error creating department: {e}")
 
+        elif action == 'toggle_tracking':
+            dept_id = request.POST.get('department_id', '').strip()
+            enabled = request.POST.get('enabled') == 'true'
+            try:
+                dept_item = DepartmentsTable.get_item({'OrgID': org_id, 'DepartmentID': dept_id})
+                if dept_item:
+                    dept_name = dept_item.get('Name')
+                    DepartmentsTable.update_item(
+                        Key={'OrgID': org_id, 'DepartmentID': dept_id},
+                        UpdateExpression="SET LiveTrackingEnabled = :lte",
+                        ExpressionAttributeValues={':lte': enabled}
+                    )
+                    t_depts = org.get('TrackingDepartments', []) or []
+                    if enabled and dept_name not in t_depts:
+                        t_depts.append(dept_name)
+                    elif not enabled and dept_name in t_depts:
+                        t_depts.remove(dept_name)
+                    OrganizationsTable.update_item(
+                        Key={'OrgID': org_id},
+                        UpdateExpression="SET TrackingDepartments = :tdepts",
+                        ExpressionAttributeValues={':tdepts': t_depts}
+                    )
+                    messages.success(request, f"Live tracking for '{dept_name}' {'enabled' if enabled else 'disabled'}.")
+            except Exception as e:
+                messages.error(request, f"Error toggling tracking: {e}")
+
         elif action == 'delete_department':
             dept_id = request.POST.get('department_id', '').strip()
             try:
+                dept_item = DepartmentsTable.get_item({'OrgID': org_id, 'DepartmentID': dept_id})
+                if dept_item:
+                    dept_name = dept_item.get('Name')
+                    t_depts = org.get('TrackingDepartments', []) or []
+                    if dept_name in t_depts:
+                        t_depts.remove(dept_name)
+                        OrganizationsTable.update_item(
+                            Key={'OrgID': org_id},
+                            UpdateExpression="SET TrackingDepartments = :tdepts",
+                            ExpressionAttributeValues={':tdepts': t_depts}
+                        )
                 DepartmentsTable.delete_item({'OrgID': org_id, 'DepartmentID': dept_id})
                 messages.success(request, "Department deleted successfully.")
             except Exception as e:
                 messages.error(request, f"Error deleting department: {e}")
 
         elif action == 'save_workflows':
-            new_rules = {
-                'leave_request': {},
-                'expense_claim': {},
-                'wfh_request': {},
-                'payroll_approval': {}
-            }
-            roles = ['Employee', 'Manager', 'HR ADMIN', 'Super admin']
-            for req_type in ['leave_request', 'expense_claim', 'wfh_request', 'payroll_approval']:
-                for r in roles:
+            from core.utils import get_organization_roles
+            roles_list = get_organization_roles(org)
+            req_types = ['leave_request', 'expense_claim', 'wfh_request', 'resignation_request', 'payroll_approval']
+
+            new_rules = {t: {} for t in req_types}
+            for req_type in req_types:
+                for r in roles_list:
                     steps_str = request.POST.get(f"{req_type}_{r}", "").strip()
                     if steps_str:
                         steps_list = [s.strip() for s in steps_str.split(',') if s.strip()]
@@ -901,7 +970,7 @@ class PlatformResetDatabaseView(RoleRequiredMixin, View):
         import uuid
         import bcrypt
 
-        current_user_email = getattr(request.user, 'email', 'lurnexasolution@gmail.com')
+        current_user_email = getattr(request.user, 'email', 'kyropeople@gmail.com')
         current_user_id = getattr(request.user, 'id', str(uuid.uuid4()))
 
         tables_and_keys = [
@@ -956,7 +1025,7 @@ class PlatformResetDatabaseView(RoleRequiredMixin, View):
 
             user_item = {
                 'UserID': plat_user_id,
-                'Email': current_user_email or 'lurnexasolution@gmail.com',
+                'Email': current_user_email or 'kyropeople@gmail.com',
                 'Role': 'Platform Admin',
                 'PasswordHash': plat_pw_hash,
                 'EmployeeID': plat_emp_id,
@@ -967,9 +1036,9 @@ class PlatformResetDatabaseView(RoleRequiredMixin, View):
             employee_item = {
                 'EmployeeID': plat_emp_id,
                 'UserID': plat_user_id,
-                'Email': current_user_email or 'lurnexasolution@gmail.com',
-                'FirstName': 'Lurnexa',
-                'LastName': 'Technologies',
+                'Email': current_user_email or 'kyropeople@gmail.com',
+                'FirstName': 'Kyro',
+                'LastName': 'People',
                 'Department': 'Administration',
                 'Designation': 'Platform Admin'
             }

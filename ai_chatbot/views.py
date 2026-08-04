@@ -11,6 +11,9 @@ class AIChatView(LoginRequiredMixin, View):
     """API endpoint for text & voice AI chatbot interaction."""
     
     def post(self, request):
+        if getattr(request.user, 'role', None) == 'Platform Admin':
+            return JsonResponse({'error': 'AI Chatbot is disabled for Platform Admin.'}, status=403)
+            
         try:
             body = json.loads(request.body.decode('utf-8'))
             user_message = body.get('message', '').strip()

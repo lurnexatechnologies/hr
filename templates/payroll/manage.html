@@ -1,19 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}Payroll Management - Lurnexa{% endblock %}
+{% block title %}Payroll Management - Kyro People{% endblock %}
 {% block nav_manage_payroll %}active{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="fw-bold text-dark mb-0">Payroll Management</h4>
-        <p class="text-muted smaller mb-0">Manage monthly generation and track organizational payroll history.</p>
+        <div class="d-flex align-items-center gap-2">
+            <h4 class="fw-bold text-dark mb-0">Payroll Management</h4>
+            {% if INDUSTRY_PROFILE %}
+            <span class="badge bg-indigo-soft text-indigo fw-bold rounded-pill px-3 py-1">
+                <i class="{{ INDUSTRY_PROFILE.icon|default:'fa-solid fa-industry' }} me-1"></i> {{ INDUSTRY_PROFILE.name }}
+            </span>
+            {% endif %}
+        </div>
+        <p class="text-muted smaller mb-0">
+            Manage monthly generation & payroll history. 
+            {% if INDUSTRY_PROFILE.payroll_models %}
+            <span class="ms-2 text-indigo fw-semibold"><i class="fa-solid fa-calculator me-1"></i> Preset Models: {{ INDUSTRY_PROFILE.payroll_models|join:", " }}</span>
+            {% endif %}
+        </p>
     </div>
     <div class="d-flex gap-2">
         <div class="alert alert-info py-2 px-3 mb-0 rounded-pill smaller border-0 shadow-sm" style="background: rgba(13, 202, 240, 0.1); color: #055160;">
             <i class="fa-solid fa-circle-info me-2"></i>
-            <strong>Policy:</strong> LOP Cycle: 27th (Prev) to 26th (Curr) | <strong>Generation Date:</strong> {% if generation_date %}{{ generation_date }}{% else %}30th only{% endif %}
+            <strong>Policy:</strong> LOP Cycle: 27th (Prev) to 26th (Curr) | <strong>Generation Date:</strong> {% if generation_date %}{{ generation_date }}{% else %}30th of month{% endif %}
         </div>
+        <button type="button" class="btn btn-outline-primary shadow-sm rounded-pill px-4 py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#changeVaultCredentialsModal">
+            <i class="fa-solid fa-key me-2"></i> Vault Credentials
+        </button>
         <a href="{% url 'payroll_logout' %}" class="btn btn-outline-danger shadow-sm rounded-pill px-4 py-2 fw-bold">
             <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
         </a>
@@ -37,7 +52,7 @@
 <div class="tab-content" id="payrollTabsContent">
     <!-- Tab 1: Generation -->
     <div class="tab-pane fade show active" id="generate" role="tabpanel">
-        <form id="payrollForm" action="{% url 'manage_payroll' %}" method="POST" data-global-esi="{% if global_esi %}{{ global_esi }}{% endif %}">
+        <form id="payrollForm" action="{% url 'manage_payroll' %}" method="POST" data-global-esi="{% if global_esi %}{{ global_esi }}{% endif %}" data-basic-pct="{{ basic_pct|default:0.40 }}" data-hra-pct="{{ hra_pct|default:0.40 }}">
             {% csrf_token %}
             <div class="card border-0 shadow-sm" style="border-radius: 20px;">
                 <div class="card-header bg-white pt-4 pb-2 border-0 d-flex justify-content-between align-items-center">
@@ -46,6 +61,14 @@
                         <button type="button" class="btn btn-outline-secondary btn-sm shadow-sm rounded-pill px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#esiSettingsModal">
                             <i class="fa-solid fa-gear me-1"></i> ESI Settings
                         </button>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="toggleIncrement">
+                            <label class="form-check-label small fw-bold text-muted cursor-pointer" for="toggleIncrement"><i class="fa-solid fa-chart-line text-primary me-1"></i> Increment (%)</label>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="toggleBonus">
+                            <label class="form-check-label small fw-bold text-muted cursor-pointer" for="toggleBonus"><i class="fa-solid fa-gift text-success me-1"></i> Bonus (₹)</label>
+                        </div>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="selectAll">
                             <label class="form-check-label small fw-bold text-muted" for="selectAll">Select All</label>
@@ -63,9 +86,9 @@
                                     <th class="ps-4 border-0 py-3" style="width: 50px;">Select</th>
                                     <th class="border-0 py-3">Employee</th>
                                     <th class="border-0 py-3 text-nowrap">Annual CTC</th>
-                                    <th class="border-0 py-3 text-nowrap">Increment (%)</th>
-                                    <th class="border-0 py-3 text-nowrap">Proposed</th>
-                                     <th class="border-0 py-3 text-nowrap text-success">Bonus (₹)</th>
+                                    <th class="border-0 py-3 text-nowrap col-increment" style="display: none;">Increment (%)</th>
+                                    <th class="border-0 py-3 text-nowrap col-proposed" style="display: none;">Proposed</th>
+                                    <th class="border-0 py-3 text-nowrap text-success col-bonus" style="display: none;">Bonus (₹)</th>
                                     <th class="border-0 py-3 text-nowrap">LOP Mode</th>
                                     <th class="border-0 py-3">Basic</th>
                                     <th class="border-0 py-3">HRA</th>
@@ -99,15 +122,15 @@
                                         </div>
                                     </td>
                                     <td class="fw-bold text-primary smaller text-nowrap">₹ {{ item.employee.SalaryPA|default:"-" }}</td>
-                                    <td class="smaller">
+                                    <td class="smaller col-increment" style="display: none;">
                                         <input type="number" name="increment_{{ item.employee.EmployeeID }}" 
                                                class="form-control form-control-sm increment-input" 
                                                data-emp-id="{{ item.employee.EmployeeID }}"
                                                data-current-salary="{{ item.employee.SalaryPA|default:0 }}"
                                                placeholder="% 0" min="0" step="0.1" style="width: 80px;">
                                     </td>
-                                    <td class="fw-bold text-indigo smaller text-nowrap">₹ <span id="proposed_salary_{{ item.employee.EmployeeID }}">{{ item.employee.SalaryPA|default:"0" }}</span></td>
-                                     <td class="smaller">
+                                    <td class="fw-bold text-indigo smaller text-nowrap col-proposed" style="display: none;">₹ <span id="proposed_salary_{{ item.employee.EmployeeID }}">{{ item.employee.SalaryPA|default:"0" }}</span></td>
+                                     <td class="smaller col-bonus" style="display: none;">
                                          <input type="number" name="bonus_{{ item.employee.EmployeeID }}" 
                                                 class="form-control form-control-sm bonus-input" 
                                                 data-emp-id="{{ item.employee.EmployeeID }}"
@@ -272,34 +295,12 @@
 </div>
 
 <!-- ESI Settings Modal -->
-<div class="modal fade" id="esiSettingsModal" tabindex="-1" aria-labelledby="esiSettingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="border-radius: 15px;">
-            <div class="modal-header bg-light border-0">
-                <h5 class="modal-title fw-bold" id="esiSettingsModalLabel"><i class="fa-solid fa-gear text-muted me-2"></i>Global ESI Configuration</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{% url 'update_esi_config' %}" method="POST">
-                {% csrf_token %}
-                <div class="modal-body p-4">
-                    <p class="text-muted small mb-4">Set a fixed ESI deduction amount for all eligible employees. Leave blank if you do not want to deduct ESI.</p>
-                    <div class="mb-3">
-                        <label for="esi_amount" class="form-label fw-bold smaller text-muted">Fixed ESI Amount (₹)</label>
-                        <input type="number" class="form-control" id="esi_amount" name="esi_amount" value="{{ global_esi|default:'' }}" placeholder="e.g. 150" min="0" step="1">
-                    </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Save Configuration</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <script>
     const payrollForm = document.getElementById('payrollForm');
     const GLOBAL_ESI_AMOUNT = (payrollForm && payrollForm.dataset.globalEsi) ? parseFloat(payrollForm.dataset.globalEsi) : null;
+    const BASIC_PCT = (payrollForm && payrollForm.dataset.basicPct) ? parseFloat(payrollForm.dataset.basicPct) : 0.40;
+    const HRA_PCT = (payrollForm && payrollForm.dataset.hraPct) ? parseFloat(payrollForm.dataset.hraPct) : 0.40;
 
     document.addEventListener('DOMContentLoaded', function() {
         const selectAll = document.getElementById('selectAll');
@@ -313,6 +314,58 @@
             });
         });
 
+        // --- Toggle Column Visibility for Increment & Bonus ---
+        const toggleIncrement = document.getElementById('toggleIncrement');
+        const toggleBonus = document.getElementById('toggleBonus');
+
+        function updateToggleColumns() {
+            const showInc = toggleIncrement && toggleIncrement.checked;
+            const showBonus = toggleBonus && toggleBonus.checked;
+
+            document.querySelectorAll('.col-increment').forEach(el => el.style.display = showInc ? '' : 'none');
+            document.querySelectorAll('.col-proposed').forEach(el => el.style.display = showInc ? '' : 'none');
+            document.querySelectorAll('.col-bonus').forEach(el => el.style.display = showBonus ? '' : 'none');
+
+            // When Increment toggle is turned OFF, clear values and recalculate
+            if (!showInc) {
+                document.querySelectorAll('.increment-input').forEach(input => {
+                    if (input.value !== '') {
+                        input.value = '';
+                        const empId = input.dataset.empId;
+                        updateEmployeePayroll(empId);
+                    }
+                });
+            }
+
+            // When Bonus toggle is turned OFF, clear values and recalculate
+            if (!showBonus) {
+                document.querySelectorAll('.bonus-input').forEach(input => {
+                    if (input.value !== '') {
+                        input.value = '';
+                        const empId = input.dataset.empId;
+                        updateEmployeePayroll(empId);
+                    }
+                });
+            }
+        }
+
+        if (toggleIncrement) toggleIncrement.addEventListener('change', updateToggleColumns);
+        if (toggleBonus) toggleBonus.addEventListener('change', updateToggleColumns);
+
+        // Auto-enable Bonus toggle if any employee has preset auto_bonus
+        const hasPresetBonus = Array.from(document.querySelectorAll('.bonus-input')).some(input => input.value && parseFloat(input.value) > 0);
+        if (hasPresetBonus && toggleBonus) {
+            toggleBonus.checked = true;
+        }
+
+        // Auto-enable Increment toggle if any employee has preset increment
+        const hasPresetIncrement = Array.from(document.querySelectorAll('.increment-input')).some(input => input.value && parseFloat(input.value) > 0);
+        if (hasPresetIncrement && toggleIncrement) {
+            toggleIncrement.checked = true;
+        }
+
+        updateToggleColumns();
+
         let isSubmitting = false;
         form.addEventListener('submit', function(e) {
             if (isSubmitting) {
@@ -323,12 +376,12 @@
             const selected = document.querySelectorAll('.employee-check:checked');
             if (selected.length === 0) {
                 e.preventDefault();
-                Lurnexa.alert('Please select at least one employee to generate payroll.', 'Selection Required');
+                KyroPeople.alert('Please select at least one employee to generate payroll.', 'Selection Required');
                 return;
             }
 
             e.preventDefault();
-            Lurnexa.confirm({
+            KyroPeople.confirm({
                 title: 'Confirm Payroll Run',
                 message: `Are you sure you want to generate payroll for ${selected.length} selected employees?`,
                 onConfirm: () => {
@@ -369,11 +422,17 @@
             select.addEventListener('change', function() {
                 const empId = this.dataset.empId;
                 const container = document.getElementById(`manual_lop_container_${empId}`);
+                const manualInput = container ? container.querySelector('input') : null;
                 if (this.value === 'manual') {
                     container.style.display = 'block';
+                    if (manualInput) {
+                        manualInput.value = '0';
+                    }
                 } else {
                     container.style.display = 'none';
-                    container.querySelector('input').value = '';
+                    if (manualInput) {
+                        manualInput.value = '';
+                    }
                 }
                 updateEmployeePayroll(empId);
             });
@@ -415,9 +474,9 @@
             const currentAnnual = salaryPA + incrementAmount;
             const monthlyCTC = currentAnnual / 12;
 
-            const basic = 0.40 * monthlyCTC;
-            const hra = 0.40 * basic;
-            const special = monthlyCTC - (basic + hra);
+            const basic = BASIC_PCT * monthlyCTC;
+            const hra = HRA_PCT * monthlyCTC;
+            const special = Math.max(0, monthlyCTC - (basic + hra));
             const gross = basic + hra + special;
 
             const perDay = totalDays > 0 ? gross / totalDays : 0;
@@ -534,4 +593,79 @@
         }
     });
 </script>
+<!-- Modal: Change Payroll Vault Credentials -->
+<div class="modal fade" id="changeVaultCredentialsModal" tabindex="-1" aria-labelledby="changeVaultCredentialsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 bg-dark text-white p-4" style="border-radius: 20px 20px 0 0;">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                        <i class="fa-solid fa-key fa-lg"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="changeVaultCredentialsModalLabel">Change Vault Credentials</h5>
+                        <p class="text-white-50 smaller mb-0">Update your separate Payroll Vault Username & Password</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'change_payroll_vault_credentials' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Old Vault Username</label>
+                        <input type="text" name="old_vault_username" class="form-control rounded-3 py-2" placeholder="Enter current Vault Username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Old Vault Password</label>
+                        <input type="password" name="old_vault_password" class="form-control rounded-3 py-2" placeholder="Enter current Vault Password" required>
+                    </div>
+                    <hr class="my-3">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">New Vault Username</label>
+                        <input type="text" name="new_vault_username" class="form-control rounded-3 py-2" placeholder="Enter new Vault Username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">New Vault Password</label>
+                        <input type="password" name="new_vault_password" class="form-control rounded-3 py-2" placeholder="Enter new Vault Password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Confirm New Vault Password</label>
+                        <input type="password" name="confirm_vault_password" class="form-control rounded-3 py-2" placeholder="Confirm new Vault Password" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 bg-light p-3" style="border-radius: 0 0 20px 20px;">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Update Vault Credentials</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ESI Settings Modal -->
+<div class="modal fade" id="esiSettingsModal" tabindex="-1" aria-labelledby="esiSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="border-radius: 15px;">
+            <div class="modal-header bg-light border-0">
+                <h5 class="modal-title fw-bold" id="esiSettingsModalLabel"><i class="fa-solid fa-gear text-muted me-2"></i>Global ESI Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'update_esi_config' %}" method="POST" id="esiConfigForm">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-4">Set a fixed ESI deduction amount for all eligible employees. Leave blank if you do not want to deduct ESI.</p>
+                    <div class="mb-3">
+                        <label for="esi_amount" class="form-label fw-bold smaller text-muted">Fixed ESI Amount (₹)</label>
+                        <input type="number" class="form-control" id="esi_amount" name="esi_amount" value="{{ global_esi|default:'' }}" placeholder="e.g. 150" min="0" step="1">
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold" id="saveEsiBtn">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

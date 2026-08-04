@@ -20,7 +20,7 @@ def run(playwright: Playwright) -> None:
     page.get_by_role("button", name="Sign In").click()
     
     # Wait for Dashboard to confirm login
-    expect(page.locator("h4:has-text('LURNEXA')")).to_be_visible(timeout=10000)
+    expect(page.locator("h4:has-text('KYRO PEOPLE')")).to_be_visible(timeout=10000)
 
     print("[2/6] Submitting Leave Application...")
     page.goto(f"{BASE_URL}/leave/apply/")
@@ -58,7 +58,7 @@ def run(playwright: Playwright) -> None:
     page.locator("input[name=\"password\"]").fill("Password@123")
     page.get_by_role("button", name="Sign In").click()
     
-    expect(page.locator("h4:has-text('LURNEXA')")).to_be_visible(timeout=10000)
+    expect(page.locator("h4:has-text('KYRO PEOPLE')")).to_be_visible(timeout=10000)
 
     print("[5/6] Navigating to Leave Approvals...")
     page.goto(f"{BASE_URL}/leave/approvals/")

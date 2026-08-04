@@ -4,8 +4,10 @@ from . import views, pf_views
 urlpatterns = [
     path('', views.PayslipsView.as_view(), name='payslips_view'),
     path('manage/', views.ManagePayrollView.as_view(), name='manage_payroll'),
+    path('customize/', views.ManagePayrollConfigView.as_view(), name='manage_payroll_config'),
     path('login/', views.PayrollLoginView.as_view(), name='payroll_login'),
     path('logout/', views.PayrollLogoutView.as_view(), name='payroll_logout'),
+    path('change-vault-credentials/', views.ChangePayrollVaultCredentialsView.as_view(), name='change_payroll_vault_credentials'),
     path('esi-config/', views.UpdateESIConfigView.as_view(), name='update_esi_config'),
     path('download/<str:month_year>/', views.DownloadPayslipView.as_view(), name='download_payslip'),
     path('download/<str:month_year>/<str:emp_id>/', views.DownloadPayslipView.as_view(), name='download_payslip_hr'),

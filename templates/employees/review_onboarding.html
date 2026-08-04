@@ -138,6 +138,28 @@
                                     </div>
                                 </div>
                                 {% endif %}
+
+                                {% if employee.CustomFields or industry_profile.custom_fields %}
+                                <div class="col-12 mt-4">
+                                    <div class="p-3 rounded-4 bg-light border border-indigo border-opacity-10">
+                                        <h6 class="fw-bold text-indigo mb-3"><i class="fa-solid fa-sliders me-2"></i> {{ industry_profile.name }} Domain Specs</h6>
+                                        <div class="row g-3">
+                                            {% for field in industry_profile.custom_fields %}
+                                            <div class="col-md-6">
+                                                <label class="smaller text-muted fw-bold text-uppercase d-block">{{ field.label }}</label>
+                                                <span class="fw-semibold text-dark">
+                                                    {% for c_key, c_val in employee.CustomFields.items %}
+                                                        {% if c_key == field.key %}{{ c_val }}{% endif %}
+                                                    {% empty %}
+                                                        -
+                                                    {% endfor %}
+                                                </span>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -265,15 +287,16 @@ function submitDecision(action) {
     // Safety check: count how many documents are uploaded vs reviewed
     const uploadedCount = document.querySelectorAll('.document-review-actions').length;
     const reviewedCount = Object.keys(statuses).length;
+    const allApproved = reviewedCount === uploadedCount;
     
     if (action === 'approve') {
         const newId = document.getElementById('new_employee_id').value.trim();
         if (!newId) {
-            Lurnexa.alert("Please assign an Employee ID before approving.", "ID Required");
+            KyroPeople.alert("Please assign an Employee ID before approving.", "ID Required");
             return;
         }
-        if (reviewedCount < uploadedCount) {
-            Lurnexa.alert("Please review (Approve or Reject) all uploaded documents before final approval.", "Review Pending");
+        if (!allApproved) {
+            KyroPeople.alert("Please review (Approve or Reject) all uploaded documents before final approval.", "Review Pending");
             return;
         }
     }

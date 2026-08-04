@@ -252,6 +252,23 @@ GROQ_TOOLS = [
             "description": "Fetch organization employee count and pending approvals (HR Admin / Manager only)",
             "parameters": {"type": "object", "properties": {}}
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "raise_issue_ticket",
+            "description": "Raise an issue/helpdesk ticket when user reports a problem (POS breakdown, machinery fault, equipment error, payslip query, etc.)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subject": {"type": "string", "description": "Short subject/title of the issue"},
+                    "description": {"type": "string", "description": "Detailed description of the issue"},
+                    "priority": {"type": "string", "enum": ["Low", "Medium", "High", "Critical_SLA"]},
+                    "category": {"type": "string", "description": "Category key e.g. POS_BREAKDOWN, ICU_EQUIPMENT_FAIL, PAYSLIP_CALCULATION_QUERY, GENERAL_ADMIN_SUPPORT"}
+                },
+                "required": ["subject", "description"]
+            }
+        }
     }
 ]
 
@@ -800,6 +817,44 @@ def execute_hr_action(user, function_name, params, user_message=""):
     elif function_name == "get_my_assets":
         return {"Assigned_Assets": fetch_user_assets(employee_id), "Employee_ID": employee_id}
 
+    elif function_name == "raise_issue_ticket":
+        subject = params.get("subject", "Issue reported via AI Assistant")
+        description = params.get("description", "Issue reported via AI Assistant")
+        priority = params.get("priority", "Medium")
+        category = params.get("category", "GENERAL_ADMIN_SUPPORT")
+
+        ticket_id = f"TICK-{uuid.uuid4().hex[:6].upper()}"
+        from tickets.views import compute_sla_due_time
+        sla_due = compute_sla_due_time(priority)
+
+        from core.dynamodb_service import TicketsTable
+        ticket_item = {
+            'TicketID': ticket_id,
+            'OrgID': org_id,
+            'EmployeeID': employee_id,
+            'Category': category,
+            'Priority': priority,
+            'Subject': subject,
+            'Description': description,
+            'Status': 'Open',
+            'AssignedDepartment': 'IT Support',
+            'AssignedTo': 'Unassigned',
+            'SLADueTime': sla_due,
+            'CreatedAt': get_local_now().isoformat(),
+            'UpdatedAt': get_local_now().isoformat()
+        }
+        try:
+            TicketsTable.put_item(ticket_item)
+            return {
+                "status": "success",
+                "ticket_id": ticket_id,
+                "subject": subject,
+                "priority": priority,
+                "sla_target": sla_due[:16]
+            }
+        except Exception as e:
+            return {"error": f"Failed to raise ticket: {str(e)}"}
+
     return {"error": "Unknown action"}
 
 
@@ -1123,23 +1178,30 @@ def process_ai_chat(user, user_message, conversation_history=None, language='en-
         except Exception as ex:
             logger.error(f"Error fetching org directory for HR: {ex}")
 
-    # Resolve allowed leave types from Organization Policy settings
+    # Resolve allowed leave types & industry profile from Organization settings
     allowed_types_str = "Casual Leave (CL), Sick Leave (SL), Earned Leave (EL), Marriage Leave, Maternity Leave, Paternity Leave, Unpaid Leave"
+    industry_type = 'SOFTWARE_IT'
     try:
         from core.dynamodb_service import OrganizationsTable
         org_item = OrganizationsTable.get_item({'OrgID': org_id})
-        if org_item and 'LeavePolicies' in org_item:
-            emp_type_key = 'Permanent'
-            if emp_data.get('EmploymentType') == 'Intern':
-                emp_type_key = 'Intern'
-            elif emp_data.get('EmploymentStatus') == 'Probation':
-                emp_type_key = 'Probation'
-            if emp_type_key in org_item['LeavePolicies']:
-                pol_types = org_item['LeavePolicies'][emp_type_key].get('AllowedTypes')
-                if pol_types:
-                    allowed_types_str = ", ".join(pol_types)
+        if org_item:
+            industry_type = org_item.get('IndustryType', 'SOFTWARE_IT')
+            if 'LeavePolicies' in org_item:
+                emp_type_key = 'Permanent'
+                if emp_data.get('EmploymentType') == 'Intern':
+                    emp_type_key = 'Intern'
+                elif emp_data.get('EmploymentStatus') == 'Probation':
+                    emp_type_key = 'Probation'
+                if emp_type_key in org_item['LeavePolicies']:
+                    pol_types = org_item['LeavePolicies'][emp_type_key].get('AllowedTypes')
+                    if pol_types:
+                        allowed_types_str = ", ".join(pol_types)
     except Exception as ex:
-        logger.error(f"Error resolving org allowed leave types: {ex}")
+        logger.error(f"Error resolving org allowed leave types/industry: {ex}")
+
+    from core.industry_templates import get_industry_profile
+    ind_profile = get_industry_profile(industry_type)
+    industry_prompt_context = f"Industry Domain: {ind_profile.get('name')}\nGuidance Context: {ind_profile.get('chatbot_context')}"
 
     endpoint = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -1167,6 +1229,7 @@ def process_ai_chat(user, user_message, conversation_history=None, language='en-
         f"- Direct Team / Reportees: {team_info}\n"
         f"- Work Location: {location}\n"
         f"- Organization ID: {org_id}\n"
+        f"- Industry Profile: {industry_prompt_context}\n"
         f"- Account Status: {account_status}\n"
         f"- Allowed Leave Types in Portal: {allowed_types_str}\n"
         f"- Leave Balances: Casual Leave (CL): {cl_bal}, Sick Leave (SL): {sl_bal}, Earned Leave (EL): {pl_bal}\n"

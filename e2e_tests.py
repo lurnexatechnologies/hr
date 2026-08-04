@@ -26,8 +26,8 @@ def run(playwright: Playwright) -> None:
 
     # 3. Verify Dashboard Load & Header
     print("[3/7] Checking if Dashboard loaded successfully...")
-    # Wait for the LURNEXA header brand to be visible, ensuring we are in the portal
-    expect(page.locator("h4:has-text('LURNEXA')")).to_be_visible(timeout=15000)
+    # Wait for the KYRO PEOPLE header brand to be visible, ensuring we are in the portal
+    expect(page.locator("h4:has-text('KYRO PEOPLE')")).to_be_visible(timeout=15000)
     print("✅ Dashboard loaded successfully.")
 
     # 4. Test Employee Directory
