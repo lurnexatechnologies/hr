@@ -114,7 +114,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
-if os.getenv('USE_S3', 'False') == 'True' or not DEBUG:
+if os.getenv('USE_S3', 'False') == 'True':
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
