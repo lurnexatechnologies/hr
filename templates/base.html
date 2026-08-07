@@ -1367,5 +1367,119 @@
         {% endif %}
 
     {% block extra_js %}{% endblock %}
+
+    <!-- Global In-App Document & Media Viewer Modal -->
+    <div class="modal fade" id="globalDocViewerModal" tabindex="-1" aria-labelledby="globalDocViewerModalLabel" aria-hidden="true" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(10px); z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 94vw; height: 92vh; margin: 4vh auto;">
+            <div class="modal-content border-0 shadow-2xl overflow-hidden" style="border-radius: 20px; height: 100%; display: flex; flex-direction: column; background: #0f172a;">
+                <!-- Modal Header -->
+                <div class="modal-header border-0 px-3 px-md-4 py-3 text-white d-flex justify-content-between align-items-center" style="border-bottom: 1px solid rgba(255,255,255,0.1) !important; background: #1e293b !important;">
+                    <div class="d-flex align-items-center gap-2 overflow-hidden">
+                        <button type="button" class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold me-2" data-bs-dismiss="modal" style="white-space: nowrap;">
+                            <i class="fa-solid fa-arrow-left me-1"></i> Back to App
+                        </button>
+                        <h6 class="modal-title fw-semibold text-truncate mb-0 text-light" id="globalDocViewerModalLabel" style="max-width: 45vw;">Document Preview</h6>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <a id="globalDocDownloadBtn" href="#" download class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" target="_blank" style="white-space: nowrap;">
+                            <i class="fa-solid fa-download me-1"></i> Download
+                        </a>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <!-- Modal Body -->
+                <div class="modal-body p-0 d-flex align-items-center justify-content-center flex-grow-1 overflow-hidden position-relative bg-black bg-opacity-75">
+                    <div id="globalDocImageContainer" class="w-100 h-100 d-flex align-items-center justify-content-center p-2 p-md-3 overflow-auto">
+                        <img id="globalDocImage" src="" alt="Document Preview" class="img-fluid rounded shadow-lg" style="max-height: 80vh; max-width: 100%; object-fit: contain; background: #ffffff;">
+                    </div>
+                    <iframe id="globalDocFrame" src="" class="w-100 h-100 border-0 d-none" style="min-height: 80vh;"></iframe>
+                    <div id="globalDocFallbackContainer" class="text-center text-white p-5 d-none">
+                        <i class="fa-solid fa-file-lines fa-4x text-primary mb-3"></i>
+                        <h5 class="fw-bold mb-2 text-white">Preview Not Supported Directly</h5>
+                        <p class="text-muted small mb-4">Please download the file to view its full content.</p>
+                        <a id="globalDocFallbackBtn" href="#" download class="btn btn-primary rounded-pill px-4 fw-bold">
+                            <i class="fa-solid fa-download me-2"></i> Download File
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global Document & Media Link Interceptor for Mobile App & Web
+        document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('click', function(e) {
+                const targetLink = e.target.closest('a');
+                if (!targetLink) return;
+
+                const href = targetLink.getAttribute('href');
+                if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+                const isMedia = href.includes('/media/') || href.match(/\.(png|jpg|jpeg|gif|webp|pdf|doc|docx|xls|xlsx|txt)$/i);
+                const isBlankTarget = targetLink.getAttribute('target') === '_blank';
+
+                if (isMedia || isBlankTarget) {
+                    const urlLower = href.toLowerCase();
+                    const fileExt = urlLower.split('.').pop().split('?')[0];
+                    const isViewableImage = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(fileExt) || urlLower.includes('/media/');
+
+                    if (isViewableImage || fileExt === 'pdf') {
+                        e.preventDefault();
+                        let title = targetLink.innerText || targetLink.getAttribute('title') || 'Document Preview';
+                        openGlobalDocViewer(href, title);
+                    }
+                }
+            });
+        });
+
+        function openGlobalDocViewer(url, title) {
+            const modalEl = document.getElementById('globalDocViewerModal');
+            if (!modalEl) {
+                window.location.href = url;
+                return;
+            }
+
+            const titleEl = document.getElementById('globalDocViewerModalLabel');
+            const downloadBtn = document.getElementById('globalDocDownloadBtn');
+            const imgEl = document.getElementById('globalDocImage');
+            const imgContainer = document.getElementById('globalDocImageContainer');
+            const frameEl = document.getElementById('globalDocFrame');
+            const fallbackContainer = document.getElementById('globalDocFallbackContainer');
+            const fallbackBtn = document.getElementById('globalDocFallbackBtn');
+
+            let cleanTitle = title.replace(/[^\w\s\.-]/gi, '').trim();
+            if (!cleanTitle || cleanTitle === 'View' || cleanTitle === 'View Doc') {
+                cleanTitle = url.split('/').pop().split('?')[0] || 'Document Preview';
+            }
+
+            if (titleEl) titleEl.innerText = cleanTitle;
+            if (downloadBtn) downloadBtn.href = url;
+            if (fallbackBtn) fallbackBtn.href = url;
+
+            const ext = url.split('.').pop().split('?')[0].toLowerCase();
+
+            if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(ext) || (!ext && !url.endsWith('.pdf'))) {
+                imgEl.src = url;
+                imgContainer.classList.remove('d-none');
+                frameEl.classList.add('d-none');
+                frameEl.src = '';
+                fallbackContainer.classList.add('d-none');
+            } else if (ext === 'pdf') {
+                frameEl.src = url;
+                frameEl.classList.remove('d-none');
+                imgContainer.classList.add('d-none');
+                imgEl.src = '';
+                fallbackContainer.classList.add('d-none');
+            } else {
+                fallbackContainer.classList.remove('d-none');
+                imgContainer.classList.add('d-none');
+                frameEl.classList.add('d-none');
+            }
+
+            const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            bsModal.show();
+        }
+    </script>
 </body>
 </html>

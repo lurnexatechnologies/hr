@@ -174,9 +174,13 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                                 body=str(n_message)
                             ),
                             android=messaging.AndroidConfig(
+                                priority='high',
                                 notification=messaging.AndroidNotification(
                                     sound='default',
-                                    channel_id='fcm_default_channel'
+                                    channel_id='lurnexa-alerts-v2',
+                                    default_sound=True,
+                                    default_vibrate_timings=True,
+                                    priority='max'
                                 )
                             ),
                             data={
