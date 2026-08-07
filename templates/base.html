@@ -6,11 +6,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard - Kyro People{% endblock %}</title>
+    <!-- Web App Manifest & Mobile PWA Meta -->
+    <link rel="manifest" href="/manifest.json?v=6">
+    <meta name="application-name" content="Kyro People">
+    <meta name="apple-mobile-web-app-title" content="Kyro People">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a">
     <!-- Favicon & Touch Icons -->
-    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=5">
-    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=5">
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=5">
+    <link rel="shortcut icon" href="/favicon.ico?v=6" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=6">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=6">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=6">
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
     <!-- Bootstrap 5 CSS -->
@@ -439,7 +446,7 @@
             <div class="text-center" style="flex: 1;">
                 <div class="d-flex flex-column align-items-center justify-content-center">
                     <div class="d-flex align-items-center justify-content-center">
-                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Logo" style="height: 35px; margin-right: 12px; width: auto;">
+                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=6" alt="Kyro People Logo" style="height: 35px; margin-right: 12px; width: auto;">
                         <h4 class="mb-0 fw-bold" style="letter-spacing: 4px; color: var(--brand-color); font-family: 'Inter', sans-serif;">KYRO PEOPLE</h4>
                     </div>
                     <span class="text-muted fw-semibold" style="font-size: 0.65rem; letter-spacing: 1.5px; margin-top: -2px;">Key Your Resources</span>

@@ -8,11 +8,18 @@
     <title>{% block title %}Login - Kyro People{% endblock %}</title>
     <meta name="description" content="{% block meta_description %}Access the Kyro People platform. Enter your credentials to log in or request a password reset.{% endblock %}">
     <meta name="robots" content="index, nofollow">
+    <!-- Web App Manifest & Mobile PWA Meta -->
+    <link rel="manifest" href="/manifest.json?v=6">
+    <meta name="application-name" content="Kyro People">
+    <meta name="apple-mobile-web-app-title" content="Kyro People">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a">
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
-    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=4">
+    <link rel="shortcut icon" href="/favicon.ico?v=6" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/namelesslogolurnexa.png' %}?v=6">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/namelesslogolurnexa.png' %}?v=6">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/namelesslogolurnexa.png' %}?v=6">
 
     <!-- Google Fonts: Inter -->
     <link href="{% static 'vendor/google-fonts/inter.css' %}" rel="stylesheet">
@@ -162,7 +169,7 @@
     {% if not messages and request.method != 'POST' %}
     <div class="hero-logo-flyer" id="heroFlyer">
         <div class="hero-logo-badge" id="heroBadge">
-            <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="hero-logo-img">
+            <img src="{% static 'img/namelesslogolurnexa.png' %}?v=6" alt="Kyro People" class="hero-logo-img">
         </div>
         <div class="hero-logo-tagline" id="heroTagline">Kyro People</div>
     </div>
@@ -173,7 +180,7 @@
             <div class="auth-card" id="authCard">
                 <div class="auth-header">
                     <div class="brand-logo-slot">
-                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="login-target-logo" id="targetLogo" {% if messages or request.method == 'POST' %}style="opacity: 1;"{% endif %}>
+                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=6" alt="Kyro People" class="login-target-logo" id="targetLogo" {% if messages or request.method == 'POST' %}style="opacity: 1;"{% endif %}>
                     </div>
                     <div class="auth-header-text {% if messages or request.method == 'POST' %}show{% endif %}" id="headerText">
                         <h3>Kyro People</h3>
