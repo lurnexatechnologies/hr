@@ -1,5 +1,5 @@
 [Unit]
-Description=gunicorn daemon for Lurnexa HRMS
+Description=gunicorn daemon for Kyro People
 Requires=gunicorn.socket
 After=network.target
 

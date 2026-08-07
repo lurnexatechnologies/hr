@@ -1,4 +1,4 @@
-name: Deploy Lurnexa HRMS to AWS Lightsail
+name: Deploy Kyro People to AWS Lightsail
 
 on:
   push:
@@ -21,6 +21,7 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             ./venv/bin/pip install -r requirements.txt
+            rm -f staticfiles/apk/lurnexa-hrms*
             ./venv/bin/python manage.py collectstatic --noinput
             ./venv/bin/python fix_prod_db.py
             sudo systemctl restart gunicorn
