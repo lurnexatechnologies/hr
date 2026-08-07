@@ -146,6 +146,8 @@
             font-weight: 800;
             color: #1a4f8b;
             letter-spacing: -0.3px;
+            text-align: center;
+            white-space: nowrap;
             transition: opacity 0.4s ease;
         }
 
@@ -162,7 +164,7 @@
         <div class="hero-logo-badge" id="heroBadge">
             <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="hero-logo-img">
         </div>
-        <div class="hero-logo-tagline" id="heroTagline">Kyro People <small class="d-block text-white-50 fs-6 fw-normal">A Product by Lurnexa Technologies</small></div>
+        <div class="hero-logo-tagline" id="heroTagline">Kyro People</div>
     </div>
     {% endif %}
 
@@ -171,7 +173,7 @@
             <div class="auth-card" id="authCard">
                 <div class="auth-header">
                     <div class="brand-logo-slot">
-                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="login-target-logo" id="targetLogo" style="{% if messages or request.method == 'POST' %}opacity: 1;{% endif %}">
+                        <img src="{% static 'img/namelesslogolurnexa.png' %}?v=3" alt="Kyro People" class="login-target-logo" id="targetLogo" {% if messages or request.method == 'POST' %}style="opacity: 1;"{% endif %}>
                     </div>
                     <div class="auth-header-text {% if messages or request.method == 'POST' %}show{% endif %}" id="headerText">
                         <h3>Kyro People</h3>
