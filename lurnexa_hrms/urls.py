@@ -21,6 +21,9 @@ if os.path.exists(src2):
 favicon_src = os.path.join(img_dir, "namelesslogolurnexa.png")
 if os.path.exists(favicon_src):
     try:
+        shutil.copy(favicon_src, os.path.join(img_dir, "kyro-logo.png"))
+        shutil.copy(favicon_src, os.path.join(img_dir, "kyro-logo-192.png"))
+        shutil.copy(favicon_src, os.path.join(img_dir, "kyro-logo-512.png"))
         shutil.copy(favicon_src, os.path.join(img_dir, "favicon.ico"))
         shutil.copy(favicon_src, os.path.join(settings.BASE_DIR, "static", "favicon.ico"))
     except Exception:

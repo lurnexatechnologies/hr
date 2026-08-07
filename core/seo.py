@@ -9,7 +9,7 @@ def serve_favicon(request):
     Serves the site favicon directly with HTTP 200 OK (no 302 redirects)
     so Googlebot, Googlebot-Image, and browser tab crawlers index the logo icon.
     """
-    favicon_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'favicon.ico')
+    favicon_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'kyro-logo.png')
     if not os.path.exists(favicon_path):
         favicon_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'namelesslogolurnexa.png')
 

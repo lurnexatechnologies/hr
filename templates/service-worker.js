@@ -1,11 +1,13 @@
-const CACHE_NAME = 'kyro-people-cache-v6';
+const CACHE_NAME = 'kyro-people-cache-v10';
 const OFFLINE_URL = '/offline/';
 
 // Assets to cache immediately on installation
 const ASSETS_TO_CACHE = [
   OFFLINE_URL,
-  '/manifest.json?v=6',
-  '/static/img/namelesslogolurnexa.png?v=6',
+  '/manifest.json?v=10',
+  '/static/img/kyro-logo-192.png',
+  '/static/img/kyro-logo-512.png',
+  '/static/img/kyro-logo.png',
   '/static/vendor/google-fonts/inter.css',
   '/static/vendor/bootstrap/css/bootstrap.min.css',
   '/static/vendor/fontawesome/css/all.min.css',
