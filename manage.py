@@ -14,6 +14,16 @@ def main():
                 for f in files:
                     if f in ["ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png", "splash.png"]:
                         shutil.copyfile(src_logo, os.path.join(root, f))
+        # Sync static to staticfiles
+        sf_dir = r"c:\Users\ADMIN\Documents\Lurnexa\HRMS\staticfiles"
+        st_dir = r"c:\Users\ADMIN\Documents\Lurnexa\HRMS\static"
+        if os.path.exists(sf_dir) and os.path.exists(st_dir):
+            for root, dirs, files in os.walk(st_dir):
+                rel = os.path.relpath(root, st_dir)
+                t_root = os.path.join(sf_dir, rel)
+                os.makedirs(t_root, exist_ok=True)
+                for f in files:
+                    shutil.copy2(os.path.join(root, f), os.path.join(t_root, f))
     except Exception:
         pass
 
