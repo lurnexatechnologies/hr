@@ -90,7 +90,8 @@ urlpatterns = [
     path('api/sales/location-history/<str:employee_id>/', sales_views.get_sales_location_history_api, name='sales_location_history_api'),
 ]
 
+from django.urls import re_path
 from django.views.static import serve
 urlpatterns += [
-    path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]
