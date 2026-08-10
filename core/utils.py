@@ -764,24 +764,31 @@ def get_local_date():
 
 def is_mobile_app(request):
     """
-    Detects if the incoming request is originating from the Capacitor mobile app wrapper.
-    Checks the User-Agent (for webviews on Android/iOS) and X-Requested-With header.
+    Detects if the incoming request is originating from the Capacitor / WebView mobile app wrapper.
+    Checks User-Agent and request headers.
     """
     user_agent = request.META.get('HTTP_USER_AGENT', '')
     requested_with = request.META.get('HTTP_X_REQUESTED_WITH', '')
     
-    # 1. Check custom Android header/package name
-    if 'com.lurnexa' in requested_with:
+    # 1. Check custom Android header/package name or Capacitor header
+    if 'com.lurnexa' in requested_with or 'com.kyro' in requested_with:
         return True
-        
+    
+    if request.META.get('HTTP_X_CAPACITOR_BUILD') or request.META.get('HTTP_X_MOBILE_APP'):
+        return True
+
     # 2. Check Android webview User-Agent characteristics
-    if 'Android' in user_agent and ('wv' in user_agent or 'Version/4.0' in user_agent):
+    if 'Android' in user_agent and ('wv' in user_agent or 'Version/4.0' in user_agent or 'Capacitor' in user_agent):
         return True
-        
+
     # 3. Check iOS webview User-Agent characteristics (iOS Capacitor / WKWebView)
-    if ('iPhone' in user_agent or 'iPad' in user_agent) and 'Mobile/' in user_agent and 'Safari' not in user_agent:
+    if ('iPhone' in user_agent or 'iPad' in user_agent) and ('Mobile/' in user_agent or 'Capacitor' in user_agent) and 'Safari' not in user_agent:
         return True
-        
+
+    # 4. Check Capacitor / Mobile webview fallback keywords
+    if 'Capacitor' in user_agent or 'Cordova' in user_agent:
+        return True
+
     return False
 
 

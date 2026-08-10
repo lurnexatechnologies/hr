@@ -98,6 +98,10 @@ DATABASES = {
 # Use signed cookies for sessions to avoid needing Django's default session DB table
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
+# Set default session cookie age to 100 years (3,153,600,000 seconds) so session cookies persist when opening/closing app
+SESSION_COOKIE_AGE = 3153600000
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
