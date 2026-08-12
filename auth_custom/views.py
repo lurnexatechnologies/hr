@@ -268,6 +268,9 @@ class LoginView(View):
                 # Explicitly clear any redirect parameters to force dashboard landing as requested
                 response = self._redirect_dashboard(user_data.get('Role', 'Employee'))
                 response.set_cookie('device_id', cookie_device_id, max_age=31536000, httponly=True, samesite='Lax')
+                # Set persistent mobile app cookie so server-side is_mobile_app() always detects it
+                if is_mobile_app(request):
+                    response.set_cookie('kyro_mobile_app', 'true', max_age=3153600000, httponly=True, samesite='Lax')
                 return response
             else:
                 messages.error(request, "Invalid credentials.")
@@ -339,11 +342,22 @@ class LogoutView(View):
         else:
             messages.success(request, "You have been logged out.")
         
-        response = redirect('login')
+        # Add reason=logout to redirect URL so client-side JS can detect explicit logout
+        # and clear mobile app persistence flags (kyro_is_mobile_app, kyro_mobile_session_active)
+        redirect_url = '/auth/login/'
+        if reason and reason != 'tab_closed':
+            redirect_url += f'?reason={reason}'
+        elif not reason:
+            redirect_url += '?reason=logout'
+        else:
+            redirect_url += f'?reason={reason}'
+        
+        response = redirect(redirect_url)
         try:
             response.delete_cookie('device_id')
+            response.delete_cookie('kyro_mobile_app')
         except Exception as e:
-            print(f"ERROR: Failed to delete device_id cookie: {e}")
+            print(f"ERROR: Failed to delete cookies on logout: {e}")
         return response
 
 class ForgotPasswordView(View):

@@ -165,6 +165,22 @@
     </style>
 </head>
 <body>
+    <script>
+        // Clear mobile app session persistence flags on explicit logout
+        // This runs on the login/auth pages. When a user explicitly logs out,
+        // the URL contains '?reason=' params or the Django message indicates logout.
+        // We clear the flags so the session is truly terminated.
+        (function() {
+            var url = window.location.href;
+            // Only clear on explicit logout (not tab_closed, which shouldn't happen on mobile anyway)
+            // The logout view redirects to /auth/login/ — if we detect explicit logout, clear flags
+            if (url.indexOf('reason=logout') !== -1 || 
+                (document.referrer && document.referrer.indexOf('/logout/') !== -1)) {
+                localStorage.removeItem('kyro_is_mobile_app');
+                localStorage.removeItem('kyro_mobile_session_active');
+            }
+        })();
+    </script>
     <!-- Floating Logo Flyer for Landing Animation (Only on fresh page open or refresh) -->
     {% if not messages and request.method != 'POST' %}
     <div class="hero-logo-flyer" id="heroFlyer">

@@ -80,9 +80,23 @@
             document.getElementById('login_device_id').value = devId;
         })();
         
-        // Mark session active in sessionStorage upon form submission
+        // Mark session active upon form submission, and persist mobile app flag
         document.querySelector('form').addEventListener('submit', function() {
             sessionStorage.setItem('session_active', 'true');
+            // Detect mobile app at login time and persist flag in localStorage
+            // so it survives app closes and WebView User-Agent changes
+            var ua = navigator.userAgent || '';
+            var isMobile = !!(
+                window.Capacitor || window.cordova ||
+                (/Android/.test(ua) && (/wv\b/.test(ua) || /Version\/4\.0/.test(ua) || /Capacitor/.test(ua))) ||
+                ((/iPhone|iPad/.test(ua)) && /Mobile\//.test(ua) && !/Safari\//.test(ua)) ||
+                /Capacitor|Cordova/.test(ua) ||
+                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches && /Android/.test(ua))
+            );
+            if (isMobile) {
+                localStorage.setItem('kyro_is_mobile_app', 'true');
+                localStorage.setItem('kyro_mobile_session_active', 'true');
+            }
         });
     </script>
 </form>

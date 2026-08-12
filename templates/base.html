@@ -46,9 +46,37 @@
             document.body.classList.add('sidebar-closed');
         }
         
+        // Robust mobile app detection: server-side flag OR client-side JS detection
+        // This ensures mobile WebView users are NEVER auto-logged-out on app close/reopen.
+        window.IS_KYRO_MOBILE_APP = (function() {
+            // 1. Server-side detection (Django template variable)
+            if ("{{ IS_MOBILE_APP }}".toLowerCase() === 'true') return true;
+            // 2. Client-side: Capacitor/Cordova global objects
+            if (window.Capacitor || window.cordova) return true;
+            // 3. Client-side: Android WebView indicators in User-Agent
+            var ua = navigator.userAgent || '';
+            if (/Android/.test(ua) && (/wv\b/.test(ua) || /Version\/4\.0/.test(ua) || /Capacitor/.test(ua))) return true;
+            // 4. Client-side: iOS WKWebView without Safari identifier
+            if ((/iPhone|iPad/.test(ua)) && /Mobile\//.test(ua) && !/Safari\//.test(ua)) return true;
+            // 5. Client-side: Capacitor / Cordova in User-Agent
+            if (/Capacitor|Cordova/.test(ua)) return true;
+            // 6. Client-side: Android standalone display mode (TWA / PWA installed)
+            if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches && /Android/.test(ua)) return true;
+            // 7. Persisted flag set during login on mobile
+            if (localStorage.getItem('kyro_is_mobile_app') === 'true') return true;
+            return false;
+        })();
+
+        // For mobile apps: always mark session as active in localStorage (persists across app restarts)
+        if (window.IS_KYRO_MOBILE_APP && window.USER_IS_AUTHENTICATED) {
+            localStorage.setItem('kyro_mobile_session_active', 'true');
+            sessionStorage.setItem('session_active', 'true');
+        }
+
         // If authenticated and on website (not mobile app), require a session token per tab.
         // We sync session_active status via BroadcastChannel to prevent logout when opening a new tab/bookmark.
-        if (window.USER_IS_AUTHENTICATED && "{{ IS_MOBILE_APP }}".toLowerCase() !== 'true') {
+        // MOBILE APPS COMPLETELY SKIP THIS — they should never be auto-logged-out on app close.
+        if (window.USER_IS_AUTHENTICATED && !window.IS_KYRO_MOBILE_APP) {
             if (!sessionStorage.getItem('session_active')) {
                 if (window.BroadcastChannel) {
                     const channel = new BroadcastChannel('kyro_session_sync');

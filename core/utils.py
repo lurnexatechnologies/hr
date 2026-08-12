@@ -765,7 +765,9 @@ def get_local_date():
 def is_mobile_app(request):
     """
     Detects if the incoming request is originating from the Capacitor / WebView mobile app wrapper.
-    Checks User-Agent and request headers.
+    Checks User-Agent, request headers, and cookies for maximum reliability.
+    This function is critical — if it returns False for a mobile app user, they will be
+    auto-logged-out when they close and reopen the app.
     """
     user_agent = request.META.get('HTTP_USER_AGENT', '')
     requested_with = request.META.get('HTTP_X_REQUESTED_WITH', '')
@@ -777,9 +779,14 @@ def is_mobile_app(request):
     if request.META.get('HTTP_X_CAPACITOR_BUILD') or request.META.get('HTTP_X_MOBILE_APP'):
         return True
 
-    # 2. Check Android webview User-Agent characteristics
-    if 'Android' in user_agent and ('wv' in user_agent or 'Version/4.0' in user_agent or 'Capacitor' in user_agent):
-        return True
+    # 2. Check Android webview User-Agent characteristics (multiple patterns)
+    if 'Android' in user_agent:
+        # Standard Android WebView markers
+        if 'wv' in user_agent or 'Version/4.0' in user_agent or 'Capacitor' in user_agent:
+            return True
+        # Some Android WebViews report as Chrome but with 'wv' flag
+        if '; wv)' in user_agent:
+            return True
 
     # 3. Check iOS webview User-Agent characteristics (iOS Capacitor / WKWebView)
     if ('iPhone' in user_agent or 'iPad' in user_agent) and ('Mobile/' in user_agent or 'Capacitor' in user_agent) and 'Safari' not in user_agent:
@@ -787,6 +794,19 @@ def is_mobile_app(request):
 
     # 4. Check Capacitor / Mobile webview fallback keywords
     if 'Capacitor' in user_agent or 'Cordova' in user_agent:
+        return True
+    
+    # 5. Check for standalone display mode via Sec-Fetch-Dest header (PWA/TWA)
+    sec_fetch_mode = request.META.get('HTTP_SEC_FETCH_MODE', '')
+    sec_fetch_dest = request.META.get('HTTP_SEC_FETCH_DEST', '')
+    if sec_fetch_mode == 'navigate' and sec_fetch_dest == 'document':
+        # Additional check: if Android + standalone display mode header
+        if 'Android' in user_agent and request.META.get('HTTP_SEC_FETCH_SITE', '') == 'none':
+            # Could be a TWA or installed PWA on Android
+            pass  # Not definitive enough alone, skip
+    
+    # 6. Check mobile app cookie (set by client-side JS during login on mobile)
+    if request.COOKIES.get('kyro_mobile_app') == 'true':
         return True
 
     return False
