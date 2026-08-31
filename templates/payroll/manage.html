@@ -52,7 +52,7 @@
 <div class="tab-content" id="payrollTabsContent">
     <!-- Tab 1: Generation -->
     <div class="tab-pane fade show active" id="generate" role="tabpanel">
-        <form id="payrollForm" action="{% url 'manage_payroll' %}" method="POST" data-global-esi="{% if global_esi %}{{ global_esi }}{% endif %}" data-basic-pct="{{ basic_pct|default:0.40 }}" data-hra-pct="{{ hra_pct|default:0.40 }}">
+        <form id="payrollForm" action="{% url 'manage_payroll' %}" method="POST" data-global-esi="{% if global_esi %}{{ global_esi }}{% endif %}" data-basic-pct="{{ basic_pct|default:0.40 }}" data-hra-pct="{{ hra_pct|default:0.40 }}" data-pf-enabled="{{ pf_enabled|default:'True' }}" data-tds-enabled="{{ tds_enabled|default:'True' }}" data-emp-pf-pct="{{ emp_pf_pct|default:0.12 }}" data-std-deduction="{{ std_deduction|default:75000 }}">
             {% csrf_token %}
             <div class="card border-0 shadow-sm" style="border-radius: 20px;">
                 <div class="card-header bg-white pt-4 pb-2 border-0 d-flex justify-content-between align-items-center">
@@ -301,6 +301,10 @@
     const GLOBAL_ESI_AMOUNT = (payrollForm && payrollForm.dataset.globalEsi) ? parseFloat(payrollForm.dataset.globalEsi) : null;
     const BASIC_PCT = (payrollForm && payrollForm.dataset.basicPct) ? parseFloat(payrollForm.dataset.basicPct) : 0.40;
     const HRA_PCT = (payrollForm && payrollForm.dataset.hraPct) ? parseFloat(payrollForm.dataset.hraPct) : 0.40;
+    const PF_ENABLED = (payrollForm && payrollForm.dataset.pfEnabled) ? payrollForm.dataset.pfEnabled === 'True' : true;
+    const TDS_ENABLED = (payrollForm && payrollForm.dataset.tdsEnabled) ? payrollForm.dataset.tdsEnabled === 'True' : true;
+    const EMP_PF_PCT = (payrollForm && payrollForm.dataset.empPfPct) ? parseFloat(payrollForm.dataset.empPfPct) : 0.12;
+    const STD_DEDUCTION = (payrollForm && payrollForm.dataset.stdDeduction) ? parseFloat(payrollForm.dataset.stdDeduction) : 75000;
 
     document.addEventListener('DOMContentLoaded', function() {
         const selectAll = document.getElementById('selectAll');
@@ -484,7 +488,7 @@
             const adjustedGross = gross - lopDeduction;
 
             let pf = 0;
-            if (isPF) pf = 0.12 * basic;
+            if (PF_ENABLED && isPF) pf = EMP_PF_PCT * basic;
 
             let esi = 0;
             if (GLOBAL_ESI_AMOUNT !== null) {
@@ -498,9 +502,10 @@
                 pt = 150;
             }
 
-            // TDS Logic (New Regime FY 2024-25)
+            // TDS Logic (New Regime - Dynamic Org Settings)
             let tds = 0;
-            const stdDeduction = 75000;
+            if (TDS_ENABLED) {
+            const stdDeduction = STD_DEDUCTION;
             const taxableIncome = Math.max(0, currentAnnual - stdDeduction);
 
             if (taxableIncome > 700000) {
@@ -511,6 +516,7 @@
                 if (taxableIncome > 1200000) tax += Math.min(taxableIncome - 1200000, 300000) * 0.20;
                 if (taxableIncome > 1500000) tax += (taxableIncome - 1500000) * 0.30;
                 tds = (tax * 1.04) / 12;
+            }
             }
 
             const totalDeductions = pf + esi + pt + tds;

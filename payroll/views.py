@@ -786,7 +786,7 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
         esi_setting = SettingsTable.get_item({'SettingKey': 'Global_ESI_Amount'})
         global_esi = esi_setting.get('Value') if esi_setting else None
 
-        user_org_id = request.session.get('org_id')
+        user_org_id = getattr(request.user, 'org_id', None)
         user_org_rec = None
         if user_org_id:
             try:
@@ -796,6 +796,12 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
 
         basic_pct_val = float(user_org_rec.get('BasicPercent', 40.0) if user_org_rec else 40.0) / 100.0
         hra_pct_val = float(user_org_rec.get('HRAPercent', 40.0) if user_org_rec else 40.0) / 100.0
+
+        # Dynamic PF & TDS settings from org config
+        pf_enabled_val = user_org_rec.get('PFEnabled', True) if user_org_rec else True
+        tds_enabled_val = user_org_rec.get('TDSEnabled', True) if user_org_rec else True
+        emp_pf_pct_val = float(user_org_rec.get('EmployeePFPercent', 12.0) if user_org_rec else 12.0) / 100.0
+        std_deduction_val = float(user_org_rec.get('TaxStandardDeduction', 75000.0) if user_org_rec else 75000.0)
 
         gen_date_setting = SettingsTable.get_item({'SettingKey': 'Payroll_Generation_Date'})
         gen_date_str = gen_date_setting.get('Value') if gen_date_setting else None
@@ -811,6 +817,10 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
             'global_esi': global_esi,
             'basic_pct': basic_pct_val,
             'hra_pct': hra_pct_val,
+            'pf_enabled': pf_enabled_val,
+            'tds_enabled': tds_enabled_val,
+            'emp_pf_pct': emp_pf_pct_val,
+            'std_deduction': std_deduction_val,
             'generation_date': formatted_gen_date,
             'active_tab': request.GET.get('active_tab', 'generate')
         }
