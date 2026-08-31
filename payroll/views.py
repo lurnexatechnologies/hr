@@ -886,17 +886,17 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
                 if not emp: continue
                 
                 # Get increment percentage
-                increment_percent = float(request.POST.get(f'increment_{emp_id}', '0'))
+                increment_percent = float(request.POST.get(f'increment_{emp_id}', '0') or '0')
                 salary_pa = safe_float(emp.get('SalaryPA'))
                 increment_amount = salary_pa * (increment_percent / 100)
 
                 # Get bonus amount
-                bonus_amount = float(request.POST.get(f'bonus_{emp_id}', '0'))
+                bonus_amount = float(request.POST.get(f'bonus_{emp_id}', '0') or '0')
                 bonus_percent = 0
 
                 lop_mode = request.POST.get(f'lop_mode_{emp_id}', 'automatic')
                 if lop_mode == 'manual':
-                    manual_days = float(request.POST.get(f'manual_lop_days_{emp_id}', 0))
+                    manual_days = safe_float(request.POST.get(f'manual_lop_days_{emp_id}', 0))
                     
                     if today.month == 1:
                         prev_month, prev_year = 12, today.year - 1
@@ -932,7 +932,9 @@ class ManagePayrollView(FeatureRequiredMixin, PayrollRequiredMixin, View):
                     'BonusPercent': str(bonus_percent)
                 })
             except Exception as e:
+                import traceback
                 print(f"Error bundling payroll for {emp_id}: {e}")
+                traceback.print_exc()
 
         if not batch_data:
             messages.error(request, "Failed to process selected employees.")
