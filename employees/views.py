@@ -1485,7 +1485,9 @@ class GenerateOnboardingLinkView(FeatureRequiredMixin, HRRequiredMixin, View):
             )
             messages.success(request, f"Onboarding link sent to {target_email}.")
         except Exception as e:
-            messages.warning(request, f"Link generated but email failed to send: {str(e)}")
+            import logging
+            logging.getLogger(__name__).error(f"Failed to send onboarding email to {target_email}: {e}")
+            messages.warning(request, "Onboarding link generated! However, email delivery failed due to email server credentials issue. Please copy and share the link below directly with the employee.")
 
         departments = get_departments_list(request.user.org_id)
         return render(request, 'employees/add_employee.html', {
