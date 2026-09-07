@@ -4,6 +4,7 @@
 <form method="POST" action="{% url 'login' %}">
     {% csrf_token %}
     <input type="hidden" name="device_id" id="login_device_id">
+    <input type="hidden" name="is_mobile" id="login_is_mobile">
     
     <div class="mb-3">
         <label for="username" class="form-label fw-medium text-muted">Email or Employee ID</label>
@@ -91,11 +92,17 @@
                 (/Android/.test(ua) && (/wv\b/.test(ua) || /Version\/4\.0/.test(ua) || /Capacitor/.test(ua))) ||
                 ((/iPhone|iPad/.test(ua)) && /Mobile\//.test(ua) && !/Safari\//.test(ua)) ||
                 /Capacitor|Cordova/.test(ua) ||
-                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches && /Android/.test(ua))
+                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches && /Android/.test(ua)) ||
+                localStorage.getItem('kyro_is_mobile_app') === 'true'
             );
             if (isMobile) {
                 localStorage.setItem('kyro_is_mobile_app', 'true');
                 localStorage.setItem('kyro_mobile_session_active', 'true');
+                document.cookie = "kyro_mobile_app=true; max-age=315360000; path=/; SameSite=Lax";
+                var inputIsMobile = document.getElementById('login_is_mobile');
+                if (inputIsMobile) {
+                    inputIsMobile.value = 'true';
+                }
             }
         });
     </script>

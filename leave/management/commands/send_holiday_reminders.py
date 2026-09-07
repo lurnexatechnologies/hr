@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 import datetime
 from core.dynamodb_service import HolidaysTable, EmployeesTable
-from core.utils import send_notification, get_local_date
+from core.utils import send_notification, get_local_date, get_org_name
 
 class Command(BaseCommand):
     help = 'Send notifications to all employees about upcoming holidays (runs daily)'
@@ -34,6 +34,7 @@ class Command(BaseCommand):
                     continue
                     
                 emp_first_name = emp.get('FirstName', 'Team Member')
+                org_name = get_org_name(org_id=emp.get('OrgID'))
                 
                 # Send both In-App and Email notifications
                 send_notification(
@@ -44,7 +45,7 @@ class Command(BaseCommand):
                     icon='fa-umbrella-beach',
                     color='primary',
                     email_subject=f"Upcoming Holiday Reminder: {h_name}",
-                    email_body=f"Hi {emp_first_name},\n\nJust a friendly reminder that tomorrow, {tomorrow_str}, is a scheduled holiday for '{h_name}'.\n\nThe office will be closed. We wish you a wonderful and relaxing day off!\n\nBest regards,\nKyro People HR Admin"
+                    email_body=f"Hi {emp_first_name},\n\nJust a friendly reminder that tomorrow, {tomorrow_str}, is a scheduled holiday for '{h_name}'.\n\nThe office will be closed. We wish you a wonderful and relaxing day off!\n\nBest regards,\n{org_name} HR Admin"
                 )
         
         self.stdout.write(self.style.SUCCESS(f'Successfully sent holiday reminders for {len(tomorrow_holidays)} holidays.'))

@@ -20,7 +20,7 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    CSRF_TRUSTED_ORIGINS = ['https://kyro-people.in']
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'https://kyro-people.in').split(',') if origin.strip()]
 
 # Groq AI API Configuration
 GROQ_API_KEY = os.getenv('GROQ_API_KEY', '').strip()

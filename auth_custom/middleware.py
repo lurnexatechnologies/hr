@@ -3,6 +3,7 @@ from core.dynamodb_service import UsersTable, EmployeesTable
 import logging
 import time
 import time as _time
+import uuid
 from django.shortcuts import redirect
 from django.contrib import messages
 from core.features import PLAN_FEATURES, PLAN_LIMITS
@@ -27,6 +28,14 @@ def _get_org_cached(org_id):
     except Exception as e:
         logger.error(f"Error fetching organization details: {e}")
     return None
+
+
+def invalidate_org_cache(org_id=None):
+    """Invalidate the in-memory org cache. If org_id is given, only that entry is removed; otherwise the entire cache is cleared."""
+    if org_id:
+        _org_cache.pop(org_id, None)
+    else:
+        _org_cache.clear()
 
 
 def get_user_permissions(user_data, org):
@@ -123,20 +132,66 @@ class DynamoDBAuthMiddleware:
                     elif user_data.get('ActiveSessionToken'):
                         valid_tokens = [user_data.get('ActiveSessionToken')]
 
+                    from core.utils import is_mobile_app
+                    is_mobile = (
+                        request.session.get('is_mobile', False) or 
+                        is_mobile_app(request) or 
+                        request.COOKIES.get('kyro_mobile_app') == 'true'
+                    )
+
                     if role_upper not in ['PLATFORM ADMIN', 'PLATFORM SUPER ADMIN'] and valid_tokens and session_token not in valid_tokens:
-                        if 'user_id' in request.session:
-                            del request.session['user_id']
-                        if 'session_token' in request.session:
-                            del request.session['session_token']
-                        
-                        path = request.path
-                        if not (path.endswith('/notifications/poll/') or 
-                                path.endswith('/api/register-device/') or 
-                                path.endswith('/api/unregister-device/')):
-                            messages.warning(request, "Your session has been terminated because your account reached the 2 device login limit.")
-                            return redirect('login')
-                        
-                        request.user = DynamoAnonymousUser()
+                        if is_mobile:
+                            # MOBILE APP SESSION AUTO-HEALING & PROTECTION
+                            # Mobile app sessions are persistent — automatically restore token to DB ActiveSessions
+                            try:
+                                new_mobile_entry = {
+                                    'session_token': session_token,
+                                    'device_id': request.COOKIES.get('device_id', str(uuid.uuid4())),
+                                    'login_time': int(time.time()),
+                                    'last_activity': int(time.time()),
+                                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:150],
+                                    'is_mobile': True
+                                }
+                                if not isinstance(active_sessions, list):
+                                    active_sessions = []
+                                active_sessions.append(new_mobile_entry)
+                                UsersTable._get_table().update_item(
+                                    Key={'UserID': user_id},
+                                    UpdateExpression="SET ActiveSessions = :sessions",
+                                    ExpressionAttributeValues={":sessions": active_sessions}
+                                )
+                                logger.info(f"Auto-healed mobile session {session_token} for user {user_id}")
+                            except Exception as err:
+                                logger.error(f"Failed to auto-heal mobile session: {err}")
+
+                            # Maintain active authenticated user object for mobile request
+                            emp_id = user_data.get('EmployeeID')
+                            emp_data = None
+                            if emp_id:
+                                emp_data = EmployeesTable.get_item({'EmployeeID': emp_id})
+                                if emp_data:
+                                    user_data['FirstName'] = emp_data.get('FirstName', '')
+                                    user_data['LastName'] = emp_data.get('LastName', '')
+                                    user_data['PassportPhoto'] = emp_data.get('PassportPhoto')
+                                    user_data['OnboardingStatus'] = emp_data.get('OnboardingStatus', 'Approved')
+                                    user_data['RejectionReason'] = emp_data.get('RejectionReason', '')
+                            if not user_data.get('OrgID') and emp_data and emp_data.get('OrgID'):
+                                user_data['OrgID'] = emp_data.get('OrgID')
+                            request.user = DynamoUser(user_data)
+                        else:
+                            if 'user_id' in request.session:
+                                del request.session['user_id']
+                            if 'session_token' in request.session:
+                                del request.session['session_token']
+                            
+                            path = request.path
+                            if not (path.endswith('/notifications/poll/') or 
+                                    path.endswith('/api/register-device/') or 
+                                    path.endswith('/api/unregister-device/')):
+                                messages.warning(request, "Your session has been terminated because your account reached the device login limit.")
+                                return redirect('login')
+                            
+                            request.user = DynamoAnonymousUser()
                     else:
                         # optionally fetch employee details to enrich user object
                         emp_id = user_data.get('EmployeeID')
@@ -328,7 +383,12 @@ class SessionTimeoutMiddleware:
     def __call__(self, request):
         if hasattr(request, 'user') and request.user.is_authenticated:
             from core.utils import is_mobile_app
-            if not is_mobile_app(request):
+            is_mobile = (
+                request.session.get('is_mobile', False) or 
+                is_mobile_app(request) or 
+                request.COOKIES.get('kyro_mobile_app') == 'true'
+            )
+            if not is_mobile:
                 # Skip checking for programmatic background/polling requests and explicit logouts
                 path = request.path
                 if not (path.endswith('/notifications/poll/') or 

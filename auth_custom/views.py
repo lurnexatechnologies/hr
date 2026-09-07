@@ -181,6 +181,13 @@ class LoginView(View):
                     if isinstance(s, dict) and s.get('last_activity', 0) > cutoff_time
                 ]
 
+                from core.utils import is_mobile_app
+                is_mobile = (
+                    is_mobile_app(request) or 
+                    request.COOKIES.get('kyro_mobile_app') == 'true' or 
+                    request.POST.get('is_mobile') == 'true'
+                )
+
                 # Remove previous session for the same device_id if re-logging in
                 valid_sessions = [s for s in valid_sessions if s.get('device_id') != cookie_device_id]
 
@@ -190,15 +197,28 @@ class LoginView(View):
                     'device_id': cookie_device_id,
                     'login_time': now_int,
                     'last_activity': now_int,
-                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:150]
+                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:150],
+                    'is_mobile': is_mobile
                 }
                 valid_sessions.append(new_session_entry)
 
-                # Capped at 2 MAX DEVCES LOGIN LIMIT
-                MAX_DEVICES = 2
+                # Capped at 5 MAX DEVICES LOGIN LIMIT (Web sessions evicted before mobile)
+                MAX_DEVICES = 5
                 if len(valid_sessions) > MAX_DEVICES:
-                    valid_sessions.sort(key=lambda s: s.get('last_activity', 0))
-                    valid_sessions = valid_sessions[-MAX_DEVICES:]
+                    mobile_s = [s for s in valid_sessions if isinstance(s, dict) and s.get('is_mobile')]
+                    web_s = [s for s in valid_sessions if isinstance(s, dict) and not s.get('is_mobile')]
+                    
+                    # Sort web sessions by oldest last_activity and drop excess web sessions first
+                    while len(mobile_s) + len(web_s) > MAX_DEVICES and web_s:
+                        web_s.sort(key=lambda s: s.get('last_activity', 0))
+                        web_s.pop(0)
+                        
+                    # If still above limit, drop oldest mobile session
+                    while len(mobile_s) + len(web_s) > MAX_DEVICES and mobile_s:
+                        mobile_s.sort(key=lambda s: s.get('last_activity', 0))
+                        mobile_s.pop(0)
+                        
+                    valid_sessions = mobile_s + web_s
 
                 try:
                     UsersTable.update_item(
@@ -214,15 +234,15 @@ class LoginView(View):
                 except Exception as e:
                     print(f"ERROR: Failed to update active session token in DB: {e}")
 
-                from core.utils import is_mobile_app
-                
                 request.session['user_id'] = user_data['UserID']
                 request.session['last_activity'] = time.time()
-                if is_mobile_app(request):
-                    # For mobile app, keep logged in forever (e.g., 100 years) until explicit logout
+                request.session['is_mobile'] = is_mobile
+                
+                if is_mobile:
+                    # For mobile app, keep logged in forever (100 years) until explicit logout
                     request.session.set_expiry(3153600000)
                 else:
-                    # Set standard session expiry (e.g. 14 days or 24 hours of inactivity handled by middleware)
+                    # Set standard session expiry (14 days)
                     request.session.set_expiry(1209600)
                 
                 # Record Login History

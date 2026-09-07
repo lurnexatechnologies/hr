@@ -496,6 +496,10 @@ class PlatformEditOrgView(RoleRequiredMixin, View):
 
         try:
             OrganizationsTable.put_item(org)
+            
+            # Invalidate the in-memory org cache so middleware picks up the changes immediately
+            from auth_custom.middleware import invalidate_org_cache
+            invalidate_org_cache(org_id)
 
             if billing_changed:
                 payment_id = "" if payment_mode == 'Cash' else transaction_id_input

@@ -9,7 +9,7 @@ from core.dynamodb_service import (
     PayslipsTable, ExpensesTable, ResignationsTable, 
     ReportingHierarchyTable, LoginHistoryTable, WFHRequestsTable
 )
-from core.utils import save_uploaded_file, send_notification, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64, get_local_date, get_local_now, resolve_workflow_step
+from core.utils import save_uploaded_file, send_notification, get_lurnexa_logo_base64, get_authorized_signature_stamp_base64, get_local_date, get_local_now, resolve_workflow_step, get_org_name
 from boto3.dynamodb.conditions import Key
 import datetime
 import uuid
@@ -166,7 +166,7 @@ class ExpensesView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardingM
                 icon='fa-file-invoice-dollar',
                 color='info',
                 email_subject=f"Expense Claim: {emp_name}",
-                email_body=f"Hi,\n\n{emp_name} has submitted a new expense claim.\nCategory: {category}\nAmount: ₹{amount}\nDescription: {description}\n\nPlease log in to the Kyro People portal to review and take action.\n\nBest regards,\nKyro People HR Admin"
+                email_body=f"Hi,\n\n{emp_name} has submitted a new expense claim.\nCategory: {category}\nAmount: ₹{amount}\nDescription: {description}\n\nPlease log in to the portal to review and take action.\n\nBest regards,\n{get_org_name(request)} HR Admin"
             )
 
         messages.success(request, f"Expense claim submitted. Current Status: {status}")
@@ -261,7 +261,7 @@ class ResignationView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardi
                     icon='fa-user-minus',
                     color='warning',
                     email_subject=f"Resignation Request: {emp_name}",
-                    email_body=f"Hi,\n\n{emp_name} has submitted a new resignation request.\nReason: {reason}\nProposed Last Working Day: {lwd}\nComments: {comments}\n\nPlease log in to the Kyro People portal to review and take action.\n\nBest regards,\nKyro People HR Admin"
+                    email_body=f"Hi,\n\n{emp_name} has submitted a new resignation request.\nReason: {reason}\nProposed Last Working Day: {lwd}\nComments: {comments}\n\nPlease log in to the portal to review and take action.\n\nBest regards,\n{get_org_name(request)} HR Admin"
                 )
 
             messages.success(request, f"Your resignation has been submitted successfully for LWD: {lwd}")
@@ -452,12 +452,12 @@ class ApproveExpenseView(FeatureRequiredMixin, ManagerRequiredMixin, View):
             notif_title = "Expense Fully Approved"
             notif_msg = f"Your expense claim of ₹{expense.get('Amount')} has been fully approved."
             email_subj = "Expense Claim Fully Approved"
-            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been fully approved.\n\nBest regards,\nKyro People HR Admin"
+            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been fully approved.\n\nBest regards,\n{get_org_name(request)} HR Admin"
         else:
             notif_title = f"Expense Approved: {new_status}"
             notif_msg = f"Your expense claim of ₹{expense.get('Amount')} was approved and forwarded to the next stage."
             email_subj = "Expense Claim Approved"
-            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been approved and moved to: {new_status}.\n\nBest regards,\nKyro People HR Admin"
+            email_body = f"Hi {emp_name},\n\nYour expense claim of ₹{expense.get('Amount')} has been approved and moved to: {new_status}.\n\nBest regards,\n{get_org_name(request)} HR Admin"
             
         send_notification(
             employee_id=emp_id,
@@ -501,7 +501,7 @@ class RejectExpenseView(FeatureRequiredMixin, ManagerRequiredMixin, View):
             icon='fa-file-circle-xmark',
             color='danger',
             email_subject="Expense Claim Rejected",
-            email_body=f"Hi {emp_name},\n\nYour expense claim for ₹{expense.get('Amount') if expense else ''} has been REJECTED.\n\nPlease contact your manager or HR for more details.\n\nBest regards,\nKyro People HR Admin"
+            email_body=f"Hi {emp_name},\n\nYour expense claim for ₹{expense.get('Amount') if expense else ''} has been REJECTED.\n\nPlease contact your manager or HR for more details.\n\nBest regards,\n{get_org_name(request)} HR Admin"
         )
 
         messages.error(request, "Expense request rejected.")
@@ -533,7 +533,7 @@ class ProcessPaymentView(FeatureRequiredMixin, HRRequiredMixin, View):
             icon='fa-building-columns',
             color='success',
             email_subject="Expense Reimbursement Processed",
-            email_body=f"Hi {emp_name},\n\nGood news! Your expense reimbursement for ₹{expense.get('Amount')} has been processed and the funds have been transferred to your bank account.\n\nBest regards,\nKyro People HR Admin"
+            email_body=f"Hi {emp_name},\n\nGood news! Your expense reimbursement for ₹{expense.get('Amount')} has been processed and the funds have been transferred to your bank account.\n\nBest regards,\n{get_org_name(request)} HR Admin"
         )
         
         messages.success(request, "Payment processed and employee notified.")
@@ -740,12 +740,12 @@ class ProcessResignationView(FeatureRequiredMixin, HRRequiredMixin, View):
             notif_title = "Resignation Accepted"
             notif_msg = f"Your resignation request has been accepted. Your Last Working Day is confirmed as {lwd_fmt}." if lwd_fmt else "Your resignation request has been accepted. Your Last Working Day is confirmed."
             email_subj = "Resignation Request Accepted"
-            email_body = f"Hi {emp_full_name},\n\nYour resignation request has been accepted by HR. Your Last Working Day has been confirmed as {lwd_fmt}.\n\nPlease complete any pending offboarding tasks.\n\nBest regards,\nKyro People HR Admin" if lwd_fmt else f"Hi {emp_full_name},\n\nYour resignation request has been accepted by HR. Your Last Working Day has been confirmed.\n\nPlease complete any pending offboarding tasks.\n\nBest regards,\nKyro People HR Admin"
+            email_body = f"Hi {emp_full_name},\n\nYour resignation request has been accepted by HR. Your Last Working Day has been confirmed as {lwd_fmt}.\n\nPlease complete any pending offboarding tasks.\n\nBest regards,\n{get_org_name(request)} HR Admin" if lwd_fmt else f"Hi {emp_full_name},\n\nYour resignation request has been accepted by HR. Your Last Working Day has been confirmed.\n\nPlease complete any pending offboarding tasks.\n\nBest regards,\n{get_org_name(request)} HR Admin"
         else:
             notif_title = "Resignation Rejected"
             notif_msg = f"Your resignation request has been rejected. Please contact HR for details."
             email_subj = "Resignation Request Rejected"
-            email_body = f"Hi {emp_full_name},\n\nYour resignation request has been rejected by HR. Please reach out to your HR representative or manager for further clarification.\n\nBest regards,\nKyro People HR Admin"
+            email_body = f"Hi {emp_full_name},\n\nYour resignation request has been rejected by HR. Please reach out to your HR representative or manager for further clarification.\n\nBest regards,\n{get_org_name(request)} HR Admin"
 
         send_notification(
             employee_id=emp_id,
@@ -957,7 +957,7 @@ class ApproveWFHView(FeatureRequiredMixin, ManagerRequiredMixin, View):
         emp_name = f"{employee.get('FirstName')} {employee.get('LastName')}" if employee else emp_id
         
         email_subj = "WFH Request Update"
-        email_body = f"Hi {emp_name},\n\nYour Work From Home request for {wfh.get('WFHDate')} has been {new_status}.\n\nBest regards,\nKyro People HR Admin"
+        email_body = f"Hi {emp_name},\n\nYour Work From Home request for {wfh.get('WFHDate')} has been {new_status}.\n\nBest regards,\n{get_org_name(request)} HR Admin"
 
         send_notification(
             employee_id=emp_id, 
@@ -989,7 +989,7 @@ class RejectWFHView(FeatureRequiredMixin, ManagerRequiredMixin, View):
             icon='fa-house-circle-xmark', 
             color='danger',
             email_subject="WFH Request Rejected",
-            email_body=f"Hi {emp_name},\n\nYour Work From Home request for {wfh.get('WFHDate') if wfh else ''} has been REJECTED.\n\nPlease contact your manager for more details.\n\nBest regards,\nKyro People HR Admin"
+            email_body=f"Hi {emp_name},\n\nYour Work From Home request for {wfh.get('WFHDate') if wfh else ''} has been REJECTED.\n\nPlease contact your manager for more details.\n\nBest regards,\n{get_org_name(request)} HR Admin"
         )
         messages.error(request, "Rejected.")
         return redirect('wfh_approvals')

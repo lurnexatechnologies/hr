@@ -1390,7 +1390,7 @@ HR Team, {org_name}"""
                         message,
                         settings.DEFAULT_FROM_EMAIL,
                         [target_email],
-                        fail_silently=True,
+                        fail_silently=False,
                     )
                     success_count += 1
                 except Exception:
@@ -1832,7 +1832,7 @@ HR Team, {org_name}
                 message,
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=True,
+                fail_silently=False,
             )
         except Exception as e:
             print(f"Error sending confirmation email to employee: {e}")

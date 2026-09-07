@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, RoleRequiredMixin, SuperAdminRequiredMixin, FeatureRequiredMixin
 from core.dynamodb_service import PayslipsTable, EmployeesTable, AttendanceTable, LeaveRequestsTable, HolidaysTable, PayrollApprovalsTable, UsersTable, ExpensesTable
 from core.bank_service import UniversalBankService
-from core.utils import safe_float, safe_decimal, get_local_date, get_local_now, send_notification, resolve_workflow_step, format_day_with_ordinal
+from core.utils import safe_float, safe_decimal, get_local_date, get_local_now, send_notification, resolve_workflow_step, format_day_with_ordinal, get_org_name
 from boto3.dynamodb.conditions import Key
 import io
 from reportlab.pdfgen import canvas
@@ -55,7 +55,7 @@ def check_and_release_scheduled_payslips():
                         month_name = month_year.split('_')[0].upper() if '_' in month_year else ''
                         year_val = month_year.split('_')[1] if '_' in month_year else ''
                         email_subject = f"Payslip for {month_name} {year_val} Released"
-                        email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for {month_name} {year_val} has been released and is now available in your Kyro People ESS portal.\n\nNet Pay: INR {ps.get('NetPay')}\n\nPlease log in to view and download your payslip.\n\nBest regards,\nKyro People HR Team"
+                        email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for {month_name} {year_val} has been released and is now available in your ESS portal.\n\nNet Pay: INR {ps.get('NetPay')}\n\nPlease log in to view and download your payslip.\n\nBest regards,\n{get_org_name(org_id=emp.get('OrgID'))} HR Team"
                         send_notification(
                             employee_id=emp_id,
                             title=f"Payslip Released - {month_name} {year_val}",
@@ -1017,12 +1017,7 @@ class DownloadPayslipView(FeatureRequiredMixin, LoginRequiredMixin, View):
         emp_name = f"{employee.get('FirstName', '')} {employee.get('LastName', '')}"
         
         org_id = employee.get('OrgID') if employee else None
-        org_name = "Kyro People"
-        if org_id:
-            from core.dynamodb_service import OrganizationsTable
-            org = OrganizationsTable.get_item({'OrgID': org_id})
-            if org:
-                org_name = org.get('Name', 'Kyro People')
+        org_name = get_org_name(request, org_id=org_id)
         
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=letter)
@@ -1535,7 +1530,7 @@ class ProcessPayrollApprovalView(FeatureRequiredMixin, LoginRequiredMixin, View)
                                 month_name = month_year.split('_')[0].upper()
                                 year_val = month_year.split('_')[1]
                                 email_subject = f"Payslip for {month_name} {year_val} Released"
-                                email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated and released.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nYou can view and download your detailed payslip from the employee portal.\n\nBest regards,\nKyro People HR Team"
+                                email_body = f"Hi {emp.get('FirstName', 'Employee')},\n\nYour payslip for the month of {month_name} {year_val} has been generated and released.\n\nGross Salary: INR {payslip_data.get('GrossSalary')}\nTotal Deductions: INR {payslip_data.get('TotalDeductions')}\nNet Payable: INR {payslip_data.get('NetPay')}\n\nYou can view and download your detailed payslip from the employee portal.\n\nBest regards,\n{get_org_name(request)} HR Team"
                                 
                                 send_notification(
                                     employee_id=emp_id,

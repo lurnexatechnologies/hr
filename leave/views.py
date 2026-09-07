@@ -5,7 +5,7 @@ from django.views import View
 from django.views.generic import TemplateView
 from auth_custom.mixins import LoginRequiredMixin, HRRequiredMixin, ManagerRequiredMixin, ApprovedOnboardingMixin, FeatureRequiredMixin
 from core.dynamodb_service import UsersTable, EmployeesTable, LeaveRequestsTable, ReportingHierarchyTable, HolidaysTable
-from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now, resolve_workflow_step
+from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now, resolve_workflow_step, get_org_name
 from boto3.dynamodb.conditions import Key
 import datetime
 import uuid
@@ -49,7 +49,7 @@ class AddHolidayView(FeatureRequiredMixin, HRRequiredMixin, View):
                     icon='fa-umbrella-beach',
                     color='info',
                     email_subject=f"New Holiday: {name}",
-                    email_body=f"Hi {emp.get('FirstName', '')},\n\nPlease note that a new holiday has been added to the company calendar.\n\nHoliday: {name}\nDate: {date}\nType: {h_type}\n\nBest regards,\nKyro People HR Admin"
+                    email_body=f"Hi {emp.get('FirstName', '')},\n\nPlease note that a new holiday has been added to the company calendar.\n\nHoliday: {name}\nDate: {date}\nType: {h_type}\n\nBest regards,\n{get_org_name(request)} HR Admin"
                 )
         except Exception as e:
             print(f"Error sending holiday notifications: {e}")
@@ -593,7 +593,7 @@ class ApplyLeaveView(FeatureRequiredMixin, LoginRequiredMixin, ApprovedOnboardin
                 icon='fa-calendar-plus',
                 color='info',
                 email_subject=f"Leave Application: {emp_name}",
-                email_body=f"Hi,\n\n{emp_name} has submitted a new leave application for {leave_type}.\nDates: {start_date} to {end_date}\nReason: {reason}\n\nPlease log in to the Kyro People portal to review and take action.\n\nBest regards,\nKyro People HR Admin"
+                email_body=f"Hi,\n\n{emp_name} has submitted a new leave application for {leave_type}.\nDates: {start_date} to {end_date}\nReason: {reason}\n\nPlease log in to the portal to review and take action.\n\nBest regards,\n{get_org_name(request)} HR Admin"
             )
 
         messages.success(request, f"Leave applied successfully for {working_days} working day(s) and sent for approval.")
@@ -888,13 +888,13 @@ class ApproveLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
                 title = "Leave Approved"
                 message = f"Your {leave_type} leave from {leave_date} has been fully approved."
                 email_subject = "Leave Request Approved"
-                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been APPROVED.\n\nBest regards,\nKyro People HR Admin"
+                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been APPROVED.\n\nBest regards,\n{get_org_name(request)} HR Admin"
                 color = 'success'
             else:
                 title = f"Leave Approved: {new_status}"
                 message = f"Your {leave_type} leave request from {leave_date} has been approved and moved to the next stage."
                 email_subject = "Leave Request Approved - Next Stage"
-                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been approved and forwarded to: {new_status}.\n\nBest regards,\nKyro People HR Admin"
+                email_body = f"Hi {emp_name},\n\nYour leave request for {leave_type} from {leave_date} to {end_date} has been approved and forwarded to: {new_status}.\n\nBest regards,\n{get_org_name(request)} HR Admin"
                 color = 'primary'
 
             print(f"DEBUG: Calling send_notification for {emp_id} | Email: {employee.get('Email') if employee else 'NONE'} | Type: {leave_type}")
@@ -949,7 +949,7 @@ class RejectLeaveView(FeatureRequiredMixin, ManagerRequiredMixin, View):
                 icon='fa-calendar-times',
                 color='danger',
                 email_subject="Leave Request Rejected",
-                email_body=f"Hi {emp_name},\n\nYour leave request for {leave_date} has been REJECTED.\n\nPlease contact your manager for more details.\n\nBest regards,\nKyro People HR Admin"
+                email_body=f"Hi {emp_name},\n\nYour leave request for {leave_date} has been REJECTED.\n\nPlease contact your manager for more details.\n\nBest regards,\n{get_org_name(request)} HR Admin"
             )
             print(f"DEBUG: send_notification rejection finished for {emp_id}")
         except Exception as e:
@@ -1081,7 +1081,7 @@ class EncashEarnedLeaveView(FeatureRequiredMixin, HRRequiredMixin, View):
                     f"- Total Payout Amount: ₹{total_payout:,.2f}\n\n"
                     f"Your Earned Leave balance has been reset to 0.0.\n\n"
                     f"Best regards,\n"
-                    f"Kyro People HR Admin"
+                    f"{get_org_name(request)} HR Admin"
                 )
             )
 

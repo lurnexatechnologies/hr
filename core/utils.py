@@ -7,6 +7,42 @@ from django.core.mail import EmailMessage
 import threading
 from core.dynamodb_service import EmployeesTable, NotificationsTable
 
+
+def get_org_name(request=None, org_id=None):
+    """
+    Resolves the organization name from the request context or org_id.
+    Falls back to 'HR Admin' if not resolvable.
+    """
+    # 1. Try from request.org (populated by middleware)
+    if request and hasattr(request, 'org') and request.org:
+        name = request.org.get('Name')
+        if name:
+            return name
+    
+    # 2. Try from request.user.org
+    if request and hasattr(request, 'user') and hasattr(request.user, 'org'):
+        org = getattr(request.user, 'org', None)
+        if org and isinstance(org, dict):
+            name = org.get('Name')
+            if name:
+                return name
+    
+    # 3. Resolve org_id from request.user if not passed
+    if not org_id and request and hasattr(request, 'user'):
+        org_id = getattr(request.user, 'org_id', None)
+    
+    # 4. Look up from DynamoDB
+    if org_id:
+        try:
+            from core.dynamodb_service import OrganizationsTable
+            org = OrganizationsTable.get_item({'OrgID': org_id})
+            if org:
+                return org.get('Name', 'HR Admin')
+        except Exception:
+            pass
+    
+    return 'HR Admin'
+
 DEFAULT_LEAVE_POLICIES = {
     'Permanent': {
         'SL_Limit': 12.0,
@@ -238,8 +274,10 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
     fcm_thread.daemon = True
     fcm_thread.start()
 
-    # 2. Send Email if requested
-    if email_subject and email_body:
+    # 2. Send Email — always attempt, using title/message as fallback if explicit params not provided
+    final_email_subject = email_subject or title
+    final_email_body = email_body or message
+    if final_email_subject and final_email_body:
         # Fetch employee email
         try:
             # Strip any whitespace from employee_id
@@ -271,7 +309,7 @@ def send_notification(employee_id, title, message, n_type='System', icon='fa-bel
                 # Start the background thread
                 thread = threading.Thread(
                     target=_send_email_thread,
-                    args=(email_subject, email_body, settings.DEFAULT_FROM_EMAIL, [recipient_email], attachments)
+                    args=(final_email_subject, final_email_body, settings.DEFAULT_FROM_EMAIL, [recipient_email], attachments)
                 )
                 thread.daemon = True
                 thread.start()

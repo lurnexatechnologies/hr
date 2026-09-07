@@ -16,7 +16,7 @@ from core.dynamodb_service import (
     UsersTable, LoginHistoryTable, PayrollApprovalsTable, OKRsTable,
     AppraisalCyclesTable, AppraisalsTable, PolicyAcknowledgementsTable
 )
-from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now
+from core.utils import send_notification, refresh_monthly_leaves, get_initial_leave_balance, safe_float, get_local_date, get_local_now, get_org_name
 
 class HRDashboardView(FeatureRequiredMixin, HRRequiredMixin, TemplateView):
     required_feature = 'ess_portal'
@@ -1828,7 +1828,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             <p><strong>Dear {emp_name},</strong></p>
             <p>We are delighted to inform you that in recognition of your outstanding performance and dedication, the management has decided to award you a performance bonus of <strong>{amount}</strong>.</p>
             <p>This bonus is effective as of <strong>{effective_date}</strong> and will be processed along with your next payroll cycle.</p>
-            <p>We appreciate your hard work and look forward to your continued contributions to the success of Kyro People.</p>
+            <p>We appreciate your hard work and look forward to your continued contributions to the success of {get_org_name(request)}.</p>
             """
         elif letter_type == 'Hike Letter':
             percentage = request.POST.get('hike_percentage', '')
@@ -1868,8 +1868,8 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             """
             if new_salary:
                 letter_body += f"<p>With this promotion, your revised annual compensation will be <strong>Rs. {new_salary}</strong>.</p>"
-            letter_body += """
-            <p>This promotion is in recognition of your outstanding performance, dedication, and contributions to Kyro People. We thank you for your hard work and look forward to your continued success in this new role.</p>
+            letter_body += f"""
+            <p>This promotion is in recognition of your outstanding performance, dedication, and contributions to {get_org_name(request)}. We thank you for your hard work and look forward to your continued success in this new role.</p>
             """
             
             # Automatically update the employee's designation, department, reporting manager and CTC if effective date has already been reached
@@ -1922,21 +1922,21 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             letter_title = "Relieving & Experience Letter"
             letter_body = f"""
             <p><strong>To,</strong></p>
-            <p>This is to certify that <strong>{salutation} {emp_name}</strong> was employed with <strong>Kyro People</strong>. {subject_pronoun} served the organization from <strong>{joined_date_fmt}</strong> to <strong>{lwd_fmt}</strong>.</p>
+            <p>This is to certify that <strong>{salutation} {emp_name}</strong> was employed with <strong>{get_org_name(request)}</strong>. {subject_pronoun} served the organization from <strong>{joined_date_fmt}</strong> to <strong>{lwd_fmt}</strong>.</p>
             <p>During {possessive_pronoun} tenure with us, {salutation} {emp_name} was designated as <strong>{designation}</strong> in the <strong>{department}</strong> department. Throughout {possessive_pronoun} employment, {subject_pronoun_lower} demonstrated outstanding professionalism, dedication, and a strong work ethic. {possessive_pronoun_cap} contributions have been highly valued by the team and management alike.</p>
             <p>This certificate confirms that {salutation} {emp_name} has been officially relieved of {possessive_pronoun} duties and responsibilities, effective from the close of business hours on <strong>{lwd_fmt}</strong>. We verify that all formal handing-over procedures have been successfully completed.</p>
             <p>We extend our sincere appreciation to {object_pronoun} for {possessive_pronoun} dedicated services and wish {object_pronoun} the absolute best in all future professional and personal endeavors.</p>
             """
-            email_body_plain = f"Dear {emp_name},\n\nYour Experience Letter has been generated. This certifies your employment with Kyro People from {joined_date_fmt} until {lwd_fmt}.\n\nPlease log in to your Kyro People portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
+            email_body_plain = f"Dear {emp_name},\n\nYour Experience Letter has been generated. This certifies your employment with {get_org_name(request)} from {joined_date_fmt} until {lwd_fmt}.\n\nPlease log in to your portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
             
         elif letter_type == 'PF Letter':
             letter_title = "Provident Fund Declaration"
             letter_body = f"""
             <p><strong>To,</strong></p>
-            <p>This is to certify that Provident Fund contributions for <strong>{salutation} {emp_name}</strong> have been processed according to statutory requirements during {possessive_pronoun} tenure with Kyro People.</p>
+            <p>This is to certify that Provident Fund contributions for <strong>{salutation} {emp_name}</strong> have been processed according to statutory requirements during {possessive_pronoun} tenure with {get_org_name(request)}.</p>
             <p>For further details, please refer to the official EPFO portal.</p>
             """
-            email_body_plain = f"Dear {emp_name},\n\nYour PF Letter has been generated.\n\nPlease log in to your Kyro People portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
+            email_body_plain = f"Dear {emp_name},\n\nYour PF Letter has been generated.\n\nPlease log in to your portal (Documents -> Letters) to download the official formatted PDF version for your records.\n\nBest Regards,\nHR Department"
 
         date_element = ""
         if letter_type not in ['Experience Letter', 'PF Letter']:
@@ -1995,7 +1995,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
             <div class="container">
                 <div class="header">
                     <div style="text-align: center; margin-bottom: 5px;">
-                        <h2 style="margin: 0; color: black; font-size: 24px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; display: inline-block; vertical-align: middle;">KYRO PEOPLE</h2>
+                        <h2 style="margin: 0; color: black; font-size: 24px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; display: inline-block; vertical-align: middle;">{get_org_name(request).upper()}</h2>
                     </div>
                     <p style="margin: 5px 0 0 0; font-size: 14px; color: black;">Official Employee Document</p>
                 </div>
@@ -2011,7 +2011,7 @@ class HRGenerateLetterView(FeatureRequiredMixin, HRRequiredMixin, View):
                     </div>
                     <div class="signature">
                         Authorized Signatory<br>
-                        Human Resources, Kyro People
+                        Human Resources, {get_org_name(request)}
                     </div>
                 </div>
             </div>
@@ -2094,21 +2094,21 @@ class HRSendLetterEmailView(FeatureRequiredMixin, HRRequiredMixin, View):
 
         # Determine subject and body for the email
         if letter_type == 'Experience Letter':
-            email_subject = f"Kyro People: Your Experience Letter"
+            email_subject = f"{get_org_name(request)}: Your Experience Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Your Experience Letter has been generated. Please find it attached to this email.\n\n"
                 f"Best Regards,\nHR Department"
             )
         elif letter_type == 'PF Letter':
-            email_subject = f"Kyro People: Your PF Letter"
+            email_subject = f"{get_org_name(request)}: Your PF Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Your PF Letter has been generated. Please find it attached to this email.\n\n"
                 f"Best Regards,\nHR Department"
             )
         elif letter_type == 'Hike Letter':
-            email_subject = f"Kyro People: Your Compensation Revision Letter"
+            email_subject = f"{get_org_name(request)}: Your Compensation Revision Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"We are pleased to inform you that your compensation has been revised. Please find your Hike Revision Letter attached.\n\n"
@@ -2119,30 +2119,30 @@ class HRSendLetterEmailView(FeatureRequiredMixin, HRRequiredMixin, View):
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Congratulations! We are absolutely thrilled to inform you that you have been promoted. "
-                f"This promotion is a testament to your outstanding performance, dedication, and contributions to Kyro People.\n\n"
+                f"This promotion is a testament to your outstanding performance, dedication, and contributions to {get_org_name(request)}.\n\n"
                 f"We have attached your official Promotion Letter to this email. You can also view and download this letter "
-                f"at any time by logging into the Kyro People portal and navigating to the 'My Letters' page.\n\n"
+                f"at any time by logging into the portal and navigating to the 'My Letters' page.\n\n"
                 f"We are incredibly proud of your accomplishments and wish you continued success in your new role!\n\n"
                 f"Best Regards,\n"
                 f"Human Resources Team\n"
-                f"Kyro People"
+                f"{get_org_name(request)}"
             )
         elif letter_type == 'Bonus Letter':
-            email_subject = f"Kyro People: Your Bonus Award Letter"
+            email_subject = f"{get_org_name(request)}: Your Bonus Award Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"We are pleased to inform you that you have been awarded a performance bonus. Please find your Bonus Award Letter attached.\n\n"
                 f"Best Regards,\nHR Department"
             )
         elif letter_type == 'Offer Letter':
-            email_subject = f"Kyro People: Your Offer Letter"
+            email_subject = f"{get_org_name(request)}: Your Offer Letter"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Congratulations! Please find your Offer Letter attached.\n\n"
                 f"Best Regards,\nHR Department"
             )
         else:
-            email_subject = f"Kyro People: Your Generated Document ({letter_type})"
+            email_subject = f"{get_org_name(request)}: Your Generated Document ({letter_type})"
             email_body = (
                 f"Dear {emp_name},\n\n"
                 f"Please find your official {letter_type} attached.\n\n"

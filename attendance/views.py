@@ -8,7 +8,7 @@ from core.dynamodb_service import (
     AttendanceTable, EmployeesTable, LeaveRequestsTable, 
     SettingsTable, WFHRequestsTable, ReportingHierarchyTable, UsersTable
 )
-from core.utils import send_notification, get_local_now, get_local_date, resolve_workflow_step
+from core.utils import send_notification, get_local_now, get_local_date, resolve_workflow_step, get_org_name
 import uuid
 from boto3.dynamodb.conditions import Key
 import datetime
@@ -545,7 +545,7 @@ class ApplyWFHView(FeatureRequiredMixin, LoginRequiredMixin, View):
                 icon='fa-house-laptop',
                 color='primary',
                 email_subject=f"WFH Request: {emp_name}",
-                email_body=f"Hi,\n\n{emp_name} has applied for Work From Home on {start_date}.\nReason: {reason}\n\nPlease review the request in your dashboard.\n\nBest regards,\nKyro People HR Admin"
+                email_body=f"Hi,\n\n{emp_name} has applied for Work From Home on {start_date}.\nReason: {reason}\n\nPlease review the request in your dashboard.\n\nBest regards,\n{get_org_name(request)} HR Admin"
             )
 
         messages.success(request, f"WFH request submitted for {start_date}. Status: {status}")
